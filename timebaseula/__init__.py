@@ -7,4 +7,6 @@ try:
 except PackageNotFoundError:
     __version__ = "unknown"
 
-__all__ = ["__version__"]
+from timebaseula.models.timebase import TimeBase
+
+__all__ = ["TimeBase", "__version__"]

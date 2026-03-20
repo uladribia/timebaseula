@@ -78,6 +78,9 @@ venv.bak/
 # mkdocs documentation
 /site
 
+# lightning logs
+lightning_logs/
+
 # mypy
 .mypy_cache/
 

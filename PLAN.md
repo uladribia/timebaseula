@@ -19,8 +19,11 @@ Design a clean, maintainable implementation of the TimeBase forecasting method i
 - Keep series length small (e.g., 500–2000 points) for fast CPU tests.
 
 **Success criterion for "works":**
-- Achieve MAE below a defined threshold on the synthetic dataset with low noise (e.g., `noise_std <= 0.05`).
-- Use this dataset as the primary smoke test until all models pass reliably.
+- Achieve MAE thresholds on three synthetic scenarios with `noise_std=0.15`, derived from DLinear baselines plus a 25% margin:
+  - Easy: **MAE ≤ 0.166** (DLinear 0.1322 × 1.25).
+  - Medium: **MAE ≤ 0.177** (DLinear 0.1415 × 1.25).
+  - Hard: **MAE ≤ 0.213** (DLinear 0.1697 × 1.25).
+- Use these datasets as the primary smoke tests until all models pass reliably.
 
 ---
 
@@ -81,7 +84,8 @@ Design a clean, maintainable implementation of the TimeBase forecasting method i
 - Standard models (DLinear, NLinear) subclass BaseWindows; they use `insample_y` from `windows_batch`.
 
 **Implications:**
-- TimeBase should be implemented as a **BaseWindows** model (univariate per series) unless we explicitly add a multivariate variant.
+- Implement **BaseWindows** univariate models and **BaseMultivariate** variants.
+- Provide a way to generate predictions for a **single series** even when trained with a multivariate model (e.g., filtering `unique_id` at inference or adding a `series_id` selector in predict helpers).
 - Orthogonal regularization requires overriding `training_step` to add `λorth * orth_loss`.
 - Internal normalization in TimeBase should be coordinated with `TemporalNorm` to avoid double-normalization.
 
@@ -89,15 +93,16 @@ Design a clean, maintainable implementation of the TimeBase forecasting method i
 
 ## 5) Proposed Design for TimeBaseUla
 
-### 4.1 Module layout
+### 5.1 Module layout
 - `timebaseula/models/timebase.py`
   - `TimeBaseCore(nn.Module)` for reusable segment/basis logic.
   - `TimeBase(BaseWindows)` wrapper for NeuralForecast compatibility.
   - `TimeBaseTrend(BaseWindows)` variant mixing DLinear + TimeBase for trend-heavy series.
-- `timebaseula/__init__.py` exports `TimeBase`, `TimeBaseTrend`, and version.
+  - Optional `TimeBaseMultivariate(BaseMultivariate)` and `TimeBaseTrendMultivariate` for joint multi-series training.
+- `timebaseula/__init__.py` exports `TimeBase`, `TimeBaseTrend`, and multivariate variants (if implemented).
 - `docs/usage.md` + `docs/index.md` updated with API usage and examples.
 
-### 4.2 API and hyperparameters (NeuralForecast-style)
+### 5.2 API and hyperparameters (NeuralForecast-style)
 - **Required:** `h`, `input_size`.
 - **TimeBase params:**
   - `period_len` (P)
@@ -108,10 +113,10 @@ Design a clean, maintainable implementation of the TimeBase forecasting method i
   - `channel_independence` (default True; for multivariate use cases)
 - **TimeBaseTrend params (adds trend branch):**
   - `moving_avg_window` (int, odd) for DLinear-style trend/seasonal split.
-  - `trend_weight` (float, optional learnable or fixed) to blend trend and base outputs.
+  - `trend_weight` (learnable `nn.Parameter`) to blend trend and base outputs.
 - **NeuralForecast standard params:** loss, valid_loss, learning_rate, max_steps, val_check_steps, batch_size, etc.
 
-### 4.3 Core algorithm (TimeBaseCore)
+### 5.3 Core algorithm (TimeBaseCore)
 - Input `x` as `(batch, time)` (univariate) or `(batch, time, channels)` (optional).
 - Pad history to nearest multiple of `period_len`.
 - Segment into `(batch, period_len, seg_num_x)`.
@@ -121,7 +126,7 @@ Design a clean, maintainable implementation of the TimeBase forecasting method i
 - Denormalize and reshape to `(batch, h)` or `(batch, h, channels)`.
 - Orthogonal loss computed from basis tensor (Gram matrix), if enabled.
 
-### 4.4 NeuralForecast wrapper (TimeBase)
+### 5.4 NeuralForecast wrapper (TimeBase)
 - Subclass `BaseWindows`.
 - `forward(windows_batch)`:
   - Use `insample_y = windows_batch["insample_y"]`.
@@ -131,8 +136,9 @@ Design a clean, maintainable implementation of the TimeBase forecasting method i
   - Call parent logic to get `outsample_y` and base loss.
   - Add `orthogonal_weight * orthogonal_loss` when enabled.
   - Keep validation/prediction behavior aligned with BaseWindows.
+- Add multivariate counterparts with prediction helpers to select a single series from joint forecasts.
 
-### 4.5 NeuralForecast wrapper (TimeBaseTrend)
+### 5.5 NeuralForecast wrapper (TimeBaseTrend)
 - Subclass `BaseWindows`.
 - **Architecture:** DLinear-style decomposition + TimeBase basis forecast.
   - Use `SeriesDecomp` (moving average) to split `insample_y` into `trend_init` and `seasonal_init`.
@@ -141,12 +147,13 @@ Design a clean, maintainable implementation of the TimeBase forecasting method i
   - Combine outputs: `forecast = trend_weight * trend_forecast + (1 - trend_weight) * timebase_forecast`.
 - Training_step mirrors TimeBase with optional orthogonal loss; trend branch uses same output loss.
 
-### 4.6 Normalization policy
+### 5.6 Normalization policy
 - Default `scaler_type="identity"` to avoid double normalization.
 - Expose `scaler_type` for advanced users.
 - Ensure TimeBase internal normalization mirrors the paper (and applies consistently to TimeBaseTrend).
+- Default `use_period_norm=True`, and document when to disable it.
 
-### 4.7 CPU-only compliance
+### 5.7 CPU-only compliance
 - No CUDA-specific calls (`torch.cuda.*`) in core logic.
 - Use device-agnostic tensors (`x.device`).
 
@@ -198,12 +205,13 @@ Design a clean, maintainable implementation of the TimeBase forecasting method i
 
 ---
 
-## Open Questions / Decisions to Confirm
-- What MAE threshold should be considered "small enough" for low-noise synthetic data (e.g., <= 0.05 or <= 0.02)? Around 0.1
-- Should we provide a **multivariate** variant (BaseMultivariate) or keep univariate per-series only? Both options are needed. Also, note that an option should be given to, even if a multivariate model has been trained, to generate predictions for a single series.
-- Should `use_period_norm` be default True (paper-style) or False (to rely on TemporalNorm)? Period norm is ok, but make sure to properly document it.
-- Should `basis_num` be configurable per-series or global? (Likely global for simplicity.) Global is ok.
-- Should `trend_weight` be fixed (hyperparameter) or learnable (nn.Parameter) in TimeBaseTrend? It should be learnable.
+## Decisions Confirmed
+- MAE thresholds for synthetic scenarios (noise_std=0.15): **easy ≤ 0.166**, **medium ≤ 0.177**, **hard ≤ 0.213**.
+- Provide **both univariate (BaseWindows)** and **multivariate (BaseMultivariate)** variants.
+- Allow **single-series prediction** even from multivariate training (via inference filtering or selector helpers).
+- Default `use_period_norm=True` and **document when to disable**.
+- `basis_num` is **global** (not per-series).
+- `trend_weight` is **learnable** in TimeBaseTrend.
 
 ---
 

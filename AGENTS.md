@@ -27,11 +27,18 @@ This repository follows a disciplined, maintainable, and CPU-first workflow. Age
    - Implement the code to make tests **pass** (green).
 2. **After each change**:
    - Run the standard quality gates: `make format`, `make lint`, `make test`.
+   - Run `uv run --frozen python scripts/check_forecast_mae.py` **only when substantive model changes** are performed, and display the MAE comparison table.
 3. **When everything passes**:
    - Update **README** and relevant documentation using the **`write-docs` skill**.
    - Ensure the README notes that changes are **agent-made** when relevant.
 4. **Commit**:
    - Use the **`commit` skill** and follow Conventional Commits.
+
+## Integrity & Evaluation Rules
+- **No cheating or shortcuts** when training or evaluating models.
+- Do not peek at future data, leak labels, or use the target horizon to initialize model states.
+- Do not seed models with ground-truth values beyond the input window.
+- All baselines and models must use the same train/validation/test splits.
 
 ## CLI Standards
 When creating or modifying CLIs, use the **`create-cli` skill** and ensure the interface follows consistent CLI UX standards (clear help text, sensible defaults, subcommands where appropriate).
@@ -42,6 +49,7 @@ When creating or modifying CLIs, use the **`create-cli` skill** and ensure the i
 - Keep README and docs accurate and concise.
 - Ensure any agent-driven change is reflected in documentation where it matters.
 - After each run, refresh affected docs with MkDocs-friendly formatting (headings, lists, code blocks) and follow the repo’s MkDocs conventions.
+- After each performed task, update `TODO.md` to reflect progress.
 
 ## Execution Logs
 - Always generate logs for script and command executions.
