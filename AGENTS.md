@@ -5,10 +5,11 @@ This repository follows a disciplined, maintainable, and CPU-first workflow. Age
 
 ## Environment & Tooling
 - **CPU-only**: all training and scripts must default to CPU execution. Do not assume GPU availability.
-- **Package management**: use **uv** for environments and dependencies (e.g., `uv venv`, `uv pip`, `uv run`).
-- **Testing**: use **pytest** for unit tests.
-- **Linting/formatting**: use **ruff** (lint + format).
-- **Type checking**: use **ty** when configured.
+- **Package management**: use **uv** for environments and dependencies (e.g., `uv venv`, `uv run`).
+- **Testing**: use **pytest** for unit tests (`make test`, `make test-unit`).
+- **Linting/formatting**: use **ruff** (lint + format) and **tombi** for TOML formatting (`make lint`, `make format`).
+- **Type checking**: use **ty** (`make lint`).
+- **Docs**: MkDocs with Material theme (`mkdocs.yml`, `docs/`).
 
 ## Coding Standards (Dribia-inspired)
 - Write **Pythonic**, maintainable code emphasizing **readability**, **composability**, and **clarity**.
@@ -25,7 +26,7 @@ This repository follows a disciplined, maintainable, and CPU-first workflow. Age
    - Run tests to confirm they **fail** (red).
    - Implement the code to make tests **pass** (green).
 2. **After each change**:
-   - Run the standard quality gate: `bash scripts/tdd_check.sh`.
+   - Run the standard quality gates: `make format`, `make lint`, `make test`.
 3. **When everything passes**:
    - Update **README** and relevant documentation using the **`write-docs` skill**.
    - Ensure the README notes that changes are **agent-made** when relevant.
@@ -34,10 +35,13 @@ This repository follows a disciplined, maintainable, and CPU-first workflow. Age
 
 ## CLI Standards
 When creating or modifying CLIs, use the **`create-cli` skill** and ensure the interface follows consistent CLI UX standards (clear help text, sensible defaults, subcommands where appropriate).
+- **CLI rendering**: all CLI output must use **Rich**.
+- **Scripts/entrypoints**: any script must be implemented with **Typer**.
 
 ## Documentation Expectations
 - Keep README and docs accurate and concise.
 - Ensure any agent-driven change is reflected in documentation where it matters.
+- After each run, refresh affected docs with MkDocs-friendly formatting (headings, lists, code blocks) and follow the repo’s MkDocs conventions.
 
 ## Execution Logs
 - Always generate logs for script and command executions.
