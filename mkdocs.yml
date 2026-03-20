@@ -1,0 +1,61 @@
+site_name: TimeBaseUla
+site_url: https://dribia.github.io/timebaseula/
+site_description: Port of TimeBase to pythonic and Dribia standards to be used with Nixtla's NeuralForecast
+strict: true
+
+repo_name: dribia/timebaseula
+repo_url: https://github.com/dribia/timebaseula
+edit_uri: ''
+
+theme:
+  name: material
+  custom_dir: docs/theme
+  language: en
+  favicon: img/dribia-favicon-120x120.png
+  logo: img/logo_dribia_d_blanc.png
+  icon:
+    repo: fontawesome/brands/github
+  font:
+    text: Roboto
+  features:
+    - search.suggest
+    - search.highlight
+    - search.share
+    - toc.follow
+    - navigation.top
+    - navigation.path
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.preview
+    - navigation.instant.progress
+
+nav:
+  - First steps: index.md
+  - Usage: usage.md
+  - Contribute: contribute.md
+extra_css:
+  - stylesheets/extra.css
+
+extra:
+  version:
+    provider: mike
+    alias: true
+    default: latest
+
+markdown_extensions:
+  - markdown.extensions.codehilite:
+      guess_lang: false
+  - toc:
+      permalink: 📎
+  - codehilite
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed
+
+
+plugins:
+  - mike:
+      alias_type: symlink
+      canonical_version: latest
+  - search

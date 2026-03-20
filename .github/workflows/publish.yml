@@ -1,0 +1,48 @@
+name: Publish
+
+on:
+  release:
+    types:
+      - published
+
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Build
+        run: uv build --no-sources
+      - name: Publish
+        run: uv publish --token ${{ secrets.POETRY_PYPI_TOKEN_PYPI }}
+
+  docs:
+    needs: [publish]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      - name: Install Dependencies
+        run: uv sync --no-default-groups --group ci --group docs
+      - name: Get minor version
+        id: get-minor
+        run: |
+          MINOR=$(uv version --dry-run --short | cut -d"." -f-2);
+          echo "minor=$MINOR" >> $GITHUB_OUTPUT
+      - name: Setup git credentials
+        run: |
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config --global user.name "github-actions[bot]"
+      - name: Build Docs
+        run: |
+          uv run mike deploy --push --update-aliases --allow-empty ${{ steps.get-minor.outputs.minor }} latest
+          uv run mike set-default --push --allow-empty latest

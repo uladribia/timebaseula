@@ -1,0 +1,63 @@
+default_install_hook_types:
+  - pre-commit
+  - post-checkout
+  - post-merge
+  - post-rewrite
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v6.0.0
+  hooks:
+  - id: check-yaml
+  - id: check-toml
+  - id: check-added-large-files
+    args:
+    - --maxkb=500
+  - id: check-merge-conflict
+    args:
+    - --assume-in-merge
+  - id: end-of-file-fixer
+  - id: trailing-whitespace
+- repo: https://github.com/astral-sh/uv-pre-commit
+  rev: 0.9.26
+  hooks:
+  - id: uv-lock
+  - id: uv-sync
+    args: ["--locked", "--all-packages"]
+- repo: https://github.com/dribia/sync-with-uv
+  rev: v0.1.3
+  hooks:
+  - id: sync-with-uv
+- repo: https://github.com/python-jsonschema/check-jsonschema
+  rev: 0.36.0
+  hooks:
+  - id: check-github-workflows
+- repo: https://github.com/mrtazz/checkmake.git
+  rev: 0.2.2
+  hooks:
+  - id: checkmake
+- repo: https://github.com/tombi-toml/tombi-pre-commit
+  rev: v0.7.22
+  hooks:
+  - id: tombi-format
+  - id: tombi-lint
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.14.13
+  hooks:
+  - id: ruff-check
+    types_or: [ python, pyi ]
+    args:
+    - --fix
+  - id: ruff-format
+    types_or: [ python, pyi ]
+- repo: local
+  hooks:
+  - id: ty
+    name: ty check
+    entry: ty check
+    language: system
+    pass_filenames: false
+    always_run: true
+- repo: https://github.com/fpgmaas/deptry.git
+  rev: 0.24.0
+  hooks:
+  - id: deptry

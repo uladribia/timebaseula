@@ -1,0 +1,30 @@
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    ignore:
+      - dependency-name: "dribia/driworkflows*"
+    groups:
+      all:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: ":arrow_up:"
+
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    allow:
+      - dependency-type: "direct"
+    groups:
+      all:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: ":arrow_up:"
+    open-pull-requests-limit: 10
+    versioning-strategy: "increase"

@@ -1,0 +1,26 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: v1.2.0
+_src_path: git@github.com:dribia/dritemplate-library.git
+library_description: Port of TimeBase to pythonic and Dribia standards to be used
+    with Nixtla's NeuralForecast
+library_email: ula@dribia.com
+library_has_cli: false
+library_type: open-source
+license:
+    authorized: "[\n    \"bsd\",\n    \"new bsd\",\n    \"bsd license\",\n    \"0BSD\"\
+        ,\n    \"Zero-Clause BSD (0BSD)\",\n    \"3-Clause BSD\",\n    \"BSD-3-Clause\"\
+        ,\n    \"BSD 3-Clause\",\n    \"BSD 3\",\n    \"BSD 2-Clause\",\n    \"BSD-2-Clause\"\
+        ,\n    \"Apache-2.0 AND BSD-2-Clause\",\n    \"Apache-2.0 AND MIT\",\n   \
+        \ \"apache 2\",\n    \"apache\",\n    \"Apache Software\",\n    \"Apache-1.0\"\
+        ,\n    \"Apache-1.1\",\n    \"Apache-2.0\",\n    \"Apache 2.0\",\n    \"Apache\
+        \ License 2.0\",\n    \"Apache License v2.0\",\n    \"Apache License, Version\
+        \ 2.0\",\n    \"MIT\",\n    \"MIT AND BSD-3-Clause\",\n    \"MIT-CMU\",\n\
+        \    \"CMU License (MIT-CMU)\",\n    \"MIT No Attribution License (MIT-0)\"\
+        ,\n    \"Python Software Foundation\",\n    \"PSF-2.0\",\n    \"ISC\",\n \
+        \   \"ISC License (ISCL)\",\n    \"historical permission notice and disclaimer\
+        \ (hpnd)\",\n    \"MPL-2.0\",\n    \"Mozilla Public License 2.0 (MPL 2.0)\"\
+        ,\n    \"Artistic\",\n    \"The Unlicense (Unlicense)\",\n]"
+    unauthorized: "[\n    \"gpl v3\",\n    \"GPL-3.0-or-later\",\n    \"AGPL-3.0-or-later\"\
+        ,\n    \"AGPL\",\n    \"MPL-1.0\",\n    \"MPL-1.1\",\n    \"LGPL\",\n    \"\
+        LGPL-3.0-or-later\",\n]"
+project_name: TimeBaseUla
