@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.table import Table
 
 from tests.utils.synthetic_series import make_synthetic_series
-from timebaseula.models.timebase import TimeBase
+from timebaseula.models.timebase import TimeBase, TimeBaseTrend
 
 app = typer.Typer(help="Compare MAE across baseline and model forecasts.")
 console = Console()
@@ -89,6 +89,15 @@ def evaluate_models(
             max_steps=200,
             learning_rate=1e-2,
         ),
+        TimeBaseTrend(
+            h=h,
+            input_size=input_size,
+            period_len=24,
+            basis_num=6,
+            moving_avg_window=25,
+            max_steps=200,
+            learning_rate=1e-2,
+        ),
     ]
     nf = NeuralForecast(models=models, freq="D")
     nf.fit(train_frame, val_size=val_size)
@@ -99,6 +108,9 @@ def evaluate_models(
         "naive": float(np.mean(np.abs(target["y_true"] - naive))),
         "dlinear": float(np.mean(np.abs(merged["y_true"] - merged["DLinear"]))),
         "timebase": float(np.mean(np.abs(merged["y_true"] - merged["TimeBase"]))),
+        "timebase_trend": float(
+            np.mean(np.abs(merged["y_true"] - merged["TimeBaseTrend"]))
+        ),
     }
 
 
@@ -145,6 +157,7 @@ def main(
     table.add_column("Naive", justify="right")
     table.add_column("DLinear", justify="right")
     table.add_column("TimeBase", justify="right")
+    table.add_column("TimeBaseTrend", justify="right")
 
     for name, params in scenarios.items():
         base_frame = make_synthetic_series(
@@ -165,6 +178,7 @@ def main(
             f"{results['naive']:.4f}",
             f"{results['dlinear']:.4f}",
             f"{results['timebase']:.4f}",
+            f"{results['timebase_trend']:.4f}",
         )
 
     console.print(table)

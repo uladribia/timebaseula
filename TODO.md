@@ -13,14 +13,13 @@
 - Implemented TimeBase core and BaseWindows model with orthogonal loss support.
 - Added TimeBase unit tests (shape, padding, orthogonal loss).
 - Wired TimeBase into package exports.
+- Added TimeBaseTrend (trend + TimeBase) with learnable trend_weight and moving average decomposition.
+- Added TimeBaseTrend tests (shape, trend_weight, moving_avg_window validation).
 
 ## Next
-- Align plan section numbering in `PLAN.md` if needed.
-- Add TimeBaseTrend (trend + TimeBase) with learnable trend_weight.
 - Add multivariate TimeBase variants and single-series inference helper.
-- Add MAE threshold tests for easy/medium/hard multivariate scenarios (using naive/DLinear/TimeBase table).
-- Review TimeBase hard-case MAE regression (1.54) and decide whether to tune config or add TimeBaseTrend.
-- Add multivariate variants and single-series inference helper.
+- Add MAE threshold tests for easy/medium/hard multivariate scenarios.
+- Review TimeBase/TimeBaseTrend hard-case MAE - note TimeBaseTrend improves hard case (0.80 vs 1.54) but still underperforms DLinear.
 - Write model tests (shape, orthogonal loss, MAE thresholds for easy/medium/hard synthetic cases).
 - Update README/docs with usage examples.
 - Run `make format`, `make lint`, `make test` and commit.
