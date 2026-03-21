@@ -20,26 +20,117 @@
 </p>
 
 ---
+
 **Documentation**: <a href="https://dribia.github.io/timebaseula" target="_blank">https://dribia.github.io/timebaseula</a>
 
 **Source Code**: <a href="https://github.com/dribia/timebaseula" target="_blank">https://github.com/dribia/timebaseula</a>
 
 ---
 
-## Key features
+## Overview
 
-* **Feature 1**: Explanation of the feature.
-* **Feature 2**: Explanation of the feature.
-* **Feature 3**: Explanation of the feature.
+**TimeBaseUla** is a Python library implementing the TimeBase forecasting method, ported to Pythonic and Dribia standards for use with [Nixtla's NeuralForecast](https://nixtla.github.io/neuralforecast/).
+
+TimeBase is a minimalistic LTSF (Long-Term Sequence Forecasting) model that leverages segment-level forecasting and basis extraction with two linear layers.
+
+## Key Features
+
+- **TimeBase**: Core model using segment-level forecasting with learned basis components
+- **TimeBaseTrend**: Enhanced model combining trend decomposition with TimeBase basis forecasting
+- **NeuralForecast Compatible**: Full integration with Nixtla's NeuralForecast API
+- **Orthogonal Regularization**: Optional basis orthogonalization for improved representation learning
+- **CPU-First Design**: Optimized for CPU execution with no GPU dependencies
+- **Multivariate Support**: Train on multiple series simultaneously with channel independence
 
 ## Installation
-**timebaseula** is available on PyPI, so you can install it with `pip`:
+
+**timebaseula** is available on PyPI:
+
 ```shell
 pip install timebaseula
 ```
 
-## Example
+Or install from source:
 
-```commandline
-timebaseula
+```shell
+git clone https://github.com/dribia/timebaseula.git
+cd timebaseula
+uv sync
 ```
+
+## Quickstart
+
+### Univariate Forecasting
+
+```python
+import pandas as pd
+from neuralforecast import NeuralForecast
+from timebaseula import TimeBase
+
+# Load your data (requires 'ds', 'y', 'unique_id' columns)
+df = pd.read_csv('your_data.csv')
+
+model = TimeBase(
+    h=24,              # Forecast horizon
+    input_size=48,     # Input window size
+    period_len=24,     # Period length
+    basis_num=6,       # Basis components
+)
+
+nf = NeuralForecast(models=[model], freq='D')
+nf.fit(df)
+predictions = nf.predict()
+```
+
+### Multivariate Forecasting
+
+```python
+from neuralforecast import NeuralForecast
+from timebaseula import TimeBase, TimeBaseTrend
+
+# Multiple series with same timestamps
+df = pd.read_csv('multivariate_data.csv')
+
+# Train multiple models
+models = [
+    TimeBase(h=24, input_size=48, period_len=24, basis_num=6),
+    TimeBaseTrend(h=24, input_size=48, period_len=24, moving_avg_window=25),
+]
+
+nf = NeuralForecast(models=models, freq='D')
+nf.fit(df)
+predictions = nf.predict()  # Predictions for all series
+```
+
+### Single Series Prediction from Multivariate Model
+
+```python
+from timebaseula import predict_single_series
+
+# After training on multivariate data
+single_series = df[df['unique_id'] == 'series_1']
+
+pred = predict_single_series(
+    model=model,
+    series=single_series,
+    h=24,
+    input_size=48,
+    freq='D'
+)
+```
+
+## Examples
+
+See [Usage Guide](usage.md) for detailed examples including:
+
+- Synthetic series generation for testing
+- MAE benchmark results
+- Model configuration options
+
+## Contributing
+
+Contributions are welcome! Please see [Contributing Guide](contribute.md) for details.
+
+## License
+
+MIT License. See [LICENSE](https://github.com/dribia/timebaseula/blob/main/LICENSE) for details.

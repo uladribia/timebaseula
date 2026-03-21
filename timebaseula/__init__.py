@@ -8,5 +8,6 @@ except PackageNotFoundError:
     __version__ = "unknown"
 
 from timebaseula.models.timebase import TimeBase, TimeBaseTrend
+from timebaseula.utils import predict_single_series
 
-__all__ = ["TimeBase", "TimeBaseTrend", "__version__"]
+__all__ = ["TimeBase", "TimeBaseTrend", "__version__", "predict_single_series"]

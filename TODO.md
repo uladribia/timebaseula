@@ -18,8 +18,6 @@
 
 ## Next
 - Add multivariate TimeBase variants and single-series inference helper.
-- Add MAE threshold tests for easy/medium/hard multivariate scenarios.
 - Review TimeBase/TimeBaseTrend hard-case MAE - note TimeBaseTrend improves hard case (0.80 vs 1.54) but still underperforms DLinear.
 - Write model tests (shape, orthogonal loss, MAE thresholds for easy/medium/hard synthetic cases).
-- Update README/docs with usage examples.
 - Run `make format`, `make lint`, `make test` and commit.
