@@ -9,10 +9,14 @@ import pandas as pd
 
 from scripts.benchmark_long_horizon import (
     aggregate_frame,
+    benchmark_configuration,
     choose_series_count,
     get_aggregated_dataset_path,
     infer_test_size,
     prepare_train_test,
+    profile_dataset,
+    recommend_timebase_kwargs,
+    recommend_training_kwargs,
     resolve_dataset_group,
     resolve_mode_defaults,
 )
@@ -76,6 +80,57 @@ class TestBenchmarkDatasetHelpers:
         assert len(train) == 16
         assert len(test) == 4
         assert test.groupby("unique_id").size().tolist() == [2, 2]
+
+    def test_profile_dataset_detects_short_monthly_regime(self) -> None:
+        """Profiler should identify short-history monthly datasets."""
+        rows = []
+        for unique_id in ("a", "b", "c"):
+            for step in range(24):
+                rows.append(
+                    {
+                        "unique_id": unique_id,
+                        "ds": pd.Timestamp("2020-01-31") + pd.offsets.MonthEnd(step),
+                        "y": float(step % 6),
+                    }
+                )
+        frame = pd.DataFrame(rows)
+
+        profile = profile_dataset(frame, freq="ME", horizon=6)
+        recommendation = recommend_timebase_kwargs(profile, freq="ME", horizon=6)
+        training = recommend_training_kwargs(profile, horizon=6, max_steps=200)
+
+        assert profile.short_history is True
+        assert profile.dominant_period in {3, 6, 12}
+        assert recommendation["basis_num"] <= 3
+        assert training["max_steps"] == 100
+        assert training["learning_rate"] == 5e-3
+
+    def test_profile_dataset_detects_long_daily_regime(self) -> None:
+        """Profiler should recommend larger budgets for long daily datasets."""
+        rows = []
+        for unique_id in ("a", "b"):
+            for step in range(200):
+                rows.append(
+                    {
+                        "unique_id": unique_id,
+                        "ds": pd.Timestamp("2024-01-01") + pd.Timedelta(days=step),
+                        "y": float(step % 7),
+                    }
+                )
+        frame = pd.DataFrame(rows)
+
+        profile = profile_dataset(frame, freq="D", horizon=28)
+        configs = benchmark_configuration(
+            "D", horizon=28, max_steps=50, profile=profile
+        )
+
+        assert profile.long_history is True
+        assert profile.dominant_period in {7, 14, 28}
+        dlinear_kwargs = configs[0][2]
+        timebase_kwargs = configs[2][2]
+        assert dlinear_kwargs["max_steps"] >= 150
+        assert timebase_kwargs["period_len"] in {7, 14, 28}
+        assert timebase_kwargs["basis_num"] >= 6
 
     def test_aggregate_frame_daily(self) -> None:
         """Daily aggregation should preserve unique_id and mean by day."""
