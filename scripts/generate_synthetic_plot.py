@@ -14,6 +14,8 @@ import typer
 from neuralforecast import NeuralForecast
 from neuralforecast.models import DLinear
 from rich.console import Console
+from statsforecast import StatsForecast
+from statsforecast.models import AutoMFLES
 
 from tests.utils.synthetic_series import make_synthetic_series
 from timebaseula.models.timebase import TimeBase, TimeBaseTrend
@@ -89,6 +91,10 @@ def main(
         True,
         help="Overlay a TimeBaseTrend reference forecast.",
     ),
+    include_mfles: bool = typer.Option(
+        True,
+        help="Overlay an AutoMFLES reference forecast.",
+    ),
 ) -> None:
     """Generate and save a synthetic series plot."""
     logger = configure_logging()
@@ -112,6 +118,7 @@ def main(
     output.parent.mkdir(parents=True, exist_ok=True)
 
     forecast_frame = None
+    mfles_forecast = None
     if (
         include_reference or include_timebase or include_timebase_trend
     ) and length > forecast_horizon:
@@ -153,6 +160,16 @@ def main(
         train_frame = frame.iloc[:-forecast_horizon]
         nf.fit(train_frame, val_size=forecast_horizon)
         forecast_frame = nf.predict()
+
+    # MFLES forecast using statsforecast
+    if include_mfles and length > forecast_horizon:
+        train_frame = frame.iloc[:-forecast_horizon].copy()
+        mfles_model = AutoMFLES(test_size=forecast_horizon, season_length=season_period)
+        sf = StatsForecast(models=[mfles_model], freq="D", verbose=False)
+        sf.fit(train_frame)
+        mfles_pred = sf.predict(h=forecast_horizon)
+        mfles_forecast = mfles_pred.reset_index(drop=True)
+        mfles_forecast["ds"] = frame.tail(forecast_horizon)["ds"].values
 
     plt.figure(figsize=(10, 4))
     plt.plot(frame["ds"], frame["y"], label="synthetic_series")
@@ -219,6 +236,17 @@ def main(
                 label=f"tbt (MAE {timebase_trend_mae:.3f}, {timebase_trend_params}p)",
                 linestyle="-.",
             )
+    if mfles_forecast is not None and "AutoMFLES" in mfles_forecast.columns:
+        target = frame.tail(forecast_horizon).set_index("ds")
+        mfles_pred = mfles_forecast.set_index("ds")["AutoMFLES"]
+        mfles_mae = float(np.mean(np.abs(target["y"] - mfles_pred.loc[target.index])))
+        plt.plot(
+            mfles_forecast["ds"],
+            mfles_forecast["AutoMFLES"],
+            label=f"mfles (MAE {mfles_mae:.3f})",
+            linestyle="--",
+            color="purple",
+        )
     plt.title(title)
     plt.xlabel("date")
     plt.ylabel("value")

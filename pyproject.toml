@@ -5,14 +5,16 @@ description = "Port of TimeBase to pythonic and Dribia standards to be used with
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
 license = "MIT"
-authors = [{ name = "Dribia Data Research", email = "ula@dribia.com" }]
-maintainers = [{ name = "Dribia Data Research", email = "ula@dribia.com" }]
+authors = [{ name = "Oleguer Sagarra", email = "ula@dribia.com" }]
+maintainers = [{ name = "Oleguer Sagarra", email = "ula@dribia.com" }]
 dependencies = [
 	"matplotlib>=3.9.0,<4",
 	"neuralforecast>=1.7.4,<2",
 	"numpy>=2.2.0,<3",
 	"pandas>=2.2.0,<3",
 	"rich>=14.1.0,<15",
+	"scikit-learn>=1.5.0,<2",
+	"statsforecast>=1.7.0,<2",
 	"torch>=2.0.0,<3",
 	"typer>=0.12.4,<0.22",
 ]
@@ -53,6 +55,7 @@ build-backend = "hatchling.build"
 indent-style = "tab"
 
 [tool.deptry.per_rule_ignores]
+"DEP002" = []
 "DEP004" = ["scripts/*.py", "scripts/**/*.py"]
 
 [tool.ruff]

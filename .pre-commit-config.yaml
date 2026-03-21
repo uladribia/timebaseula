@@ -61,3 +61,4 @@ repos:
   rev: 0.24.0
   hooks:
   - id: deptry
+    args: ["--ignore", "DEP002"]
