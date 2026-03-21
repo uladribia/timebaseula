@@ -57,33 +57,59 @@ The benchmark script:
 - stores only the daily and monthly parquet aggregates under `datasets/`
 - reuses those cached aggregates on later runs
 - runs all requested models on CPU
+- supports `--mode daily` and `--mode monthly` with tuned defaults
+
+### Recommended modes
+
+| Mode | Frequency | Default horizon | Default max steps |
+|---|---|---:|---:|
+| `daily` | daily aggregate | 14 | 50 |
+| `monthly` | monthly aggregate | 5 | 30 |
+| `all` | both daily and monthly | 5 | 30 |
 
 ### Quick smoke test
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py main \
+  --mode daily \
   --n-series 5 \
   --horizon 7 \
-  --test-size 7 \
   --max-steps 10 \
   --skip-arima \
   --output logs/benchmark_results_smoke.csv
 ```
 
-### Overnight run
+### Recommended longer-horizon benchmark runs
 
-Fast overnight run without ARIMA:
+Daily longer-horizon run without ARIMA:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py main \
+  --mode daily \
+  --n-series 300 \
+  --horizon 28 \
+  --max-steps 200 \
   --skip-arima \
-  --output logs/benchmark_results_full.csv
+  --output logs/benchmark_results_300_daily_h28_no_arima.csv
 ```
 
-Full overnight run including ARIMA:
+Monthly longer-horizon run without ARIMA:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py main \
+  --mode monthly \
+  --n-series 300 \
+  --horizon 8 \
+  --max-steps 100 \
+  --skip-arima \
+  --output logs/benchmark_results_300_monthly_h8_no_arima.csv
+```
+
+Full run including both frequencies and ARIMA:
+
+```bash
+uv run --frozen python scripts/benchmark_long_horizon.py main \
+  --mode all \
   --output logs/benchmark_results_full_with_arima.csv
 ```
 
@@ -119,23 +145,28 @@ Optional:
 - total training time
 - total inference time
 
-### Smoke-test result observed on this machine
+### Recent benchmark observations on this machine
 
-Using `--n-series 5 --horizon 7 --test-size 7 --max-steps 10`, the benchmark completed successfully and produced a full table for:
+For more realistic CPU runs, we used broader slices, longer horizons, and larger neural training budgets:
 
-- `ECL` daily
-- `ECL` monthly
-- `TrafficL` daily
-- `TrafficL` monthly
+- daily: `--n-series 300 --horizon 28 --max-steps 200 --skip-arima`
+- monthly: `--n-series 300 --horizon 8 --max-steps 100 --skip-arima`
 
-High-level takeaways from that smoke run:
+High-level takeaways from those runs:
 
 | Slice | Best MAE |
 |---|---|
-| ECL daily | `SeasonalNaive` |
-| ECL monthly | `AutoARIMA` |
-| TrafficL daily | `AutoMFLES` |
-| TrafficL monthly | `SeasonalNaive` |
+| ECL daily | `DLinear` |
+| TrafficL daily | `TimeBaseTrend` |
+| ECL monthly | `AutoMFLES` |
+| TrafficL monthly | `AutoMFLES` |
+
+Interpretation:
+
+- On **daily** data, the larger training budget reduces underfitting and keeps the neural models clearly ahead of `SeasonalNaive`.
+- On **TrafficL daily**, `TimeBaseTrend` becomes the strongest model in the benchmark.
+- On **monthly** data, short train lengths remain the main limitation, so extra training steps do not make `TimeBase` or `TimeBaseTrend` competitive.
+- `AutoMFLES` remains much slower than the neural models, but it performs well on the longer-horizon monthly setting.
 
 ARIMA speed check on this machine for `ECL` daily with `5` series:
 
@@ -152,7 +183,7 @@ The benchmark script can optionally save results to CSV with `--output`.
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py report \
-  --input-csv logs/benchmark_results_smoke.csv \
+  --input-csv logs/benchmark_results_300_longer_horizons_no_arima.csv \
   --output-md docs/benchmark.md
 ```
 

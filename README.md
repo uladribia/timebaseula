@@ -180,13 +180,18 @@ Long-horizon benchmarks use cached aggregates stored only under `datasets/`:
 - `datasets/trafficl_daily.parquet`
 - `datasets/trafficl_monthly.parquet`
 
+The benchmark CLI supports tuned modes:
+
+- `--mode daily` → daily aggregate defaults (`horizon=14`, `max_steps=50`)
+- `--mode monthly` → monthly aggregate defaults (`horizon=5`, `max_steps=30`)
+
 Quick smoke test on CPU:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py main \
+  --mode daily \
   --n-series 5 \
   --horizon 7 \
-  --test-size 7 \
   --max-steps 10 \
   --skip-arima \
   --output logs/benchmark_results_smoke.csv
@@ -196,14 +201,16 @@ Fast overnight run without ARIMA:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py main \
+  --mode daily \
   --skip-arima \
   --output logs/benchmark_results_full.csv
 ```
 
-Full overnight run including ARIMA:
+Full overnight run including both frequencies and ARIMA:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py main \
+  --mode all \
   --output logs/benchmark_results_full_with_arima.csv
 ```
 

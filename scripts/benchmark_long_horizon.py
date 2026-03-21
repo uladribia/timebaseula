@@ -45,6 +45,7 @@ DATASETS_DIR = Path("datasets")
 LOG_PATH = Path("logs") / "benchmark.log"
 DEFAULT_MIN_SERIES = 200
 DEFAULT_MAX_SERIES = 300
+MODE_TO_FREQUENCY = {"daily": "D", "monthly": "ME", "all": "all"}
 
 FREQ_DISPLAY_TO_PANDAS = {"D": "D", "M": "ME", "ME": "ME"}
 DATASET_ALIASES = {
@@ -84,6 +85,25 @@ def configure_logging() -> logging.Logger:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     return logger
+
+
+def resolve_mode(mode: str) -> str:
+    """Validate and normalize the benchmark mode."""
+    normalized_mode = mode.lower()
+    if normalized_mode not in MODE_TO_FREQUENCY:
+        msg = f"Unsupported mode: {mode}"
+        raise ValueError(msg)
+    return normalized_mode
+
+
+def resolve_mode_defaults(mode: str) -> dict[str, int | str]:
+    """Return recommended defaults for daily or monthly benchmark runs."""
+    normalized_mode = resolve_mode(mode)
+    if normalized_mode == "daily":
+        return {"freq": "D", "horizon": 14, "max_steps": 50}
+    if normalized_mode == "monthly":
+        return {"freq": "ME", "horizon": 5, "max_steps": 30}
+    return {"freq": "all", "horizon": 5, "max_steps": 30}
 
 
 def resolve_dataset_group(dataset: str) -> str:
@@ -190,16 +210,26 @@ def select_series_subset(frame: pd.DataFrame, n_series: int | None) -> pd.DataFr
     return frame[frame["unique_id"].isin(selected_ids)].reset_index(drop=True)
 
 
+def infer_test_size(
+    series_length: int, horizon: int, test_fraction: float = 0.2
+) -> int:
+    """Infer an approximate 20% holdout size, keeping it valid for the horizon."""
+    inferred = max(horizon, round(series_length * test_fraction))
+    return min(inferred, series_length - 1)
+
+
 def prepare_train_test(
     frame: pd.DataFrame,
-    test_size: int,
+    horizon: int,
+    test_fraction: float = 0.2,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Create per-series train/test splits using the tail as the test window."""
+    """Create per-series train/test splits using an approximate 20% tail holdout."""
     train_frames: list[pd.DataFrame] = []
     test_frames: list[pd.DataFrame] = []
 
     for unique_id in frame["unique_id"].drop_duplicates():
         series = frame[frame["unique_id"] == unique_id].sort_values("ds")
+        test_size = infer_test_size(len(series), horizon, test_fraction=test_fraction)
         if len(series) <= test_size:
             continue
         train_frames.append(series.iloc[:-test_size])
@@ -370,11 +400,14 @@ def run_statsforecast_benchmark(
 
 
 def benchmark_configuration(
-    freq: str, horizon: int, max_steps: int
+    freq: str,
+    horizon: int,
+    max_steps: int,
+    train_length: int,
 ) -> list[tuple[str, str, dict[str, Any]]]:
     """Return the list of neural model configurations for a frequency."""
-    input_size = max(horizon * 2, 16)
-    input_size = min(input_size, 96)
+    max_input_size = max(4, train_length - horizon)
+    input_size = min(max(horizon * 2, 16), 96, max_input_size)
     period_len = infer_period_len(freq, input_size)
     moving_avg_window = min(
         max(5, 2 * period_len + 1),
@@ -431,17 +464,21 @@ def run_benchmark_for_dataset(
     dataset: str,
     freq: str,
     horizon: int,
-    test_size: int,
     n_series: int | None,
     max_steps: int,
     skip_arima: bool,
+    test_fraction: float = 0.2,
 ) -> list[BenchmarkResult]:
     """Run all requested benchmark models for one dataset/frequency pair."""
     logger = configure_logging()
     normalized_freq = normalize_frequency(freq)
     frame = load_or_create_aggregated_dataset(dataset, normalized_freq)
     frame = select_series_subset(frame, n_series)
-    train, test = prepare_train_test(frame, test_size=test_size)
+    train, test = prepare_train_test(
+        frame,
+        horizon=horizon,
+        test_fraction=test_fraction,
+    )
 
     logger.info(
         "Prepared benchmark split",
@@ -450,10 +487,18 @@ def run_benchmark_for_dataset(
             "frequency": normalized_freq,
             "train_rows": len(train),
             "test_rows": len(test),
+            "min_train_length": int(train.groupby("unique_id").size().min()),
+            "min_test_length": int(test.groupby("unique_id").size().min()),
         },
     )
 
-    configs = benchmark_configuration(normalized_freq, horizon, max_steps)
+    train_length = int(train.groupby("unique_id").size().min())
+    configs = benchmark_configuration(
+        normalized_freq,
+        horizon,
+        max_steps,
+        train_length=train_length,
+    )
     results = [
         run_naive_benchmark(train, test, normalized_freq, dataset, horizon),
         run_neural_benchmark(
@@ -700,9 +745,9 @@ def report(
 @app.command()
 def main(
     dataset: str = typer.Option("all", help="Dataset: ECL, TrafficL, or all."),
-    freq: str = typer.Option("all", help="Frequency: D, M, or all."),
-    horizon: int = typer.Option(14, help="Forecast horizon."),
-    test_size: int = typer.Option(14, help="Test size per series."),
+    mode: str = typer.Option("daily", help="Benchmark mode: daily, monthly, or all."),
+    freq: str | None = typer.Option(None, help="Optional frequency override: D or M."),
+    horizon: int | None = typer.Option(None, help="Forecast horizon override."),
     n_series: int | None = typer.Option(
         None,
         help=(
@@ -710,7 +755,9 @@ def main(
             "aiming for at least 200 when possible."
         ),
     ),
-    max_steps: int = typer.Option(30, help="Max training steps for neural models."),
+    max_steps: int | None = typer.Option(
+        None, help="Max training steps override for neural models."
+    ),
     output: Path | None = typer.Option(None, help="Optional CSV output path."),
     json_output: bool = typer.Option(
         False, "--json", help="Emit JSON instead of only a Rich table."
@@ -725,11 +772,19 @@ def main(
 ) -> None:
     """Run the benchmark on aggregated ECL and Traffic daily/monthly datasets."""
     logger = configure_logging()
+    defaults = resolve_mode_defaults(mode)
 
     datasets = (
         ["ECL", "TrafficL"] if dataset == "all" else [resolve_dataset_group(dataset)]
     )
-    frequencies = ["D", "ME"] if freq.lower() == "all" else [normalize_frequency(freq)]
+    resolved_freq = defaults["freq"] if freq is None else freq
+    resolved_horizon = int(defaults["horizon"] if horizon is None else horizon)
+    resolved_max_steps = int(defaults["max_steps"] if max_steps is None else max_steps)
+    frequencies = (
+        ["D", "ME"]
+        if str(resolved_freq).lower() == "all"
+        else [normalize_frequency(str(resolved_freq))]
+    )
 
     ensure_aggregated_datasets(force_download=force_download)
 
@@ -766,10 +821,9 @@ def main(
                 run_benchmark_for_dataset(
                     dataset=current_dataset,
                     freq=current_freq,
-                    horizon=horizon,
-                    test_size=test_size,
+                    horizon=resolved_horizon,
                     n_series=n_series,
-                    max_steps=max_steps,
+                    max_steps=resolved_max_steps,
                     skip_arima=skip_arima,
                 )
             )

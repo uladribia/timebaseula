@@ -11,7 +11,10 @@ from scripts.benchmark_long_horizon import (
     aggregate_frame,
     choose_series_count,
     get_aggregated_dataset_path,
+    infer_test_size,
+    prepare_train_test,
     resolve_dataset_group,
+    resolve_mode_defaults,
 )
 
 
@@ -32,12 +35,47 @@ class TestBenchmarkDatasetHelpers:
         monthly = get_aggregated_dataset_path(Path("datasets"), "TrafficL", "ME")
         assert monthly == Path("datasets/trafficl_monthly.parquet")
 
+    def test_resolve_mode_defaults(self) -> None:
+        """Mode defaults should provide sensible daily and monthly settings."""
+        assert resolve_mode_defaults("daily") == {
+            "freq": "D",
+            "horizon": 14,
+            "max_steps": 50,
+        }
+        assert resolve_mode_defaults("monthly") == {
+            "freq": "ME",
+            "horizon": 5,
+            "max_steps": 30,
+        }
+
     def test_choose_series_count_prefers_broad_slice(self) -> None:
         """Automatic selection should prefer 200-300 series when available."""
         assert choose_series_count(350, None) == 300
         assert choose_series_count(240, None) == 240
         assert choose_series_count(120, None) == 120
         assert choose_series_count(350, 220) == 220
+
+    def test_infer_test_size_uses_approximate_20_percent(self) -> None:
+        """Holdout size should be about 20% while respecting the horizon."""
+        assert infer_test_size(100, horizon=5) == 20
+        assert infer_test_size(25, horizon=5) == 5
+        assert infer_test_size(37, horizon=5) == 7
+
+    def test_prepare_train_test_uses_fractional_tail(self) -> None:
+        """Train/test split should use the approximate 20% tail per series."""
+        frame = pd.DataFrame(
+            {
+                "unique_id": ["a"] * 10 + ["b"] * 10,
+                "ds": pd.date_range("2024-01-01", periods=10, freq="D").tolist() * 2,
+                "y": list(range(10)) + list(range(10)),
+            }
+        )
+
+        train, test = prepare_train_test(frame, horizon=2)
+
+        assert len(train) == 16
+        assert len(test) == 4
+        assert test.groupby("unique_id").size().tolist() == [2, 2]
 
     def test_aggregate_frame_daily(self) -> None:
         """Daily aggregation should preserve unique_id and mean by day."""
