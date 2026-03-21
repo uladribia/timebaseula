@@ -30,9 +30,15 @@ theme:
     - navigation.instant.progress
 
 nav:
-  - First steps: index.md
+  - Overview: index.md
+  - Install: install.md
   - Usage: usage.md
+  - Models: models.md
+  - Scripts: scripts.md
+  - Benchmark report: benchmark.md
+  - References: references.md
   - Contribute: contribute.md
+
 extra_css:
   - stylesheets/extra.css
 
@@ -52,7 +58,6 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.superfences
   - pymdownx.tabbed
-
 
 plugins:
   - mike:

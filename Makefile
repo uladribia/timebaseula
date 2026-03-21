@@ -1,4 +1,4 @@
-.PHONY: all clean check test lint format
+.PHONY: all clean check test lint format docs docs-serve
 
 COMMIT_VERSION ?= $(shell bash -c 'read -p "Semantic bump (\"major\", \"minor\" or \"patch\") or new version (eg. \"0.1.3\"): " bmp; echo $${bmp}')
 
@@ -40,6 +40,12 @@ test-unit:
 
 test-integration:
 	uv run --frozen pytest -m "integration"
+
+docs:
+	uv run --frozen mkdocs build --strict
+
+docs-serve:
+	uv run --frozen mkdocs serve
 
 bump-version:
 	@make -- --check-git-status

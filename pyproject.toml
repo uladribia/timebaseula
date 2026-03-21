@@ -8,8 +8,10 @@ license = "MIT"
 authors = [{ name = "Oleguer Sagarra", email = "ula@dribia.com" }]
 maintainers = [{ name = "Oleguer Sagarra", email = "ula@dribia.com" }]
 dependencies = [
+	"datasetsforecast>=1.0.0,<2",
 	"matplotlib>=3.9.0,<4",
 	"neuralforecast>=1.7.4,<2",
+	"nixtla>=0.7.0,<1",
 	"numpy>=2.2.0,<3",
 	"pandas>=2.2.0,<3",
 	"rich>=14.1.0,<15",

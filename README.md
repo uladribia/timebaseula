@@ -1,205 +1,236 @@
+---
+description: TimeBaseUla README with installation, quickstart, model notes, scripts, and paper references.
+---
+
 # TimeBaseUla
 
+> Lightweight long-horizon forecasting models for NeuralForecast, built around the TimeBase paper and adapted to a CPU-first Python workflow.
+
+**TL;DR**
+- Install with `uv sync` for development or `pip install timebaseula` for usage.
+- Main exports: `TimeBase`, `TimeBaseTrend`, `predict_single_series`.
+- Works with [Nixtla NeuralForecast](https://nixtlaverse.nixtla.io/neuralforecast/).
+- Includes benchmark and evaluation scripts for synthetic and long-horizon datasets.
+- Documentation site: <https://dribia.github.io/timebaseula>
+
 <p align="center">
-    <a href="https://dribia.github.io/timebaseula">
-    <picture style="display: block; margin-left: auto; margin-right: auto; width: 40%;">
-            <source
-                media="(prefers-color-scheme: dark)"
-                srcset="docs/img/logo_dribia_blanc_cropped.png"
-            >
-            <source
-                media="(prefers-color-scheme: light)"
-                srcset="docs/img/logo_dribia_blau_cropped.png"
-            >
-            <img
-                alt="timebaseula"
-                src="docs/img/logo_dribia_blau_cropped.png"
-            >
-        </picture>
-    </a>
+  <img src="docs/img/logo_dribia_blau_cropped.png" alt="TimeBaseUla logo" width="320">
 </p>
 
-|         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| CI/CD   | [![Tests](https://github.com/dribia/timebaseula/actions/workflows/test.yml/badge.svg)](https://github.com/dribia/timebaseula/actions/workflows/test.yml) [![Coverage Status](https://img.shields.io/codecov/c/github/dribia/timebaseula)](https://codecov.io/gh/dribia/timebaseula) [![Tests](https://github.com/dribia/timebaseula/actions/workflows/lint.yml/badge.svg)](https://github.com/dribia/timebaseula/actions/workflows/lint.yml) [![types - Mypy](https://img.shields.io/badge/types-Mypy-blue.svg)](https://github.com/python/mypy) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) |
-| Package | [![PyPI](https://img.shields.io/pypi/v/timebaseula)](https://pypi.org/project/timebaseula/) ![PyPI - Downloads](https://img.shields.io/pypi/dm/timebaseula?color=blue&logo=pypi&logoColor=gold) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/timebaseula?logo=python&logoColor=gold) [![GitHub](https://img.shields.io/github/license/dribia/timebaseula?color=blue)](LICENSE)                                                                                                                                                                                                                                                                                                         |
+## What this library is
 
----
+TimeBaseUla is a small forecasting library that implements a **NeuralForecast-compatible** version of the **TimeBase** architecture:
 
-**Documentation**: <a href="https://dribia.github.io/timebaseula" target="_blank">https://dribia.github.io/timebaseula</a>
+- **TimeBase**: segment the input history into periods, learn a compact basis, forecast future segments, flatten back to the target horizon.
+- **TimeBaseTrend**: decompose the series into trend + seasonal parts, forecast the seasonal component with TimeBase, and project the trend with a linear head.
 
-**Source Code**: <a href="https://github.com/dribia/timebaseula" target="_blank">https://github.com/dribia/timebaseula</a>
-
----
-
-## Overview
-
-**TimeBaseUla** is a Python library implementing the TimeBase forecasting method, ported to Pythonic and Dribia standards for use with [Nixtla's NeuralForecast](https://nixtla.github.io/neuralforecast/).
-
-TimeBase is a minimalistic LTSF (Long-Term Sequence Forecasting) model that leverages segment-level forecasting and basis extraction with two linear layers. It's designed to be ultra-lightweight while maintaining competitive accuracy.
-
-## Key Features
-
-- **TimeBase**: Core model using segment-level forecasting with learned basis components
-- **TimeBaseTrend**: Enhanced model combining trend decomposition with TimeBase basis forecasting
-- **NeuralForecast Compatible**: Full integration with Nixtla's NeuralForecast API
-- **Orthogonal Regularization**: Optional basis orthogonalization for improved representation learning
-- **CPU-First Design**: Optimized for CPU execution with no GPU dependencies
-- **Multivariate Support**: Train on multiple series simultaneously with channel independence
+The implementation is intentionally simple, readable, and CPU-friendly.
 
 ## Installation
 
-### From PyPI (recommended)
+### From PyPI
 
-```shell
+```bash
 pip install timebaseula
 ```
 
-### From source with uv
+### From source
 
-```shell
-# Clone the repository
+```bash
 git clone https://github.com/dribia/timebaseula.git
 cd timebaseula
-
-# Install with uv
 uv sync
 ```
 
 ## Quickstart
-
-### Training a Univariate Model
-
-Train TimeBase on a single time series:
 
 ```python
 import pandas as pd
 from neuralforecast import NeuralForecast
 from timebaseula import TimeBase
 
-# Load your univariate data
-df = pd.read_csv('your_data.csv')  # Must have 'ds', 'y', 'unique_id' columns
+frame = pd.DataFrame(
+    {
+        "unique_id": "series_1",
+        "ds": pd.date_range("2024-01-01", periods=200, freq="D"),
+        "y": range(200),
+    }
+)
 
-# Create and train model
 model = TimeBase(
-    h=24,              # Forecast horizon
-    input_size=48,     # Input window size
-    period_len=24,     # Period length for segmentation
-    basis_num=6,       # Number of basis components
-    max_steps=500,
+    h=24,
+    input_size=48,
+    period_len=24,
+    basis_num=6,
+    max_steps=100,
     learning_rate=1e-3,
 )
 
-nf = NeuralForecast(models=[model], freq='D')
-nf.fit(df)
-
-# Predict
-predictions = nf.predict()
+nf = NeuralForecast(models=[model], freq="D")
+nf.fit(frame, val_size=24)
+forecast = nf.predict()
+print(forecast.head())
 ```
 
-### Training a Multivariate Model
+## Main API
 
-Train on multiple aligned series simultaneously:
+| Object | Purpose |
+|---|---|
+| `TimeBase` | Basis-based segment forecaster |
+| `TimeBaseTrend` | TimeBase with moving-average trend decomposition |
+| `predict_single_series` | Helper for single-series inference after multi-series training |
 
-```python
-import pandas as pd
-from neuralforecast import NeuralForecast
-from timebaseula import TimeBase, TimeBaseTrend
+## Model intuition
 
-# Load multivariate data (multiple series with same timestamps)
-df = pd.read_csv('multivariate_data.csv')
-# Columns: 'ds', 'unique_id', 'y'
-# Multiple 'unique_id' values for different series
-
-# TimeBase for multivariate forecasting
-model = TimeBase(
-    h=24,
-    input_size=48,
-    period_len=24,
-    basis_num=6,
-)
-
-# Or use TimeBaseTrend for series with strong trend components
-trend_model = TimeBaseTrend(
-    h=24,
-    input_size=48,
-    period_len=24,
-    basis_num=6,
-    moving_avg_window=25,  # For trend extraction
-)
-
-nf = NeuralForecast(models=[model, trend_model], freq='D')
-nf.fit(df)
-
-# Predict all series
-predictions = nf.predict()
+```mermaid
+flowchart LR
+    A[Input window] --> B[Segment by period_len]
+    B --> C[Normalize by period or series mean]
+    C --> D[Linear layer: history segments → basis]
+    D --> E[Linear layer: basis → future segments]
+    E --> F[Flatten to horizon h]
 ```
 
-### Predicting a Single Series from Multivariate Model
+For `TimeBaseTrend`:
 
-After training on multivariate data, predict for a specific series:
-
-```python
-from timebaseula import predict_single_series
-
-# After training (see above)
-# Extract predictions for a specific series
-single_series_df = df[df['unique_id'] == 'series_1'].copy()
-
-pred = predict_single_series(
-    model=model,           # Trained model
-    series=single_series_df,
-    h=24,
-    input_size=48,
-    freq='D'
-)
+```mermaid
+flowchart LR
+    A[Input window] --> B[Moving-average decomposition]
+    B --> C[Seasonal branch]
+    B --> D[Trend branch]
+    C --> E[TimeBaseCore]
+    D --> F[Linear trend head]
+    E --> G[Add forecasts]
+    F --> G
+    G --> H[Final horizon forecast]
 ```
 
-## API Reference
+## Key hyperparameters
 
-### TimeBase
+| Parameter | Meaning | Typical value |
+|---|---|---|
+| `h` | Forecast horizon | `24` |
+| `input_size` | Historical context window | `48` or more |
+| `period_len` | Segment length / natural period | `24` for daily hourly-style seasonality |
+| `basis_num` | Basis rank | `6` |
+| `use_period_norm` | Normalize each period separately | `True` |
+| `use_orthogonal` | Add orthogonal basis regularization | `False` |
+| `orthogonal_weight` | Strength of orthogonal penalty | `0.0+` |
+| `moving_avg_window` | Trend smoother for `TimeBaseTrend` | odd, e.g. `25` |
 
-```python
-TimeBase(
-    h: int,                    # Forecast horizon
-    input_size: int,           # Input window size
-    period_len: int = 24,      # Segment period length
-    basis_num: int = 6,        # Number of basis components
-    use_period_norm: bool = True,    # Normalize per period
-    use_orthogonal: bool = False,    # Enable orthogonal regularization
-    orthogonal_weight: float = 0.0,  # Orthogonal loss weight
-    # ... NeuralForecast standard params
-)
+## Repository contents
+
+| Path | What it contains |
+|---|---|
+| `timebaseula/models/timebase.py` | Core model implementation |
+| `timebaseula/utils.py` | Inference helper |
+| `scripts/benchmark_long_horizon.py` | Benchmarks on ECL / TrafficL daily and monthly aggregates |
+| `scripts/check_forecast_mae.py` | Synthetic MAE comparison table |
+| `scripts/eval_dlinear_mae.py` | DLinear synthetic baseline |
+| `scripts/generate_synthetic_plot.py` | Plot generation for docs |
+| `tests/` | Unit and integration tests |
+| `docs/` | MkDocs documentation |
+
+## Development workflow
+
+```bash
+make format
+make lint
+make test
 ```
 
-### TimeBaseTrend
+Integration tests are available with:
 
-```python
-TimeBaseTrend(
-    h: int,
-    input_size: int,
-    period_len: int = 24,
-    basis_num: int = 6,
-    moving_avg_window: int = 25,  # Must be odd
-    use_period_norm: bool = True,
-    use_orthogonal: bool = False,
-    orthogonal_weight: float = 0.0,
-    # ... NeuralForecast standard params
-)
+```bash
+make test-integration
 ```
 
-### predict_single_series
+## Generate HTML documentation
 
-```python
-predict_single_series(
-    model: TimeBase | TimeBaseTrend,
-    series: pd.DataFrame,
-    h: int,
-    input_size: int,
-    freq: str = "D",
-) -> pd.DataFrame
+Build the static docs site:
+
+```bash
+make docs
 ```
+
+This writes the generated HTML to:
+
+```text
+site/
+```
+
+Serve the docs locally with live reload:
+
+```bash
+make docs-serve
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8000
+```
+
+## Benchmarking notes
+
+Long-horizon benchmarks use cached aggregates stored only under `datasets/`:
+
+- `datasets/ecl_daily.parquet`
+- `datasets/ecl_monthly.parquet`
+- `datasets/trafficl_daily.parquet`
+- `datasets/trafficl_monthly.parquet`
+
+Quick smoke test on CPU:
+
+```bash
+uv run --frozen python scripts/benchmark_long_horizon.py main \
+  --n-series 5 \
+  --horizon 7 \
+  --test-size 7 \
+  --max-steps 10 \
+  --skip-arima \
+  --output logs/benchmark_results_smoke.csv
+```
+
+Fast overnight run without ARIMA:
+
+```bash
+uv run --frozen python scripts/benchmark_long_horizon.py main \
+  --skip-arima \
+  --output logs/benchmark_results_full.csv
+```
+
+Full overnight run including ARIMA:
+
+```bash
+uv run --frozen python scripts/benchmark_long_horizon.py main \
+  --output logs/benchmark_results_full_with_arima.csv
+```
+
+By default, the benchmark tries to use a broad slice of the data: all available series up to `300`, and at least `200` when that many are present.
+
+On this machine, an `ECL` daily smoke run with `5` series took about `10.7s` with `--skip-arima` and about `49.5s` with ARIMA enabled, so the new skip flag is useful for iterative work.
+
+After producing a CSV, generate a markdown benchmark report with:
+
+```bash
+uv run --frozen python scripts/benchmark_long_horizon.py report \
+  --input-csv logs/benchmark_results_smoke.csv \
+  --output-md docs/benchmark.md
+```
+
+## Documentation notes
+
+The documentation in this repository was refreshed by an AI coding agent after inspecting the codebase, scripts, tests, and existing docs.
+
+## Paper reference
+
+This project is based on the TimeBase paper included in the repository:
+
+- Huang et al., **TimeBase** — see `docs/huang25az.pdf`
+
+See the documentation site for a short paper summary, architecture notes, and references.
 
 ## License
 
-timebaseula is distributed under the terms of the [MIT](https://opensource.org/license/mit) license.
+MIT. See [LICENSE](LICENSE).

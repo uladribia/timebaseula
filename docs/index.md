@@ -1,136 +1,90 @@
+---
+description: Home page for TimeBaseUla with overview, architecture, and links to the practical guides.
+---
+
 # TimeBaseUla
 
-<p style="text-align: center; padding-bottom: 1rem;">
-    <a href="/timebaseula">
-        <img
-            src="../img/logo_dribia_blau_cropped.png"
-            alt="Dribia"
-            style="display: block; margin-left: auto; margin-right: auto; width: 40%;"
-        >
-    </a>
+**TL;DR**
+- `timebaseula` provides `TimeBase` and `TimeBaseTrend` for long-horizon forecasting.
+- The models plug into **NeuralForecast**.
+- This repo also includes evaluation scripts, synthetic data utilities, and tests.
+- Start with [installation](install.md), then read [usage](usage.md) and [models](models.md).
+
+<p align="center">
+  <img src="img/logo_dribia_blau_cropped.png" alt="TimeBaseUla logo" width="320">
 </p>
 
-|         |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-|---------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| CI/CD   | [![Tests](https://github.com/dribia/timebaseula/actions/workflows/test.yml/badge.svg)](https://github.com/dribia/timebaseula/actions/workflows/test.yml) [![Coverage Status](https://img.shields.io/codecov/c/github/dribia/timebaseula)](https://codecov.io/gh/dribia/timebaseula) [![Tests](https://github.com/dribia/timebaseula/actions/workflows/lint.yml/badge.svg)](https://github.com/dribia/timebaseula/actions/workflows/lint.yml) [![types - Mypy](https://img.shields.io/badge/types-Mypy-blue.svg)](https://github.com/python/mypy) [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff) |
-| Package | [![PyPI](https://img.shields.io/pypi/v/timebaseula)](https://pypi.org/project/timebaseula/) ![PyPI - Downloads](https://img.shields.io/pypi/dm/timebaseula?color=blue&logo=pypi&logoColor=gold) ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/timebaseula?logo=python&logoColor=gold) [![GitHub](https://img.shields.io/github/license/dribia/timebaseula?color=blue)](https://github.com/dribia/timebaseula/blob/main/LICENSE) |
+## Why this project exists
 
-<p style="text-align: center;">
-    <em>Port of TimeBase to pythonic and Dribia standards to be used with Nixtla's NeuralForecast</em>
-</p>
+TimeBaseUla is a Python adaptation of the **TimeBase** forecasting idea, implemented in a style that fits this repository:
 
----
+- CPU-first execution
+- simple PyTorch modules
+- compatibility with Nixtla's `NeuralForecast`
+- reproducible tests and scripts
+- concise MkDocs documentation
 
-**Documentation**: <a href="https://dribia.github.io/timebaseula" target="_blank">https://dribia.github.io/timebaseula</a>
+## What you get
 
-**Source Code**: <a href="https://github.com/dribia/timebaseula" target="_blank">https://github.com/dribia/timebaseula</a>
+| Feature | Notes |
+|---|---|
+| `TimeBase` | Segment + basis forecasting with two linear layers |
+| `TimeBaseTrend` | Adds moving-average trend decomposition |
+| `predict_single_series` | Convenience helper for focused inference |
+| Synthetic evaluation scripts | Compare TimeBase against DLinear, naive, and MFLES |
+| Long-horizon benchmark script | Runs on ECL and Traffic datasets |
 
----
+## Architecture at a glance
 
-## Overview
-
-**TimeBaseUla** is a Python library implementing the TimeBase forecasting method, ported to Pythonic and Dribia standards for use with [Nixtla's NeuralForecast](https://nixtla.github.io/neuralforecast/).
-
-TimeBase is a minimalistic LTSF (Long-Term Sequence Forecasting) model that leverages segment-level forecasting and basis extraction with two linear layers.
-
-## Key Features
-
-- **TimeBase**: Core model using segment-level forecasting with learned basis components
-- **TimeBaseTrend**: Enhanced model combining trend decomposition with TimeBase basis forecasting
-- **NeuralForecast Compatible**: Full integration with Nixtla's NeuralForecast API
-- **Orthogonal Regularization**: Optional basis orthogonalization for improved representation learning
-- **CPU-First Design**: Optimized for CPU execution with no GPU dependencies
-- **Multivariate Support**: Train on multiple series simultaneously with channel independence
-
-## Installation
-
-**timebaseula** is available on PyPI:
-
-```shell
-pip install timebaseula
+```mermaid
+flowchart TD
+    A[Historical window] --> B[Split into segments of length period_len]
+    B --> C[Normalization]
+    C --> D[Basis extraction linear layer]
+    D --> E[Segment forecast linear layer]
+    E --> F[Flatten back to h steps]
 ```
 
-Or install from source:
+`TimeBaseTrend` adds a decomposition block before the forecast:
 
-```shell
-git clone https://github.com/dribia/timebaseula.git
-cd timebaseula
-uv sync
+```mermaid
+flowchart TD
+    A[Historical window] --> B[SeriesDecomp]
+    B --> C[Seasonal component]
+    B --> D[Trend component]
+    C --> E[TimeBaseCore]
+    D --> F[Linear trend head]
+    E --> G[Add]
+    F --> G
+    G --> H[Forecast]
 ```
 
-## Quickstart
-
-### Univariate Forecasting
+## Package surface
 
 ```python
-import pandas as pd
-from neuralforecast import NeuralForecast
-from timebaseula import TimeBase
-
-# Load your data (requires 'ds', 'y', 'unique_id' columns)
-df = pd.read_csv('your_data.csv')
-
-model = TimeBase(
-    h=24,              # Forecast horizon
-    input_size=48,     # Input window size
-    period_len=24,     # Period length
-    basis_num=6,       # Basis components
-)
-
-nf = NeuralForecast(models=[model], freq='D')
-nf.fit(df)
-predictions = nf.predict()
+from timebaseula import TimeBase, TimeBaseTrend, predict_single_series
 ```
 
-### Multivariate Forecasting
+## How to read the docs
 
-```python
-from neuralforecast import NeuralForecast
-from timebaseula import TimeBase, TimeBaseTrend
+1. [Install the library](install.md)
+2. [Follow the usage guide](usage.md)
+3. [Review the model notes](models.md)
+4. [Explore the scripts](scripts.md)
+5. [Check the paper summary and references](references.md)
 
-# Multiple series with same timestamps
-df = pd.read_csv('multivariate_data.csv')
+## Project layout
 
-# Train multiple models
-models = [
-    TimeBase(h=24, input_size=48, period_len=24, basis_num=6),
-    TimeBaseTrend(h=24, input_size=48, period_len=24, moving_avg_window=25),
-]
+| Path | Role |
+|---|---|
+| `timebaseula/models/timebase.py` | model definitions |
+| `timebaseula/utils.py` | helper utilities |
+| `scripts/` | CLI scripts built with Typer + Rich |
+| `tests/` | unit and integration tests |
+| `docs/` | MkDocs site |
 
-nf = NeuralForecast(models=models, freq='D')
-nf.fit(df)
-predictions = nf.predict()  # Predictions for all series
-```
+## Important caveats
 
-### Single Series Prediction from Multivariate Model
-
-```python
-from timebaseula import predict_single_series
-
-# After training on multivariate data
-single_series = df[df['unique_id'] == 'series_1']
-
-pred = predict_single_series(
-    model=model,
-    series=single_series,
-    h=24,
-    input_size=48,
-    freq='D'
-)
-```
-
-## Examples
-
-See [Usage Guide](usage.md) for detailed examples including:
-
-- Synthetic series generation for testing
-- MAE benchmark results
-- Model configuration options
-
-## Contributing
-
-Contributions are welcome! Please see [Contributing Guide](contribute.md) for details.
-
-## License
-
-MIT License. See [LICENSE](https://github.com/dribia/timebaseula/blob/main/LICENSE) for details.
+- The library is small and focused: it currently exposes the TimeBase family and one helper utility.
+- Some development utilities live under `tests/utils/` and are used by scripts for synthetic experiments.
+- The docs describe the current repository behavior, not an aspirational future API.

@@ -89,3 +89,8 @@ lightning_logs/
 
 # manifest file for testing
 manifest.json
+
+# datasets (large files, stored locally)
+datasets/
+data/
+.cache/
