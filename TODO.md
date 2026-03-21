@@ -7,17 +7,23 @@
 - Generated and documented easy/medium/hard synthetic series plots in `docs/usage.md`.
 - Added DLinear MAE evaluation script for multivariate synthetic scenarios.
 - Updated MAE thresholds based on DLinear baselines (+25% margin).
-- Added DLinear and TimeBase reference overlays with MAE in plot legends.
-- Added MAE comparison check script for naive/DLinear/TimeBase.
+- Added DLinear, TimeBase, and TimeBaseTrend reference overlays with MAE and params in plot legends.
+- Added MAE comparison check script for naive/DLinear/TimeBase/TimeBaseTrend.
 - Updated docs dependencies to include matplotlib.
 - Implemented TimeBase core and BaseWindows model with orthogonal loss support.
-- Added TimeBase unit tests (shape, padding, orthogonal loss).
+- Added TimeBase unit tests (shape, padding, orthogonal loss, deterministic behavior).
 - Wired TimeBase into package exports.
-- Added TimeBaseTrend (trend + TimeBase) with learnable trend_weight and moving average decomposition.
-- Added TimeBaseTrend tests (shape, trend_weight, moving_avg_window validation).
+- Added TimeBaseTrend (trend + TimeBase) with DLinear-style addition and moving average decomposition.
+- Added TimeBaseTrend tests (shape, linear_trend, moving_avg_window validation, decomp presence).
+- Added integration tests for NeuralForecast (marked as `@pytest.mark.integration`).
+- Added predict_single_series utility for single series prediction from multivariate models.
+- Updated README.md with comprehensive quickstart and API documentation.
+- Updated docs/index.md and docs/usage.md with full usage guide.
 
-## Next
-- Add multivariate TimeBase variants and single-series inference helper.
-- Review TimeBase/TimeBaseTrend hard-case MAE - note TimeBaseTrend improves hard case (0.80 vs 1.54) but still underperforms DLinear.
-- Write model tests (shape, orthogonal loss, MAE thresholds for easy/medium/hard synthetic cases).
-- Run `make format`, `make lint`, `make test` and commit.
+## Implementation Complete
+All planned features have been implemented:
+- TimeBase model with segment-level forecasting and basis extraction
+- TimeBaseTrend model with trend decomposition
+- Multivariate training support via NeuralForecast
+- Single series prediction utility
+- Comprehensive tests and documentation

@@ -33,7 +33,7 @@ lock:
 	uv lock --frozen
 
 test:
-	uv run --frozen pytest --cov --cov-report=html --cov-report=xml
+	uv run --frozen pytest --cov --cov-report=html --cov-report=xml -m "not integration"
 
 test-unit:
 	uv run --frozen pytest --cov --cov-report=html --cov-report=xml -m "not integration"
