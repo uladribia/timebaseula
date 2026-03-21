@@ -9,13 +9,14 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
+import torch
 import typer
 from neuralforecast import NeuralForecast
 from neuralforecast.models import DLinear
 from rich.console import Console
 
 from tests.utils.synthetic_series import make_synthetic_series
-from timebaseula.models.timebase import TimeBase
+from timebaseula.models.timebase import TimeBase, TimeBaseTrend
 
 app = typer.Typer(help="Generate a synthetic series plot for documentation.")
 console = Console()
@@ -38,6 +39,11 @@ def configure_logging() -> logging.Logger:
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     return logger
+
+
+def count_parameters(model: torch.nn.Module) -> int:
+    """Count the number of trainable parameters in a model."""
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 
 @app.command()
@@ -79,6 +85,10 @@ def main(
         True,
         help="Overlay a TimeBase reference forecast.",
     ),
+    include_timebase_trend: bool = typer.Option(
+        True,
+        help="Overlay a TimeBaseTrend reference forecast.",
+    ),
 ) -> None:
     """Generate and save a synthetic series plot."""
     logger = configure_logging()
@@ -102,7 +112,9 @@ def main(
     output.parent.mkdir(parents=True, exist_ok=True)
 
     forecast_frame = None
-    if (include_reference or include_timebase) and length > forecast_horizon:
+    if (
+        include_reference or include_timebase or include_timebase_trend
+    ) and length > forecast_horizon:
         input_size = min(48, length - forecast_horizon)
         models = []
         if include_reference:
@@ -125,6 +137,18 @@ def main(
                     learning_rate=1e-2,
                 )
             )
+        if include_timebase_trend:
+            models.append(
+                TimeBaseTrend(
+                    h=forecast_horizon,
+                    input_size=input_size,
+                    period_len=24,
+                    basis_num=6,
+                    moving_avg_window=25,
+                    max_steps=200,
+                    learning_rate=1e-2,
+                )
+            )
         nf = NeuralForecast(models=models, freq="D")
         train_frame = frame.iloc[:-forecast_horizon]
         nf.fit(train_frame, val_size=forecast_horizon)
@@ -139,10 +163,13 @@ def main(
             dlinear_mae = float(
                 np.mean(np.abs(target["y"] - dlinear_pred.loc[target.index]))
             )
+            dlinear_params = sum(
+                p.numel() for p in nf.models[0].parameters() if p.requires_grad
+            )
             plt.plot(
                 forecast_frame["ds"],
                 forecast_frame["DLinear"],
-                label=f"dlinear_reference (MAE {dlinear_mae:.3f})",
+                label=f"dlinear (MAE {dlinear_mae:.3f}, {dlinear_params} params)",
                 linestyle="--",
             )
         if "TimeBase" in forecast_frame.columns:
@@ -150,11 +177,47 @@ def main(
             timebase_mae = float(
                 np.mean(np.abs(target["y"] - timebase_pred.loc[target.index]))
             )
+            # Find TimeBase model index
+            timebase_idx = 1 if "DLinear" in forecast_frame.columns else 0
+            timebase_params = sum(
+                p.numel()
+                for p in nf.models[timebase_idx].parameters()
+                if p.requires_grad
+            )
             plt.plot(
                 forecast_frame["ds"],
                 forecast_frame["TimeBase"],
-                label=f"timebase_reference (MAE {timebase_mae:.3f})",
+                label=f"timebase (MAE {timebase_mae:.3f}, {timebase_params} params)",
                 linestyle=":",
+            )
+        if "TimeBaseTrend" in forecast_frame.columns:
+            timebase_trend_pred = forecast_frame.set_index("ds")["TimeBaseTrend"]
+            timebase_trend_mae = float(
+                np.mean(np.abs(target["y"] - timebase_trend_pred.loc[target.index]))
+            )
+            # Find TimeBaseTrend model index
+            model_count = len(
+                [
+                    m
+                    for m in [
+                        include_reference,
+                        include_timebase,
+                        include_timebase_trend,
+                    ]
+                    if m
+                ]
+            )
+            timebase_trend_idx = model_count - 1
+            timebase_trend_params = sum(
+                p.numel()
+                for p in nf.models[timebase_trend_idx].parameters()
+                if p.requires_grad
+            )
+            plt.plot(
+                forecast_frame["ds"],
+                forecast_frame["TimeBaseTrend"],
+                label=f"tbt (MAE {timebase_trend_mae:.3f}, {timebase_trend_params}p)",
+                linestyle="-.",
             )
     plt.title(title)
     plt.xlabel("date")
