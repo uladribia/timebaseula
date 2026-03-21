@@ -414,9 +414,8 @@ class TimeBaseTrend(BaseWindows):
             pred_len=h,
         )
 
-        self.trend_linear = nn.Linear(input_size, h)
-
-        self.trend_weight = nn.Parameter(torch.tensor(0.5))
+        # Linear layer for trend projection (like DLinear)
+        self.linear_trend = nn.Linear(input_size, h)
 
         self.use_orthogonal = use_orthogonal
         self.orthogonal_weight = orthogonal_weight
@@ -426,14 +425,17 @@ class TimeBaseTrend(BaseWindows):
         """Forward pass for BaseWindows training and inference."""
         insample_y = windows_batch["insample_y"]
 
-        trend, seasonal = self.decomp(insample_y)
+        # Decompose into trend and seasonal components
+        seasonal, trend = self.decomp(insample_y)
 
+        # TimeBase forecast on seasonal component
         timebase_forecast, basis = self.core(seasonal)
 
-        trend_forecast = self.trend_linear(trend)
+        # Linear projection of trend (like DLinear)
+        trend_forecast = self.linear_trend(trend)
 
-        w = torch.sigmoid(self.trend_weight)
-        forecast = w * trend_forecast + (1 - w) * timebase_forecast
+        # Combine (like DLinear: just add, no weighted blend)
+        forecast = trend_forecast + timebase_forecast
 
         if self.use_orthogonal:
             self._last_orthogonal_loss = self._compute_orthogonal_loss(basis)

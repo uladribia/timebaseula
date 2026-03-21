@@ -44,10 +44,10 @@ class TestTimeBaseTrend:
         assert output.shape == (2, 12)
 
     def test_trend_weight_is_learnable(self) -> None:
-        """The trend_weight parameter should be learnable."""
+        """The linear_trend layer should be present."""
         model = TimeBaseTrend(h=4, input_size=8, period_len=4, basis_num=4)
-        assert hasattr(model, "trend_weight")
-        assert isinstance(model.trend_weight, torch.nn.Parameter)
+        assert hasattr(model, "linear_trend")
+        assert isinstance(model.linear_trend, torch.nn.Linear)
 
     def test_invalid_moving_avg_window_even(self) -> None:
         """Even moving_avg_window should raise ValueError."""
