@@ -1,7 +1,7 @@
 # AGENTS.md
 
 ## Purpose
-This repository follows a disciplined, maintainable, and CPU-first workflow. Agents must keep changes small, readable, and well tested, while aligning with Dribia’s coding standards.
+This repository follows a disciplined, maintainable, and CPU-first workflow. Agents must keep changes small, readable, and well tested, while aligning with Dribia's coding standards.
 
 ## Environment & Tooling
 - **CPU-only**: all training and scripts must default to CPU execution. Do not assume GPU availability.
@@ -48,8 +48,7 @@ When creating or modifying CLIs, use the **`create-cli` skill** and ensure the i
 ## Documentation Expectations
 - Keep README and docs accurate and concise.
 - Ensure any agent-driven change is reflected in documentation where it matters.
-- After each run, refresh affected docs with MkDocs-friendly formatting (headings, lists, code blocks) and follow the repo’s MkDocs conventions.
-- After each performed task, update `TODO.md` to reflect progress.
+- After each run, refresh affected docs with MkDocs-friendly formatting (headings, lists, code blocks) and follow the repo's MkDocs conventions.
 
 ## Execution Logs
 - Always generate logs for script and command executions.
