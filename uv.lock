@@ -3817,26 +3817,28 @@ wheels = [
 
 [[package]]
 name = "timebaseula"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
-	{ name = "datasetsforecast" },
-	{ name = "matplotlib" },
 	{ name = "neuralforecast" },
-	{ name = "nixtla" },
 	{ name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
 	{ name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 	{ name = "pandas" },
+	{ name = "torch" },
+]
+
+[package.dev-dependencies]
+bench = [
+	{ name = "datasetsforecast" },
+	{ name = "matplotlib" },
+	{ name = "nixtla" },
 	{ name = "pytorch-lightning" },
 	{ name = "rich" },
 	{ name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
 	{ name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 	{ name = "statsforecast" },
-	{ name = "torch" },
 	{ name = "typer" },
 ]
-
-[package.dev-dependencies]
 ci = [
 	{ name = "setuptools" },
 ]
@@ -3862,21 +3864,23 @@ test = [
 
 [package.metadata]
 requires-dist = [
-	{ name = "datasetsforecast", specifier = ">=1.0.0,<2" },
-	{ name = "matplotlib", specifier = ">=3.10.0,<4" },
 	{ name = "neuralforecast", specifier = ">=1.7.4,<2" },
-	{ name = "nixtla", specifier = ">=0.7.0,<1" },
 	{ name = "numpy", specifier = ">=2.2.0,<3" },
 	{ name = "pandas", specifier = ">=2.2.0,<3" },
+	{ name = "torch", specifier = ">=2.0.0,<3" },
+]
+
+[package.metadata.requires-dev]
+bench = [
+	{ name = "datasetsforecast", specifier = ">=1.0.0,<2" },
+	{ name = "matplotlib", specifier = ">=3.10.0,<4" },
+	{ name = "nixtla", specifier = ">=0.7.0,<1" },
 	{ name = "pytorch-lightning", specifier = ">=2.5.0,<3" },
 	{ name = "rich", specifier = ">=14.1.0,<15" },
 	{ name = "scikit-learn", specifier = ">=1.5.0,<2" },
 	{ name = "statsforecast", specifier = ">=1.7.0,<2" },
-	{ name = "torch", specifier = ">=2.0.0,<3" },
 	{ name = "typer", specifier = ">=0.12.4,<0.22" },
 ]
-
-[package.metadata.requires-dev]
 ci = [{ name = "setuptools", specifier = ">=80.10.1,<81" }]
 dev = [
 	{ name = "deptry", specifier = "==0.24.0" },

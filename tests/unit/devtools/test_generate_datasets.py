@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 from typer.testing import CliRunner
 
-from scripts import generate_datasets
+from devtools import generate_datasets
 
 
 class TestGenerateDatasetsCli:

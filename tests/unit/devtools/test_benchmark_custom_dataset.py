@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 
-from scripts.benchmark_custom_dataset import (
+from devtools.benchmark_custom_dataset import (
     add_average_ranks,
     add_relative_mae,
     add_relative_mae_summary,

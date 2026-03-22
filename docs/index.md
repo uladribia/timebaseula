@@ -7,6 +7,7 @@ description: Overview page for TimeBaseUla with package scope, API, and document
 **TL;DR**
 - `timebaseula` provides `TimeBase`, `TimeBaseTrend`, and `make_synthetic_series`.
 - The models plug into **NeuralForecast**.
+- Benchmark and reporting helpers are kept in internal `devtools/` modules, not in the published package.
 - Multi-series training plus single-series prediction is handled directly by NeuralForecast.
 - Start with [install](install.md), then [usage](usage.md), [models](models.md), and [paper-for-agents](paper-for-agents.md).
 

@@ -191,7 +191,7 @@ This is especially useful when the repeated temporal block bias is still helpful
 | dataset-aware defaults | `timebaseula/recommend.py` |
 | synthetic benchmarking | `scripts/check_forecast_mae.py` |
 | long-horizon real-data benchmarking | `scripts/benchmark_long_horizon.py` |
-| custom HTML benchmark reporting | `scripts/reporting.py` and `scripts/benchmark_custom_dataset.py` |
+| custom HTML benchmark reporting | `devtools/reporting.py` and `devtools/benchmark_custom_dataset.py` |
 
 ## What is implemented here
 

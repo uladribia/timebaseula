@@ -5,7 +5,7 @@ description: Reference for repository scripts used for datasets, synthetic plots
 # Scripts
 
 **TL;DR**
-- Operational scripts use **Typer**, **Rich**, rotating log files, and **Matplotlib** for report-friendly visualizations.
+- Operational scripts are thin **Typer** wrappers over internal `devtools/` modules.
 - Logs are written under `logs/`.
 - Benchmarking and synthetic evaluation are intentionally kept outside the default fast test suite.
 
@@ -13,11 +13,12 @@ description: Reference for repository scripts used for datasets, synthetic plots
 
 | Script | Purpose |
 |---|---|
-| `scripts/generate_datasets.py` | prepare cached benchmark datasets |
+| `scripts/generate_datasets.py` | prepare cached benchmark datasets via `devtools.generate_datasets` |
 | `scripts/generate_synthetic_plot.py` | generate standalone HTML visualizations with embedded Matplotlib figures and optional forecast overlays |
 | `scripts/eval_dlinear_mae.py` | get DLinear MAE on synthetic scenarios |
 | `scripts/check_forecast_mae.py` | compare naive, DLinear, AutoTimeBase, AutoTimeBaseTrend, MFLES and emit a reusable synthetic HTML report |
 | `scripts/benchmark_long_horizon.py` | benchmark models on ECL and Traffic and emit markdown or HTML reports |
+| `scripts/benchmark_custom_dataset.py` | benchmark the custom monthly dataset and render the custom HTML report |
 
 ## Prepare cached benchmark datasets
 

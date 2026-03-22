@@ -25,14 +25,17 @@ uv sync
 
 ## Main dependencies
 
+### Published package
+
 | Package | Why it is used |
 |---|---|
 | `neuralforecast` | training and forecasting interface |
 | `torch` | model implementation |
 | `pandas` / `numpy` | tabular and numerical processing |
-| `statsforecast` | classical baselines in scripts |
-| `typer` + `rich` | command-line tooling |
-| `mkdocs-material` | project documentation |
+
+### Repository-only tooling
+
+The repository also installs a `bench` dependency group for internal `devtools/` modules, benchmark CLIs, and report generation.
 
 ## Verify the install
 

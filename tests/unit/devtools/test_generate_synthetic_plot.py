@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 from matplotlib import pyplot as plt
 
-from scripts.generate_synthetic_plot import build_series_layer, render_chart_html
+from devtools.generate_synthetic_plot import build_series_layer, render_chart_html
 
 
 class TestGenerateSyntheticPlot:

@@ -13,6 +13,7 @@ description: TimeBaseUla README with installation, usage, testing, benchmarks, a
 - Main exports: `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, `AutoTimeBaseTrend`, `make_synthetic_series`.
 - NeuralForecast already supports forecasting a filtered subset of series after multi-series training.
 - Visual reports and generated charts in this repo prefer **Matplotlib**, including HTML reports with embedded static figures.
+- The publishable package is `timebaseula`; benchmark and reporting scaffolding lives in internal `devtools/` modules and thin `scripts/` wrappers.
 - Fast tests are unit-only; heavier training checks live under integration tests.
 - Documentation site: <https://dribia.github.io/timebaseula>
 
@@ -121,6 +122,19 @@ trend_model = TimeBaseTrend(
     ),
 )
 ```
+
+## Repository layout
+
+| Path | Role |
+|---|---|
+| `timebaseula/` | publishable library code |
+| `devtools/` | internal benchmark, reporting, and dataset helpers |
+| `scripts/` | thin Typer CLI wrappers over `devtools/` |
+| `tests/unit/library/` | unit tests for the shipped library |
+| `tests/unit/devtools/` | unit tests for internal validation tooling |
+| `tests/integration/` | heavier NeuralForecast compatibility checks |
+
+Only `timebaseula/` is included in built distributions.
 
 ## Development workflow
 

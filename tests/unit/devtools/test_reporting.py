@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pandas as pd
 
-from scripts.benchmark_long_horizon import (
+from devtools.benchmark_long_horizon import (
     build_benchmark_summary,
     format_markdown_report,
     resolve_html_report_output,
     should_include_arima,
 )
-from scripts.reporting import (
+from devtools.reporting import (
     build_best_by_slice_summary,
     build_html_benchmark_report,
     build_representative_forecast_sections,

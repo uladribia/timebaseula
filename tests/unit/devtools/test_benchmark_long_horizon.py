@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pandas as pd
 
-from scripts.benchmark_long_horizon import (
+from devtools.benchmark_long_horizon import (
     aggregate_frame,
     benchmark_configuration,
     choose_series_count,
@@ -214,7 +214,7 @@ class TestBenchmarkDatasetHelpers:
         self, tmp_path: Path, monkeypatch: Mock
     ) -> None:
         """Existing aggregated files should be reused instead of downloaded again."""
-        from scripts import benchmark_long_horizon as benchmark
+        from devtools import benchmark_long_horizon as benchmark
 
         cached = pd.DataFrame(
             {
