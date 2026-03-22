@@ -25,10 +25,16 @@ This repository follows a disciplined, maintainable, and CPU-first workflow. Age
    - Write unit tests **first**, mocking external dependencies as needed.
    - Run tests to confirm they **fail** (red).
    - Implement the code to make tests **pass** (green).
-2. **After each change**:
-   - Run the standard quality gates: `make format`, `make lint`, `make test`.
+2. **Keep unit and integration tests separate**:
+   - Treat tests marked `integration` as **heavy**, optional validation.
+   - The default quality gate is **unit-only**: use `make test` or `make test-unit`.
+   - Run integration tests with `make test-integration` **only when they are justified** by the change.
+   - In every substantial update, explicitly decide whether integration tests are worth running and state that decision in your summary.
+3. **After each change**:
+   - Run the standard fast quality gates: `make format`, `make lint`, `make test`.
    - Run `uv run --frozen python scripts/check_forecast_mae.py` **only when substantive model changes** are performed, and display the MAE comparison table.
-3. **When everything passes**:
+   - Run `make test-integration` only for changes that affect end-to-end training, NeuralForecast integration, CLI workflows, or other cross-module behavior that unit tests cannot cover well.
+4. **When everything passes**:
    - Update **README** and relevant documentation using the **`write-docs` skill**.
    - Ensure the README notes that changes are **agent-made** when relevant.
 4. **Commit**:

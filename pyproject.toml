@@ -121,7 +121,7 @@ filterwarnings = "error"
 xfail_strict = true
 testpaths = ["tests"]
 markers = [
-	"integration: integration tests",
+	"integration: heavy integration tests, run only with --run-integration",
 ]
 
 [tool.coverage.run]

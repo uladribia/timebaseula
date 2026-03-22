@@ -39,7 +39,7 @@ test-unit:
 	uv run --frozen pytest --cov --cov-report=html --cov-report=xml -m "not integration"
 
 test-integration:
-	uv run --frozen pytest -m "integration"
+	uv run --frozen pytest --run-integration -m "integration"
 
 docs:
 	uv run --frozen mkdocs build --strict
