@@ -39,6 +39,7 @@ Interpretation notes:
 - The benchmark uses an approximate **20% tail holdout** per series.
 - Daily slices have much longer histories, so larger horizons and training budgets are reasonable.
 - Monthly slices are still short (`37` points for `ECL`, `25` for `TrafficL`), so they remain a difficult low-context regime for the neural models.
+- The benchmark script now relies on the library-level dataset profiler and recommendation helpers in `timebaseula.recommend` to choose `TimeBase` and `TimeBaseTrend` defaults.
 
 ## Observations
 
@@ -48,6 +49,7 @@ Interpretation notes:
 - On **daily** data, raising the horizon and training budget keeps the neural models competitive and pushes them clearly ahead of `SeasonalNaive`.
 - On **monthly** data, the extra training budget does not rescue `TimeBase` or `TimeBaseTrend`; short history remains the dominant limitation.
 - `AutoMFLES` improved its relative standing on the longer monthly horizon, but it is still far slower than the neural models.
+- The new profiler/recommender logic is now packaged in the library, so benchmark defaults and user-facing defaults share the same selection path.
 
 ## Full results
 

@@ -14,11 +14,13 @@ from scripts.benchmark_long_horizon import (
     get_aggregated_dataset_path,
     infer_test_size,
     prepare_train_test,
-    profile_dataset,
-    recommend_timebase_kwargs,
-    recommend_training_kwargs,
     resolve_dataset_group,
     resolve_mode_defaults,
+)
+from timebaseula.recommend import (
+    profile_dataset,
+    recommend_timebase_model_kwargs,
+    recommend_training_kwargs,
 )
 
 
@@ -96,7 +98,7 @@ class TestBenchmarkDatasetHelpers:
         frame = pd.DataFrame(rows)
 
         profile = profile_dataset(frame, freq="ME", horizon=6)
-        recommendation = recommend_timebase_kwargs(profile, freq="ME", horizon=6)
+        recommendation = recommend_timebase_model_kwargs(profile, horizon=6)
         training = recommend_training_kwargs(profile, horizon=6, max_steps=200)
 
         assert profile.short_history is True

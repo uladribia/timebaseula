@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+import warnings
+from typing import Any, cast
+
+import pandas as pd
 import pytest
 import torch
 
@@ -10,6 +14,29 @@ from timebaseula.models.timebase import TimeBase, TimeBaseTrend
 
 class TestTimeBase:
     """Validate TimeBase forward behavior."""
+
+    def test_recommend_defaults(self) -> None:
+        """TimeBase should expose class helpers for default selection."""
+        frame = pd.DataFrame(
+            {
+                "unique_id": ["a"] * 60 + ["b"] * 60,
+                "ds": list(pd.date_range("2024-01-01", periods=60, freq="D")) * 2,
+                "y": [float(step % 7) for step in range(60)] * 2,
+            }
+        )
+
+        profile = TimeBase.profile_dataset(frame, freq="D", horizon=14)
+        defaults = TimeBase.recommend_defaults(
+            frame,
+            freq="D",
+            horizon=14,
+            max_steps=120,
+        )
+
+        assert profile.dominant_period in {7, 14, 28}
+        assert defaults["input_size"] >= 16
+        assert defaults["period_len"] >= 2
+        assert defaults["max_steps"] <= 120
 
     def test_forward_shape(self) -> None:
         """The forward output should match (batch, h, 1)."""
@@ -48,6 +75,29 @@ class TestTimeBase:
 
 class TestTimeBaseTrend:
     """Validate TimeBaseTrend forward behavior."""
+
+    def test_recommend_defaults(self) -> None:
+        """TimeBaseTrend should expose class helpers for default selection."""
+        frame = pd.DataFrame(
+            {
+                "unique_id": ["a"] * 36 + ["b"] * 36,
+                "ds": list(pd.date_range("2024-01-31", periods=36, freq="ME")) * 2,
+                "y": [float(step % 6) for step in range(36)] * 2,
+            }
+        )
+
+        profile = TimeBaseTrend.profile_dataset(frame, freq="ME", horizon=6)
+        defaults = TimeBaseTrend.recommend_defaults(
+            frame,
+            freq="ME",
+            horizon=6,
+            max_steps=120,
+        )
+
+        assert profile.short_history is True
+        assert defaults["moving_avg_window"] % 2 == 1
+        assert defaults["basis_num"] <= 3
+        assert defaults["max_steps"] <= 100
 
     def test_forward_shape(self) -> None:
         """The forward output should match (batch, h)."""
@@ -113,12 +163,46 @@ class TestIntegration:
             max_steps=100,
             val_check_steps=50,
             learning_rate=1e-2,
+            num_workers_loader=13,
+            logger=cast(Any, False),
+            enable_progress_bar=cast(Any, False),
+            enable_model_summary=cast(Any, False),
+            log_every_n_steps=cast(Any, 1),
         )
 
         nf = NeuralForecast(models=[model], freq="D")
-        nf.fit(df, val_size=8)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"`isinstance\(treespec, LeafSpec\)` is deprecated.*",
+                category=FutureWarning,
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"The 'val_dataloader' does not have many workers.*",
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"The 'train_dataloader' does not have many workers.*",
+            )
+            warnings.filterwarnings(
+                "ignore",
+                category=Warning,
+            )
+            nf.fit(df, val_size=8)
 
-        pred = nf.predict()
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"`isinstance\(treespec, LeafSpec\)` is deprecated.*",
+                category=FutureWarning,
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"The 'predict_dataloader' does not have many workers.*",
+            )
+            warnings.filterwarnings("ignore", category=Warning)
+            pred = nf.predict()
         assert len(pred) == 8
         assert "TimeBase" in pred.columns
 
@@ -151,10 +235,44 @@ class TestIntegration:
             basis_num=4,
             max_steps=100,
             val_check_steps=50,
+            num_workers_loader=13,
+            logger=cast(Any, False),
+            enable_progress_bar=cast(Any, False),
+            enable_model_summary=cast(Any, False),
+            log_every_n_steps=cast(Any, 1),
         )
 
         nf = NeuralForecast(models=[model], freq="D")
-        nf.fit(df, val_size=8)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"`isinstance\(treespec, LeafSpec\)` is deprecated.*",
+                category=FutureWarning,
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"The 'val_dataloader' does not have many workers.*",
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"The 'train_dataloader' does not have many workers.*",
+            )
+            warnings.filterwarnings(
+                "ignore",
+                category=Warning,
+            )
+            nf.fit(df, val_size=8)
 
-        pred = nf.predict()
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"`isinstance\(treespec, LeafSpec\)` is deprecated.*",
+                category=FutureWarning,
+            )
+            warnings.filterwarnings(
+                "ignore",
+                message=r"The 'predict_dataloader' does not have many workers.*",
+            )
+            warnings.filterwarnings("ignore", category=Warning)
+            pred = nf.predict()
         assert len(pred) == 8 * n_series  # Predictions for all series

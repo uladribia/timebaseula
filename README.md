@@ -226,6 +226,55 @@ uv run --frozen python scripts/benchmark_long_horizon.py report \
   --output-md docs/benchmark.md
 ```
 
+## Automatic default recommendation
+
+The library now includes lightweight dataset profilers and recommenders for `TimeBase` and `TimeBaseTrend`.
+
+You can call them directly:
+
+```python
+from timebaseula import recommend_timebase_kwargs, recommend_timebase_trend_kwargs
+
+recommended_timebase = recommend_timebase_kwargs(
+    frame=train_df,
+    freq="D",
+    horizon=28,
+    max_steps=200,
+)
+recommended_timebase_trend = recommend_timebase_trend_kwargs(
+    frame=train_df,
+    freq="D",
+    horizon=28,
+    max_steps=200,
+)
+```
+
+Or use the model classes directly:
+
+```python
+from timebaseula import TimeBase, TimeBaseTrend
+
+profile = TimeBase.profile_dataset(train_df, freq="D", horizon=28)
+defaults = TimeBase.recommend_defaults(train_df, freq="D", horizon=28, max_steps=200)
+trend_defaults = TimeBaseTrend.recommend_defaults(
+    train_df,
+    freq="D",
+    horizon=28,
+    max_steps=200,
+)
+```
+
+These helpers inspect the provided dataset quickly and recommend architecture and training defaults such as:
+
+- `input_size`
+- `period_len`
+- `basis_num`
+- `moving_avg_window`
+- `max_steps`
+- `learning_rate`
+- `early_stop_patience_steps`
+- `val_check_steps`
+
 ## Documentation notes
 
 The documentation in this repository was refreshed by an AI coding agent after inspecting the codebase, scripts, tests, and existing docs.

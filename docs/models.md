@@ -66,6 +66,31 @@ The implementation computes a Gram matrix from the basis tensor and penalizes of
 | basis | `(batch, period_len, basis_num)` |
 | forecast | `(batch, h)` |
 
+## Automatic parameter recommendation
+
+The library includes lightweight helpers for profiling a dataset and recommending defaults.
+
+Top-level helpers:
+
+- `timebaseula.profile_dataset(...)`
+- `timebaseula.recommend_timebase_kwargs(...)`
+- `timebaseula.recommend_timebase_trend_kwargs(...)`
+
+Class helpers:
+
+- `TimeBase.profile_dataset(...)`
+- `TimeBase.recommend_defaults(...)`
+- `TimeBaseTrend.profile_dataset(...)`
+- `TimeBaseTrend.recommend_defaults(...)`
+
+These helpers inspect a long-format dataframe with `unique_id`, `ds`, and `y`, then derive compact defaults for:
+
+- model shape (`input_size`, `period_len`, `basis_num`)
+- trend decomposition (`moving_avg_window`)
+- training budget (`max_steps`, `learning_rate`, `early_stop_patience_steps`, `val_check_steps`)
+
+This is especially useful when moving between long daily datasets and short monthly datasets, where sensible defaults differ substantially.
+
 ## What is tested
 
 The test suite currently checks:

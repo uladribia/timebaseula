@@ -72,6 +72,47 @@ nf.fit(frame, val_size=24)
 forecast = nf.predict()
 ```
 
+## Automatic default selection
+
+You can ask the library to inspect your training frame and recommend sensible defaults.
+
+### Top-level helpers
+
+```python
+from timebaseula import recommend_timebase_kwargs, recommend_timebase_trend_kwargs
+
+recommended_timebase = recommend_timebase_kwargs(
+    frame=frame,
+    freq="D",
+    horizon=24,
+    max_steps=150,
+)
+recommended_timebase_trend = recommend_timebase_trend_kwargs(
+    frame=frame,
+    freq="D",
+    horizon=24,
+    max_steps=150,
+)
+
+model = TimeBase(h=24, **recommended_timebase)
+trend_model = TimeBaseTrend(h=24, **recommended_timebase_trend)
+```
+
+### Class helpers
+
+```python
+profile = TimeBase.profile_dataset(frame, freq="D", horizon=24)
+defaults = TimeBase.recommend_defaults(frame, freq="D", horizon=24, max_steps=150)
+trend_defaults = TimeBaseTrend.recommend_defaults(
+    frame,
+    freq="D",
+    horizon=24,
+    max_steps=150,
+)
+```
+
+The profiler is intentionally lightweight. It samples a small subset of series, estimates practical history length, checks simple lag correlations, and uses that information to adjust model size and training budget.
+
 ## Single-series helper
 
 The package exports `predict_single_series`, intended to support focused inference after model training.

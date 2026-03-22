@@ -5,11 +5,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+import pandas as pd
 import torch
 import torch.nn as nn
 from neuralforecast.common._base_windows import BaseWindows
 from neuralforecast.losses.pytorch import MAE
 from neuralforecast.models.dlinear import SeriesDecomp
+
+from timebaseula.recommend import (
+    DatasetProfile,
+    profile_dataset,
+    recommend_timebase_kwargs,
+    recommend_timebase_trend_kwargs,
+)
 
 DEFAULT_LOSS = MAE()
 
@@ -108,6 +116,31 @@ class TimeBase(BaseWindows):
     EXOGENOUS_FUTR = False
     EXOGENOUS_HIST = False
     EXOGENOUS_STAT = False
+
+    @staticmethod
+    def profile_dataset(
+        frame: pd.DataFrame,
+        freq: str,
+        horizon: int,
+    ) -> DatasetProfile:
+        """Profile a dataset for TimeBase-oriented default selection."""
+        return profile_dataset(frame=frame, freq=freq, horizon=horizon)
+
+    @classmethod
+    def recommend_defaults(
+        cls,
+        frame: pd.DataFrame,
+        freq: str,
+        horizon: int,
+        max_steps: int = 100,
+    ) -> dict[str, Any]:
+        """Return recommended initialization kwargs for TimeBase."""
+        return recommend_timebase_kwargs(
+            frame=frame,
+            freq=freq,
+            horizon=horizon,
+            max_steps=max_steps,
+        )
 
     def __init__(
         self,
@@ -300,6 +333,31 @@ class TimeBaseTrend(BaseWindows):
     EXOGENOUS_FUTR = False
     EXOGENOUS_HIST = False
     EXOGENOUS_STAT = False
+
+    @staticmethod
+    def profile_dataset(
+        frame: pd.DataFrame,
+        freq: str,
+        horizon: int,
+    ) -> DatasetProfile:
+        """Profile a dataset for TimeBaseTrend-oriented default selection."""
+        return profile_dataset(frame=frame, freq=freq, horizon=horizon)
+
+    @classmethod
+    def recommend_defaults(
+        cls,
+        frame: pd.DataFrame,
+        freq: str,
+        horizon: int,
+        max_steps: int = 100,
+    ) -> dict[str, Any]:
+        """Return recommended initialization kwargs for TimeBaseTrend."""
+        return recommend_timebase_trend_kwargs(
+            frame=frame,
+            freq=freq,
+            horizon=horizon,
+            max_steps=max_steps,
+        )
 
     def __init__(
         self,

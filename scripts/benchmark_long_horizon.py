@@ -26,6 +26,13 @@ from statsforecast import StatsForecast
 from statsforecast.models import AutoARIMA, AutoMFLES
 
 from timebaseula import TimeBase, TimeBaseTrend
+from timebaseula.recommend import (
+    DatasetProfile,
+    profile_dataset,
+    recommend_timebase_model_kwargs,
+    recommend_timebase_trend_model_kwargs,
+    recommend_training_kwargs,
+)
 
 app = typer.Typer(help="Benchmark long-horizon forecasting models on ECL and Traffic.")
 console = Console()
@@ -70,23 +77,6 @@ class BenchmarkResult:
     params: int
     train_time: float
     inference_time: float
-
-
-@dataclass(frozen=True)
-class DatasetProfile:
-    """Lightweight dataset statistics for parameter recommendation."""
-
-    n_series: int
-    min_length: int
-    median_length: int
-    max_length: int
-    train_length_estimate: int
-    dominant_period: int
-    seasonality_strength: float
-    trend_strength: float
-    scale_median: float
-    short_history: bool
-    long_history: bool
 
 
 def configure_logging() -> logging.Logger:
@@ -288,138 +278,6 @@ def infer_period_len(freq: str, input_size: int) -> int:
     return max(2, min(target, input_size))
 
 
-def candidate_periods_for_frequency(freq: str, input_size: int) -> tuple[int, ...]:
-    """Return feasible candidate periods for lightweight profiling."""
-    normalized_freq = normalize_frequency(freq)
-    raw_candidates = (7, 14, 28) if normalized_freq == "D" else (3, 6, 12)
-    feasible = [
-        candidate for candidate in raw_candidates if 2 <= candidate <= input_size
-    ]
-    return tuple(feasible or [max(2, min(infer_season_length(freq), input_size))])
-
-
-def estimate_lag_correlation(values: np.ndarray, lag: int) -> float:
-    """Estimate lag correlation cheaply, returning zero when undefined."""
-    if lag <= 0 or len(values) <= lag:
-        return 0.0
-    left = values[:-lag]
-    right = values[lag:]
-    if np.std(left) == 0 or np.std(right) == 0:
-        return 0.0
-    return float(np.corrcoef(left, right)[0, 1])
-
-
-def profile_dataset(frame: pd.DataFrame, freq: str, horizon: int) -> DatasetProfile:
-    """Build a lightweight dataset profile for model and training defaults."""
-    lengths = frame.groupby("unique_id").size()
-    sampled_ids = frame["unique_id"].drop_duplicates().head(64)
-    sampled = frame[frame["unique_id"].isin(sampled_ids)]
-    median_length = int(lengths.median())
-    train_length_estimate = max(
-        1, median_length - infer_test_size(median_length, horizon)
-    )
-    max_input_size = max(4, train_length_estimate - horizon)
-    candidate_periods = candidate_periods_for_frequency(freq, max_input_size)
-
-    seasonality_scores = {candidate: [] for candidate in candidate_periods}
-    trend_scores: list[float] = []
-    scales: list[float] = []
-
-    for _, series in sampled.groupby("unique_id"):
-        values = series.sort_values("ds")["y"].to_numpy(dtype=float)
-        if len(values) < 3:
-            continue
-        scales.append(float(np.std(values)))
-        for candidate in candidate_periods:
-            seasonality_scores[candidate].append(
-                max(0.0, estimate_lag_correlation(values, candidate))
-            )
-
-        x_axis = np.arange(len(values), dtype=float)
-        if np.std(values) == 0:
-            trend_scores.append(0.0)
-        else:
-            slope = float(np.polyfit(x_axis, values, 1)[0])
-            trend_scores.append(min(1.0, abs(slope) * len(values) / np.std(values)))
-
-    dominant_period = max(
-        candidate_periods,
-        key=lambda candidate: float(np.mean(seasonality_scores[candidate] or [0.0])),
-    )
-    seasonality_strength = float(np.mean(seasonality_scores[dominant_period] or [0.0]))
-    trend_strength = float(np.mean(trend_scores or [0.0]))
-    scale_median = float(np.median(scales or [0.0]))
-
-    return DatasetProfile(
-        n_series=int(lengths.shape[0]),
-        min_length=int(lengths.min()),
-        median_length=median_length,
-        max_length=int(lengths.max()),
-        train_length_estimate=train_length_estimate,
-        dominant_period=int(dominant_period),
-        seasonality_strength=seasonality_strength,
-        trend_strength=trend_strength,
-        scale_median=scale_median,
-        short_history=train_length_estimate < 32,
-        long_history=train_length_estimate >= 128,
-    )
-
-
-def recommend_training_kwargs(
-    profile: DatasetProfile, horizon: int, max_steps: int
-) -> dict[str, int | float]:
-    """Recommend neural training defaults from the dataset profile."""
-    recommended_max_steps = max_steps
-    if profile.short_history:
-        recommended_max_steps = min(max_steps, 100)
-    elif profile.long_history and horizon >= 14:
-        recommended_max_steps = max(max_steps, 150)
-
-    learning_rate = 5e-3 if profile.short_history else 1e-2
-    early_stop_patience_steps = max(10, recommended_max_steps // 5)
-    val_check_steps = max(10, recommended_max_steps // 4)
-    return {
-        "max_steps": int(recommended_max_steps),
-        "learning_rate": learning_rate,
-        "early_stop_patience_steps": int(early_stop_patience_steps),
-        "val_check_steps": int(val_check_steps),
-    }
-
-
-def recommend_timebase_kwargs(
-    profile: DatasetProfile, freq: str, horizon: int
-) -> dict[str, int]:
-    """Recommend TimeBase architectural defaults from the dataset profile."""
-    max_input_size = max(4, profile.train_length_estimate - horizon)
-    input_size = min(max(horizon * 2, 16), 96, max_input_size)
-    if profile.short_history:
-        input_size = min(input_size, 24)
-    period_len = min(profile.dominant_period, max(2, input_size))
-    basis_num = (
-        3 if profile.short_history else 8 if profile.seasonality_strength >= 0.4 else 6
-    )
-    return {
-        "input_size": int(input_size),
-        "period_len": int(max(2, period_len)),
-        "basis_num": int(min(basis_num, max(2, input_size // 2))),
-    }
-
-
-def recommend_timebase_trend_kwargs(
-    profile: DatasetProfile, freq: str, horizon: int
-) -> dict[str, int]:
-    """Recommend TimeBaseTrend defaults from the dataset profile."""
-    timebase_kwargs = recommend_timebase_kwargs(profile, freq, horizon)
-    input_size = int(timebase_kwargs["input_size"])
-    period_len = int(timebase_kwargs["period_len"])
-    moving_avg_window = min(max(5, 2 * period_len + 1), input_size - 1)
-    if moving_avg_window % 2 == 0:
-        moving_avg_window -= 1
-    if profile.short_history and profile.trend_strength < 0.2:
-        moving_avg_window = min(moving_avg_window, 5)
-    return {**timebase_kwargs, "moving_avg_window": int(max(3, moving_avg_window))}
-
-
 def run_neural_benchmark(
     train: pd.DataFrame,
     test: pd.DataFrame,
@@ -556,8 +414,8 @@ def benchmark_configuration(
 ) -> list[tuple[str, str, dict[str, Any]]]:
     """Return the list of neural model configurations for a frequency."""
     training_kwargs = recommend_training_kwargs(profile, horizon, max_steps)
-    timebase_kwargs = recommend_timebase_kwargs(profile, freq, horizon)
-    timebase_trend_kwargs = recommend_timebase_trend_kwargs(profile, freq, horizon)
+    timebase_kwargs = recommend_timebase_model_kwargs(profile, horizon)
+    timebase_trend_kwargs = recommend_timebase_trend_model_kwargs(profile, horizon)
 
     common_kwargs = {
         "input_size": int(timebase_kwargs["input_size"]),
