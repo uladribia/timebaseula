@@ -142,7 +142,7 @@ def choose_common_model_kwargs(
     horizon: int,
     max_steps: int,
 ) -> dict[str, Any]:
-    """Choose shared neural-model parameters from generic dataset recommendations."""
+    """Choose shared neural-model parameters with a hard training-step cap."""
     profile = profile_dataset(train_frame, freq=freq, horizon=horizon)
     model_defaults = recommend_timebase_model_kwargs(profile, horizon=horizon)
     training_defaults = recommend_training_kwargs(
@@ -150,14 +150,21 @@ def choose_common_model_kwargs(
         horizon=horizon,
         max_steps=max_steps,
     )
+    bounded_max_steps = max(1, int(max_steps))
+    bounded_val_check_steps = max(
+        1,
+        min(int(training_defaults["val_check_steps"]), bounded_max_steps),
+    )
+    bounded_early_stop = max(
+        bounded_val_check_steps,
+        min(int(training_defaults["early_stop_patience_steps"]), bounded_max_steps),
+    )
     return {
         "input_size": int(model_defaults["input_size"]),
-        "max_steps": int(training_defaults["max_steps"]),
+        "max_steps": bounded_max_steps,
         "learning_rate": float(training_defaults["learning_rate"]),
-        "early_stop_patience_steps": int(
-            training_defaults["early_stop_patience_steps"],
-        ),
-        "val_check_steps": int(training_defaults["val_check_steps"]),
+        "early_stop_patience_steps": bounded_early_stop,
+        "val_check_steps": bounded_val_check_steps,
     }
 
 
@@ -1229,15 +1236,13 @@ def main(
             h=horizon,
             freq="MS",
             max_steps=max_steps,
-            search_max_steps=10,
-            include_iteration_recommendation=True,
+            search_max_steps=max(1, min(10, max_steps)),
         ),
         AutoTimeBaseTrend(
             h=horizon,
             freq="MS",
             max_steps=max_steps,
-            search_max_steps=10,
-            include_iteration_recommendation=True,
+            search_max_steps=max(1, min(10, max_steps)),
         ),
     ]
     prediction_columns = [

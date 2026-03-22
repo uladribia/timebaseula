@@ -49,6 +49,7 @@ class TestSyntheticBenchmarkHelpers:
             input_size=8,
             val_size=4,
             test_size=4,
+            max_steps=3,
         )
 
         assert set(result.columns) == {"scenario", "model_name", "mae"}

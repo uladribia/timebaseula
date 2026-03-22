@@ -27,7 +27,7 @@ from statsforecast.models import AutoARIMA, AutoMFLES
 
 from scripts.reporting import (
     build_html_benchmark_report,
-    build_representative_series_sections,
+    build_representative_forecast_sections,
 )
 from timebaseula import AutoTimeBase, AutoTimeBaseTrend
 from timebaseula.recommend import (
@@ -290,7 +290,8 @@ def run_neural_benchmark(
     model_name: str,
     dataset: str,
     horizon: int,
-) -> BenchmarkResult:
+    return_forecast: bool = False,
+) -> BenchmarkResult | tuple[BenchmarkResult, pd.DataFrame]:
     """Fit a NeuralForecast model and compute metrics on the held-out horizon."""
     model = model_class(h=horizon, **model_kwargs)
     nf = NeuralForecast(models=[model], freq=freq)
@@ -308,7 +309,7 @@ def run_neural_benchmark(
         merged["y"].to_numpy(),
         merged[model_name].to_numpy(),
     )
-    return BenchmarkResult(
+    result = BenchmarkResult(
         model_name=model_name,
         dataset=resolve_dataset_group(dataset),
         frequency=freq,
@@ -318,6 +319,9 @@ def run_neural_benchmark(
         train_time=train_time,
         inference_time=inference_time,
     )
+    if return_forecast:
+        return result, forecast[["unique_id", "ds", model_name]].copy()
+    return result
 
 
 def run_naive_benchmark(
@@ -326,11 +330,13 @@ def run_naive_benchmark(
     freq: str,
     dataset: str,
     horizon: int,
-) -> BenchmarkResult:
+    return_forecast: bool = False,
+) -> BenchmarkResult | tuple[BenchmarkResult, pd.DataFrame]:
     """Seasonal naive benchmark using the last observed season."""
     season_length = infer_season_length(freq)
     predictions: list[float] = []
     truths: list[float] = []
+    forecast_parts: list[pd.DataFrame] = []
 
     for unique_id in test["unique_id"].drop_duplicates():
         train_series = train[train["unique_id"] == unique_id].sort_values("ds")
@@ -340,9 +346,14 @@ def run_naive_benchmark(
         forecast = np.tile(tail_values, repetitions)[:horizon]
         predictions.extend(forecast.tolist())
         truths.extend(test_series["y"].head(horizon).tolist())
+        forecast_parts.append(
+            test_series[["unique_id", "ds"]]
+            .head(horizon)
+            .assign(SeasonalNaive=forecast)
+        )
 
     mae, rmse = compute_error_metrics(np.array(truths), np.array(predictions))
-    return BenchmarkResult(
+    result = BenchmarkResult(
         model_name="SeasonalNaive",
         dataset=resolve_dataset_group(dataset),
         frequency=freq,
@@ -352,6 +363,9 @@ def run_naive_benchmark(
         train_time=0.0,
         inference_time=0.0,
     )
+    if return_forecast:
+        return result, pd.concat(forecast_parts, ignore_index=True)
+    return result
 
 
 def run_statsforecast_benchmark(
@@ -363,10 +377,12 @@ def run_statsforecast_benchmark(
     model_name: str,
     dataset: str,
     horizon: int,
-) -> BenchmarkResult:
+    return_forecast: bool = False,
+) -> BenchmarkResult | tuple[BenchmarkResult, pd.DataFrame]:
     """Fit a StatsForecast model series by series and compute aggregate metrics."""
     predictions: list[float] = []
     truths: list[float] = []
+    forecast_parts: list[pd.DataFrame] = []
     total_train_time = 0.0
     total_inference_time = 0.0
 
@@ -395,9 +411,14 @@ def run_statsforecast_benchmark(
         )
         predictions.extend(forecast[column_name].to_numpy().tolist())
         truths.extend(test_series["y"].head(horizon).to_numpy().tolist())
+        forecast_parts.append(
+            forecast[["unique_id", "ds", column_name]].rename(
+                columns={column_name: model_name}
+            )
+        )
 
     mae, rmse = compute_error_metrics(np.array(truths), np.array(predictions))
-    return BenchmarkResult(
+    result = BenchmarkResult(
         model_name=model_name,
         dataset=resolve_dataset_group(dataset),
         frequency=freq,
@@ -407,6 +428,9 @@ def run_statsforecast_benchmark(
         train_time=total_train_time,
         inference_time=total_inference_time,
     )
+    if return_forecast:
+        return result, pd.concat(forecast_parts, ignore_index=True)
+    return result
 
 
 def benchmark_configuration(
@@ -433,7 +457,6 @@ def benchmark_configuration(
         "freq": freq,
         "search_max_steps": max(5, min(10, int(training_kwargs["val_check_steps"]))),
         "n_search_configs": 2,
-        "include_iteration_recommendation": True,
     }
 
     return [
@@ -461,7 +484,11 @@ def run_benchmark_for_dataset(
     max_steps: int,
     skip_arima: bool,
     test_fraction: float = 0.2,
-) -> list[BenchmarkResult]:
+    return_forecasts: bool = False,
+) -> (
+    list[BenchmarkResult]
+    | tuple[list[BenchmarkResult], pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]
+):
     """Run all requested benchmark models for one dataset/frequency pair."""
     logger = configure_logging()
     normalized_freq = normalize_frequency(freq)
@@ -500,72 +527,81 @@ def run_benchmark_for_dataset(
         max_steps,
         profile=profile,
     )
-    results = [
-        run_naive_benchmark(train, test, normalized_freq, dataset, horizon),
-        run_neural_benchmark(
-            train,
-            test,
-            normalized_freq,
-            DLinear,
-            configs[0][2],
-            "DLinear",
-            dataset,
-            horizon,
-        ),
-        run_neural_benchmark(
-            train,
-            test,
-            normalized_freq,
-            NLinear,
-            configs[1][2],
-            "NLinear",
-            dataset,
-            horizon,
-        ),
-        run_neural_benchmark(
-            train,
-            test,
-            normalized_freq,
-            AutoTimeBase,
-            configs[2][2],
-            "AutoTimeBase",
-            dataset,
-            horizon,
-        ),
-        run_neural_benchmark(
-            train,
-            test,
-            normalized_freq,
-            AutoTimeBaseTrend,
-            configs[3][2],
-            "AutoTimeBaseTrend",
-            dataset,
-            horizon,
-        ),
-        run_statsforecast_benchmark(
-            train,
-            test,
-            normalized_freq,
-            AutoMFLES,
-            {"season_length": infer_season_length(normalized_freq)},
-            "AutoMFLES",
-            dataset,
-            horizon,
-        ),
+    forecast_frames: dict[str, pd.DataFrame] = {}
+
+    naive_output = run_naive_benchmark(
+        train, test, normalized_freq, dataset, horizon, return_forecast=return_forecasts
+    )
+    if return_forecasts:
+        naive_result, naive_forecast = naive_output
+        results = [naive_result]
+        forecast_frames["SeasonalNaive"] = naive_forecast
+    else:
+        results = [naive_output]
+
+    neural_specs = [
+        (DLinear, configs[0][2], "DLinear"),
+        (NLinear, configs[1][2], "NLinear"),
+        (AutoTimeBase, configs[2][2], "AutoTimeBase"),
+        (AutoTimeBaseTrend, configs[3][2], "AutoTimeBaseTrend"),
     ]
-    if should_include_arima(skip_arima):
-        results.append(
-            run_statsforecast_benchmark(
-                train,
-                test,
-                normalized_freq,
-                AutoARIMA,
-                {"season_length": infer_season_length(normalized_freq)},
-                "AutoARIMA",
-                dataset,
-                horizon,
-            )
+    for model_class, model_kwargs, model_name in neural_specs:
+        output = run_neural_benchmark(
+            train,
+            test,
+            normalized_freq,
+            model_class,
+            model_kwargs,
+            model_name,
+            dataset,
+            horizon,
+            return_forecast=return_forecasts,
         )
+        if return_forecasts:
+            result, forecast_frame = output
+            results.append(result)
+            forecast_frames[model_name] = forecast_frame
+        else:
+            results.append(output)
+
+    mfles_output = run_statsforecast_benchmark(
+        train,
+        test,
+        normalized_freq,
+        AutoMFLES,
+        {"season_length": infer_season_length(normalized_freq)},
+        "AutoMFLES",
+        dataset,
+        horizon,
+        return_forecast=return_forecasts,
+    )
+    if return_forecasts:
+        mfles_result, mfles_forecast = mfles_output
+        results.append(mfles_result)
+        forecast_frames["AutoMFLES"] = mfles_forecast
+    else:
+        results.append(mfles_output)
+
+    if should_include_arima(skip_arima):
+        arima_output = run_statsforecast_benchmark(
+            train,
+            test,
+            normalized_freq,
+            AutoARIMA,
+            {"season_length": infer_season_length(normalized_freq)},
+            "AutoARIMA",
+            dataset,
+            horizon,
+            return_forecast=return_forecasts,
+        )
+        if return_forecasts:
+            arima_result, arima_forecast = arima_output
+            results.append(arima_result)
+            forecast_frames["AutoARIMA"] = arima_forecast
+        else:
+            results.append(arima_output)
+    if return_forecasts:
+        return results, train, test.rename(columns={"y": "y_true"}), forecast_frames
     return results
 
 
@@ -703,6 +739,74 @@ def resolve_html_report_output(
     return Path("logs/benchmark_long_horizon_report.html")
 
 
+def resolve_report_data_dir(
+    report_data_dir: str | Path | None,
+    csv_output: str | Path | None,
+) -> Path | None:
+    """Resolve the persisted report-data directory for benchmark artifacts."""
+    if report_data_dir is not None:
+        return Path(report_data_dir)
+    if csv_output is None:
+        return None
+    csv_path = Path(csv_output)
+    return csv_path.with_suffix("").with_name(f"{csv_path.stem}_report_data")
+
+
+def save_report_data(
+    report_data_dir: Path,
+    source_frames: list[tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]],
+) -> None:
+    """Persist representative-series source frames for later HTML rendering."""
+    report_data_dir.mkdir(parents=True, exist_ok=True)
+    manifest: list[dict[str, Any]] = []
+    for index, (train_frame, target_frame, forecast_frames) in enumerate(source_frames):
+        block = {
+            "name": f"block_{index:02d}",
+            "train": f"block_{index:02d}_train.parquet",
+            "target": f"block_{index:02d}_target.parquet",
+            "forecasts": {},
+        }
+        train_frame.to_parquet(report_data_dir / block["train"], index=False)
+        target_frame.to_parquet(report_data_dir / block["target"], index=False)
+        for model_name, forecast_frame in forecast_frames.items():
+            filename = f"block_{index:02d}_{model_name}.parquet"
+            forecast_frame.to_parquet(report_data_dir / filename, index=False)
+            block["forecasts"][model_name] = filename
+        manifest.append(block)
+    (report_data_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2),
+        encoding="utf-8",
+    )
+
+
+def load_report_data(
+    report_data_dir: Path,
+) -> tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]] | None:
+    """Load persisted representative-series source frames for HTML reporting."""
+    manifest_path = report_data_dir / "manifest.json"
+    if not manifest_path.exists():
+        return None
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    train_parts: list[pd.DataFrame] = []
+    target_parts: list[pd.DataFrame] = []
+    forecast_parts: dict[str, list[pd.DataFrame]] = {}
+    for block in manifest:
+        train_parts.append(pd.read_parquet(report_data_dir / block["train"]))
+        target_parts.append(pd.read_parquet(report_data_dir / block["target"]))
+        for model_name, filename in block["forecasts"].items():
+            forecast_parts.setdefault(model_name, []).append(
+                pd.read_parquet(report_data_dir / filename)
+            )
+    return (
+        pd.concat(train_parts, ignore_index=True),
+        pd.concat(target_parts, ignore_index=True),
+        {
+            model_name: pd.concat(parts, ignore_index=True)
+            for model_name, parts in forecast_parts.items()
+        },
+    )
+
+
 def render_results_table(results: list[BenchmarkResult]) -> None:
     """Render a Rich table for benchmark results."""
     table = Table(title="Long-horizon benchmark")
@@ -766,9 +870,29 @@ def report_html(
     output_html: Path = typer.Option(
         Path("logs/benchmark_report.html"), help="HTML report output path."
     ),
+    report_data_dir: Path | None = typer.Option(
+        None,
+        help=(
+            "Optional directory with persisted representative-series inputs. "
+            "Defaults to a sibling directory derived from the CSV path."
+        ),
+    ),
 ) -> None:
     """Generate a reusable HTML benchmark report from a benchmark CSV."""
     frame = pd.read_csv(input_csv)
+    representative_sections: list[str] | None = None
+    resolved_report_data_dir = resolve_report_data_dir(report_data_dir, input_csv)
+    if resolved_report_data_dir is not None:
+        loaded = load_report_data(resolved_report_data_dir)
+        if loaded is not None:
+            observed_frame, target_frame, forecast_frames = loaded
+            representative_sections = build_representative_forecast_sections(
+                observed_frame,
+                target_frame,
+                forecast_frames,
+                slice_columns=["dataset", "frequency"],
+                n_examples=5,
+            )
     output_html.parent.mkdir(parents=True, exist_ok=True)
     output_html.write_text(
         build_html_benchmark_report(
@@ -779,14 +903,14 @@ def report_html(
             description=(
                 "Reusable Matplotlib benchmark report for the long-horizon real datasets."
             ),
+            representative_sections=representative_sections,
         ),
         encoding="utf-8",
     )
     console.print(f"[green]HTML report saved[/green] {output_html}")
 
 
-@app.command()
-def main(
+def run_command(
     dataset: str = typer.Option("all", help="Dataset: ECL, TrafficL, or all."),
     mode: str = typer.Option("daily", help="Benchmark mode: daily, monthly, or all."),
     freq: str | None = typer.Option(None, help="Optional frequency override: D or M."),
@@ -810,6 +934,13 @@ def main(
     html_report_output: Path | None = typer.Option(
         None,
         help="Optional HTML output path. Defaults to the CSV path with .html.",
+    ),
+    report_data_dir: Path | None = typer.Option(
+        None,
+        help=(
+            "Directory used to persist representative-series inputs so reports "
+            "can be regenerated without rerunning benchmarks."
+        ),
     ),
     json_output: bool = typer.Option(
         False, "--json", help="Emit JSON instead of only a Rich table."
@@ -841,7 +972,13 @@ def main(
     ensure_aggregated_datasets(force_download=force_download)
 
     all_results: list[BenchmarkResult] = []
-    representative_source_frames: list[pd.DataFrame] = []
+    representative_source_frames: list[
+        tuple[pd.DataFrame, pd.DataFrame, dict[str, pd.DataFrame]]
+    ] = []
+    resolved_report_data_dir = resolve_report_data_dir(report_data_dir, output)
+    persist_report_data_enabled = (
+        emit_html_report or resolved_report_data_dir is not None
+    )
     for current_dataset in datasets:
         for current_freq in frequencies:
             if not quiet:
@@ -855,11 +992,6 @@ def main(
             selected_series = choose_series_count(
                 int(current_frame["unique_id"].nunique()),
                 n_series,
-            )
-            representative_source_frames.append(
-                select_series_subset(current_frame, n_series).assign(
-                    dataset=current_dataset, frequency=current_freq
-                )
             )
             logger.info(
                 "Running benchmark block",
@@ -875,16 +1007,39 @@ def main(
                     f"{selected_series} series for {current_dataset} "
                     f"{current_freq}[/dim]"
                 )
-            all_results.extend(
-                run_benchmark_for_dataset(
-                    dataset=current_dataset,
-                    freq=current_freq,
-                    horizon=resolved_horizon,
-                    n_series=n_series,
-                    max_steps=resolved_max_steps,
-                    skip_arima=skip_arima,
-                )
+            benchmark_output = run_benchmark_for_dataset(
+                dataset=current_dataset,
+                freq=current_freq,
+                horizon=resolved_horizon,
+                n_series=n_series,
+                max_steps=resolved_max_steps,
+                skip_arima=skip_arima,
+                return_forecasts=persist_report_data_enabled,
             )
+            if persist_report_data_enabled:
+                block_results, train_frame, target_frame, forecast_frames = (
+                    benchmark_output
+                )
+                all_results.extend(block_results)
+                representative_source_frames.append(
+                    (
+                        train_frame.assign(
+                            dataset=current_dataset, frequency=current_freq
+                        ),
+                        target_frame.assign(
+                            dataset=current_dataset, frequency=current_freq
+                        ),
+                        {
+                            name: frame.assign(
+                                dataset=current_dataset,
+                                frequency=current_freq,
+                            )
+                            for name, frame in forecast_frames.items()
+                        },
+                    )
+                )
+            else:
+                all_results.extend(benchmark_output)
 
     render_results_table(all_results)
     results_frame = results_to_frame(all_results)
@@ -895,6 +1050,13 @@ def main(
         if not quiet:
             console.print(f"[green]saved[/green] {output}")
 
+    if resolved_report_data_dir is not None and representative_source_frames:
+        save_report_data(resolved_report_data_dir, representative_source_frames)
+        if not quiet:
+            console.print(
+                f"[green]report data saved[/green] {resolved_report_data_dir}"
+            )
+
     html_output = resolve_html_report_output(
         emit_html_report,
         html_report_output,
@@ -902,10 +1064,17 @@ def main(
     )
     if html_output is not None:
         html_output.parent.mkdir(parents=True, exist_ok=True)
-        representative_sections = build_representative_series_sections(
-            pd.concat(representative_source_frames, ignore_index=True),
-            slice_columns=["dataset", "frequency"],
-        )
+        representative_sections: list[str] | None = None
+        if resolved_report_data_dir is not None:
+            loaded = load_report_data(resolved_report_data_dir)
+            if loaded is not None:
+                observed_frame, target_frame, forecast_frames = loaded
+                representative_sections = build_representative_forecast_sections(
+                    observed_frame,
+                    target_frame,
+                    forecast_frames,
+                    slice_columns=["dataset", "frequency"],
+                )
         html_output.write_text(
             build_html_benchmark_report(
                 results_frame,
@@ -928,6 +1097,9 @@ def main(
         console.print_json(
             data=json.loads(results_frame.to_json(orient="records", date_format="iso"))
         )
+
+
+app.command("run")(run_command)
 
 
 if __name__ == "__main__":

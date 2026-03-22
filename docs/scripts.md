@@ -49,11 +49,19 @@ Useful options include:
 
 ## Compare MAE on synthetic scenarios
 
-```bash
-uv run --frozen python scripts/check_forecast_mae.py main
+Run the benchmark once and persist the result table plus report inputs:
 
+```bash
+uv run --frozen python scripts/check_forecast_mae.py run \
+  --max-steps 20 \
+  --output-csv logs/synthetic_benchmark_results.csv
+```
+
+Regenerate the HTML report later without rerunning the models:
+
+```bash
 uv run --frozen python scripts/check_forecast_mae.py report-html \
-  --output-csv logs/synthetic_benchmark_results.csv \
+  --input-csv logs/synthetic_benchmark_results.csv \
   --output-html logs/synthetic_benchmark_report.html
 ```
 
@@ -62,32 +70,30 @@ uv run --frozen python scripts/check_forecast_mae.py report-html \
 Quick smoke test:
 
 ```bash
-uv run --frozen python scripts/benchmark_long_horizon.py main \
+uv run --frozen python scripts/benchmark_long_horizon.py run \
   --mode daily \
   --n-series 5 \
   --horizon 7 \
   --max-steps 10 \
   --skip-arima \
-  --output logs/benchmark_results_smoke.csv \
-  --html-report
+  --output logs/benchmark_results_smoke.csv
 ```
 
 Longer run without ARIMA:
 
 ```bash
-uv run --frozen python scripts/benchmark_long_horizon.py main \
+uv run --frozen python scripts/benchmark_long_horizon.py run \
   --mode daily \
   --n-series 300 \
   --horizon 28 \
   --max-steps 200 \
   --skip-arima \
-  --output logs/benchmark_results_300_daily_h28_no_arima.csv \
-  --html-report
+  --output logs/benchmark_results_300_daily_h28_no_arima.csv
 ```
 
-Generate reports from a benchmark CSV, or emit the HTML report directly from `main` with `--html-report`:
+Generate reports from a persisted benchmark CSV. The run stores report inputs in a sibling `*_report_data/` directory by default, so report-only changes do not require another full benchmark run.
 
-The HTML reports now follow the same tabbed layout as the custom benchmark report. When observed series are available at report-generation time, the representative-series tab uses a consistent selection policy:
+The benchmark scripts keep search budgets explicit and do not use the current iteration auto-suggestion helper. Synthetic and custom benchmark runs now honor the user-provided step cap directly instead of expanding it through recommendation helpers. The HTML reports now follow the same tabbed layout as the custom benchmark report. When observed series are available at report-generation time, the representative-series tab uses a consistent selection policy:
 
 - longest history
 - highest variance

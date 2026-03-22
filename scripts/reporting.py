@@ -24,6 +24,7 @@ MODEL_COLORS = {
     "AutoARIMA": "#cbd5e1",
     "Naive": "#7dd3fc",
     "Observed": "#e2e8f0",
+    "Holdout": "#ffffff",
 }
 
 
@@ -273,6 +274,118 @@ def build_representative_series_sections(
     return sections
 
 
+def build_representative_forecast_sections(
+    full_frame: pd.DataFrame,
+    target_frame: pd.DataFrame,
+    forecast_frames: dict[str, pd.DataFrame],
+    slice_columns: list[str] | None = None,
+    n_examples: int = 5,
+    history_points: int = 120,
+) -> list[str]:
+    """Build representative sections with observed history, holdout, and forecasts."""
+    if full_frame.empty:
+        return []
+
+    def filter_slice(frame: pd.DataFrame, slice_key: Any) -> pd.DataFrame:
+        if not slice_columns or frame.empty:
+            return frame.copy()
+        values = slice_key if isinstance(slice_key, tuple) else (slice_key,)
+        filtered = frame
+        for column, value in zip(slice_columns, values, strict=True):
+            filtered = filtered[filtered[column].eq(value)]
+        return filtered.copy()
+
+    grouped = (
+        [((), full_frame, target_frame, forecast_frames)] if not slice_columns else []
+    )
+    if slice_columns:
+        for slice_key, slice_frame in full_frame.groupby(
+            slice_columns, dropna=False, sort=False
+        ):
+            slice_target = filter_slice(target_frame, slice_key)
+            slice_forecasts = {
+                model_name: filter_slice(frame, slice_key)
+                for model_name, frame in forecast_frames.items()
+            }
+            grouped.append((slice_key, slice_frame, slice_target, slice_forecasts))
+
+    sections: list[str] = []
+    plot_order = ["Observed", "Holdout", *forecast_frames.keys()]
+    for slice_key, slice_frame, slice_target, slice_forecasts in grouped:
+        representative_ids = choose_representative_series(slice_frame, n_examples)
+        if not representative_ids:
+            continue
+        if slice_columns:
+            labels = [
+                f"{column}={value}"
+                for column, value in zip(
+                    slice_columns,
+                    slice_key if isinstance(slice_key, tuple) else (slice_key,),
+                    strict=True,
+                )
+            ]
+            sections.append(
+                f'<section class="card"><h2>{escape(" | ".join(labels))}</h2>'
+            )
+        for unique_id in representative_ids:
+            history = (
+                slice_frame[slice_frame["unique_id"] == unique_id]
+                .sort_values("ds")
+                .tail(history_points)[["ds", "y"]]
+                .assign(series="Observed", value=lambda df: df["y"])[
+                    ["ds", "series", "value"]
+                ]
+            )
+            holdout = (
+                slice_target[slice_target["unique_id"] == unique_id]
+                .sort_values("ds")[["ds", "y_true"]]
+                .assign(series="Holdout", value=lambda df: df["y_true"])[
+                    ["ds", "series", "value"]
+                ]
+            )
+            forecast_parts = [history, holdout]
+            for model_name, forecast_frame in slice_forecasts.items():
+                if model_name not in forecast_frame.columns:
+                    continue
+                series_forecast = (
+                    forecast_frame[forecast_frame["unique_id"] == unique_id]
+                    .sort_values("ds")[["ds", model_name]]
+                    .assign(series=model_name, value=lambda df, c=model_name: df[c])[
+                        ["ds", "series", "value"]
+                    ]
+                )
+                forecast_parts.append(series_forecast)
+            plot_frame = pd.concat(forecast_parts, ignore_index=True)
+            fig, ax = plt.subplots(figsize=(10.5, 3.8), facecolor="#0f172a")
+            ax.set_facecolor("#0f172a")
+            for series_name in plot_order:
+                series_data = plot_frame[plot_frame["series"] == series_name]
+                if series_data.empty:
+                    continue
+                ax.plot(
+                    series_data["ds"],
+                    series_data["value"],
+                    label=series_name,
+                    color=MODEL_COLORS.get(series_name, "#cbd5e1"),
+                    linestyle="--" if series_name == "Holdout" else "-",
+                    linewidth=2.2 if series_name in {"Observed", "Holdout"} else 1.8,
+                )
+            ax.set_title(f"Forecast plot for {unique_id}", color="#e2e8f0")
+            ax.set_xlabel("Date", color="#cbd5e1")
+            ax.set_ylabel("Value", color="#cbd5e1")
+            ax.tick_params(colors="#cbd5e1")
+            ax.grid(True, alpha=0.18, color="#94a3b8")
+            legend = ax.legend(ncol=4, fontsize=8, frameon=False, loc="upper left")
+            for text in legend.get_texts():
+                text.set_color("#e2e8f0")
+            sections.append(
+                f"<figure><h3>{escape(str(unique_id))}</h3>{render_matplotlib_figure(fig, f'Forecast plot for {unique_id}')}</figure>"
+            )
+        if slice_columns:
+            sections.append("</section>")
+    return sections
+
+
 def plot_runtime_tradeoff(
     results_frame: pd.DataFrame, metric_column: str = "mae"
 ) -> str | None:
@@ -411,7 +524,7 @@ def build_html_benchmark_report(
       <section class=\"card\"><h2>Best by slice</h2>{summary_table_html}</section>
     </section>
     <section id=\"tab-representative\" class=\"tab-panel\">
-      <section class=\"card\"><h2>Representative series</h2><p>Each slice shows the longest history, the highest-variance series, the strongest-trend series, and up to two additional random series.</p>{representative_html}</section>
+      <section class=\"card\"><h2>Representative series</h2><p>Each slice shows the longest history, the highest-variance series, the strongest-trend series, and up to two additional random series. Forecast reports also overlay model predictions and the holdout trajectory.</p>{representative_html}</section>
     </section>
     <section id=\"tab-comparisons\" class=\"tab-panel\">
       <section class=\"card\"><h2>{metric_column.upper()} by slice</h2>{slice_plot_html}</section>

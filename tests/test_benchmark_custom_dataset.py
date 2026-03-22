@@ -72,6 +72,25 @@ class TestCustomDatasetBenchmark:
         assert kwargs["max_steps"] <= 30
         assert "learning_rate" in kwargs
 
+    def test_choose_common_model_kwargs_hard_caps_training_budget(self) -> None:
+        rows = []
+        for unique_id in ("a", "b"):
+            for step in range(120):
+                rows.append(
+                    {
+                        "unique_id": unique_id,
+                        "ds": pd.Timestamp("2020-01-01") + pd.offsets.MonthBegin(step),
+                        "y": float(step % 12),
+                    }
+                )
+        frame = pd.DataFrame(rows)
+
+        kwargs = choose_common_model_kwargs(frame, freq="MS", horizon=12, max_steps=5)
+
+        assert kwargs["max_steps"] == 5
+        assert kwargs["val_check_steps"] <= 5
+        assert kwargs["early_stop_patience_steps"] <= 5
+
     def test_build_seasonal_naive_forecast_repeats_last_season(self) -> None:
         train_frame = pd.DataFrame(
             {

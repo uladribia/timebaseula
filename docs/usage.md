@@ -370,7 +370,7 @@ uv run --frozen python scripts/generate_datasets.py main
 Quick verification benchmark:
 
 ```bash
-uv run --frozen python scripts/benchmark_long_horizon.py main \
+uv run --frozen python scripts/benchmark_long_horizon.py run \
   --mode daily \
   --n-series 5 \
   --horizon 7 \

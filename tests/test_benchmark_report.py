@@ -10,7 +10,11 @@ from scripts.benchmark_long_horizon import (
     resolve_html_report_output,
     should_include_arima,
 )
-from scripts.reporting import build_best_by_slice_summary, build_html_benchmark_report
+from scripts.reporting import (
+    build_best_by_slice_summary,
+    build_html_benchmark_report,
+    build_representative_forecast_sections,
+)
 
 
 class TestBenchmarkReporting:
@@ -128,3 +132,44 @@ class TestBenchmarkReporting:
         )
 
         assert str(result) == "logs/custom-report.html"
+
+    def test_representative_forecast_sections_handle_unaligned_indexes(self) -> None:
+        """Representative forecast plots should not depend on aligned row indexes."""
+        full_frame = pd.DataFrame(
+            {
+                "unique_id": ["a", "a", "a", "a"],
+                "ds": pd.date_range("2024-01-01", periods=4, freq="D"),
+                "y": [1.0, 2.0, 3.0, 4.0],
+                "scenario": ["easy"] * 4,
+            }
+        )
+        target_frame = pd.DataFrame(
+            {
+                "unique_id": ["a", "a"],
+                "ds": pd.date_range("2024-01-03", periods=2, freq="D"),
+                "y_true": [3.0, 4.0],
+                "scenario": ["easy", "easy"],
+            },
+            index=pd.Index([10, 11]),
+        )
+        forecast_frames = {
+            "Naive": pd.DataFrame(
+                {
+                    "unique_id": ["a", "a"],
+                    "ds": pd.date_range("2024-01-03", periods=2, freq="D"),
+                    "Naive": [2.5, 2.5],
+                    "scenario": ["easy", "easy"],
+                }
+            )
+        }
+
+        sections = build_representative_forecast_sections(
+            full_frame,
+            target_frame,
+            forecast_frames,
+            slice_columns=["scenario"],
+            n_examples=1,
+            history_points=4,
+        )
+
+        assert any("Forecast plot for a" in section for section in sections)

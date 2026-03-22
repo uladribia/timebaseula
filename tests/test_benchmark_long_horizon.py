@@ -138,6 +138,7 @@ class TestBenchmarkDatasetHelpers:
         assert dlinear_kwargs["learning_rate"] <= 5e-3
         assert auto_kwargs["freq"] == "D"
         assert auto_kwargs["search_max_steps"] >= 5
+        assert "include_iteration_recommendation" not in auto_kwargs
 
     def test_profile_dataset_expands_budget_for_long_monthly_regime(self) -> None:
         """Long monthly datasets should get a larger budget and a gentler LR."""
