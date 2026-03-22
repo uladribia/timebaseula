@@ -17,8 +17,7 @@ from statsforecast import StatsForecast
 from statsforecast.models import AutoMFLES
 
 from scripts.reporting import build_html_benchmark_report
-from timebaseula import recommend_timebase_kwargs, recommend_timebase_trend_kwargs
-from timebaseula.models.timebase import TimeBase, TimeBaseTrend
+from timebaseula.models.timebase import AutoTimeBase, AutoTimeBaseTrend
 from timebaseula.synthetic import make_synthetic_series
 
 app = typer.Typer(help="Compare MAE across baseline and model forecasts.")
@@ -83,22 +82,15 @@ def evaluate_models(
     )
     naive = build_naive_forecast(target, last_values)
 
-    timebase_kwargs = recommend_timebase_kwargs(
-        frame=train_frame,
-        freq="D",
-        horizon=h,
-        max_steps=200,
-    )
-    timebase_trend_kwargs = recommend_timebase_trend_kwargs(
-        frame=train_frame,
-        freq="D",
-        horizon=h,
-        max_steps=200,
-    )
     models = [
         DLinear(h=h, input_size=input_size, max_steps=200, learning_rate=1e-2),
-        TimeBase(h=h, **timebase_kwargs),
-        TimeBaseTrend(h=h, **timebase_trend_kwargs),
+        AutoTimeBase(h=h, freq="D", max_steps=200, search_max_steps=10),
+        AutoTimeBaseTrend(
+            h=h,
+            freq="D",
+            max_steps=200,
+            search_max_steps=10,
+        ),
     ]
     nf = NeuralForecast(models=models, freq="D")
     nf.fit(train_frame, val_size=val_size)
@@ -108,9 +100,9 @@ def evaluate_models(
     return {
         "naive": float(np.mean(np.abs(target["y_true"] - naive))),
         "dlinear": float(np.mean(np.abs(merged["y_true"] - merged["DLinear"]))),
-        "timebase": float(np.mean(np.abs(merged["y_true"] - merged["TimeBase"]))),
+        "timebase": float(np.mean(np.abs(merged["y_true"] - merged["AutoTimeBase"]))),
         "timebase_trend": float(
-            np.mean(np.abs(merged["y_true"] - merged["TimeBaseTrend"]))
+            np.mean(np.abs(merged["y_true"] - merged["AutoTimeBaseTrend"]))
         ),
     }
 
@@ -206,8 +198,8 @@ def run_synthetic_mae_checks(
             for model_name, mae in [
                 ("Naive", results["naive"]),
                 ("DLinear", results["dlinear"]),
-                ("TimeBase", results["timebase"]),
-                ("TimeBaseTrend", results["timebase_trend"]),
+                ("AutoTimeBase", results["timebase"]),
+                ("AutoTimeBaseTrend", results["timebase_trend"]),
                 ("MFLES", results["mfles"]),
             ]
         )
@@ -235,8 +227,8 @@ def main(
     table.add_column("Scenario")
     table.add_column("Naive", justify="right")
     table.add_column("DLinear", justify="right")
-    table.add_column("TimeBase", justify="right")
-    table.add_column("TimeBaseTrend", justify="right")
+    table.add_column("AutoTimeBase", justify="right")
+    table.add_column("AutoTimeBaseTrend", justify="right")
     table.add_column("MFLES", justify="right")
 
     for row in pivoted.itertuples(index=False):
@@ -246,8 +238,8 @@ def main(
                 "scenario": row.scenario,
                 "naive": row.Naive,
                 "dlinear": row.DLinear,
-                "timebase": row.TimeBase,
-                "timebase_trend": row.TimeBaseTrend,
+                "timebase": row.AutoTimeBase,
+                "timebase_trend": row.AutoTimeBaseTrend,
                 "mfles": row.MFLES,
             },
         )
@@ -255,8 +247,8 @@ def main(
             row.scenario,
             f"{row.Naive:.4f}",
             f"{row.DLinear:.4f}",
-            f"{row.TimeBase:.4f}",
-            f"{row.TimeBaseTrend:.4f}",
+            f"{row.AutoTimeBase:.4f}",
+            f"{row.AutoTimeBaseTrend:.4f}",
             f"{row.MFLES:.4f}",
         )
 

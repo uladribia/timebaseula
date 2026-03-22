@@ -7,7 +7,8 @@ description: Detailed explanation of the TimeBase and TimeBaseTrend models, thei
 **TL;DR**
 - `TimeBase` is a compact long-horizon forecasting model that works by **splitting history into periods**, **compressing them into a basis**, and **projecting that basis into future periods**.
 - `TimeBaseTrend` extends `TimeBase` with a **trend decomposition branch**, making it more suitable when a series contains both repeated structure and a persistent low-frequency trend.
-- In this repository, both models are implemented as **NeuralForecast-compatible wrappers**, so they can be trained like other NeuralForecast models.
+- `AutoTimeBase` and `AutoTimeBaseTrend` wrap those models with dataset-aware defaults and an optional short validation search.
+- In this repository, all four are implemented as **NeuralForecast-compatible wrappers**, so they can be trained like other NeuralForecast models.
 - The recommendation helpers in `timebaseula.recommend` are the preferred way to choose defaults for `input_size`, `period_len`, `basis_num`, `moving_avg_window`, and training hyperparameters.
 
 ## Why these models exist
@@ -204,6 +205,32 @@ The orthogonal penalty encourages basis components to be more distinct.
 ### Practical advice
 
 This is an advanced option. It is usually reasonable to start with it disabled unless you are explicitly experimenting with basis diversity.
+
+## Auto wrappers
+
+The repository also exposes:
+
+- `AutoTimeBase`
+- `AutoTimeBaseTrend`
+
+These classes are meant for users who want a stronger default out-of-the-box experience.
+
+Their workflow is:
+
+1. convert the fit data into a recommendation frame
+2. trim the trailing validation/test tail before profiling
+3. build a heuristic starting configuration
+4. optionally run a short local search on a small set of nearby candidates
+5. fit the final selected configuration normally through NeuralForecast
+
+They also keep a few useful fitted attributes:
+
+- `selected_config_`
+- `candidate_results_`
+- `profile_`
+- `recommended_training_iterations_` when iteration guidance is enabled
+
+This makes them conceptually similar to "auto" forecasters in other forecasting libraries: they are still the same model family, but with a lightweight model-selection layer on top.
 
 ## Recommendation helpers
 

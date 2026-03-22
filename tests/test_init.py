@@ -8,6 +8,8 @@ from unittest.mock import patch
 from pytest_mock import MockFixture
 
 EXPECTED_EXPORTS = {
+    "AutoTimeBase",
+    "AutoTimeBaseTrend",
     "DatasetProfile",
     "TimeBase",
     "TimeBaseTrend",

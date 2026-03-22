@@ -57,7 +57,7 @@ class TestSyntheticBenchmarkHelpers:
         assert set(result["model_name"]) == {
             "Naive",
             "DLinear",
-            "TimeBase",
-            "TimeBaseTrend",
+            "AutoTimeBase",
+            "AutoTimeBaseTrend",
             "MFLES",
         }

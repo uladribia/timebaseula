@@ -7,7 +7,12 @@ try:
 except PackageNotFoundError:
     __version__ = "unknown"
 
-from timebaseula.models.timebase import TimeBase, TimeBaseTrend
+from timebaseula.models.timebase import (
+    AutoTimeBase,
+    AutoTimeBaseTrend,
+    TimeBase,
+    TimeBaseTrend,
+)
 from timebaseula.recommend import (
     DatasetProfile,
     profile_dataset,
@@ -17,6 +22,8 @@ from timebaseula.recommend import (
 from timebaseula.synthetic import make_synthetic_series
 
 __all__ = [
+    "AutoTimeBase",
+    "AutoTimeBaseTrend",
     "DatasetProfile",
     "TimeBase",
     "TimeBaseTrend",

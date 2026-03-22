@@ -16,6 +16,8 @@ MODEL_COLORS = {
     "MFLES": "#34d399",
     "TimeBase": "#f59e0b",
     "TimeBaseTrend": "#f97316",
+    "AutoTimeBase": "#f59e0b",
+    "AutoTimeBaseTrend": "#f97316",
     "NLinear": "#a78bfa",
     "DLinear": "#f472b6",
     "AutoARIMA": "#cbd5e1",

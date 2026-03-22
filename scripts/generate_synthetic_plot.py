@@ -19,8 +19,7 @@ from rich.console import Console
 from statsforecast import StatsForecast
 from statsforecast.models import AutoMFLES
 
-from timebaseula import recommend_timebase_kwargs, recommend_timebase_trend_kwargs
-from timebaseula.models.timebase import TimeBase, TimeBaseTrend
+from timebaseula.models.timebase import AutoTimeBase, AutoTimeBaseTrend
 from timebaseula.synthetic import make_synthetic_series
 
 plt.switch_backend("Agg")
@@ -159,30 +158,42 @@ def main(
     ) and length > forecast_horizon:
         train_frame = frame.iloc[:-forecast_horizon].copy()
         target = frame.tail(forecast_horizon).set_index("ds")
-        timebase_kwargs = recommend_timebase_kwargs(
-            train_frame, freq="D", horizon=forecast_horizon, max_steps=200
-        )
-        timebase_trend_kwargs = recommend_timebase_trend_kwargs(
-            train_frame, freq="D", horizon=forecast_horizon, max_steps=200
-        )
         models: list[torch.nn.Module] = []
         labels: list[str] = []
         if include_reference:
+            reference_input_size = min(
+                max(forecast_horizon * 2, 8),
+                max(forecast_horizon + 1, len(train_frame) - forecast_horizon),
+            )
             models.append(
                 DLinear(
                     h=forecast_horizon,
-                    input_size=int(timebase_kwargs["input_size"]),
+                    input_size=reference_input_size,
                     max_steps=200,
                     learning_rate=1e-2,
                 )
             )
             labels.append("DLinear")
         if include_timebase:
-            models.append(TimeBase(h=forecast_horizon, **timebase_kwargs))
-            labels.append("TimeBase")
+            models.append(
+                AutoTimeBase(
+                    h=forecast_horizon,
+                    freq="D",
+                    max_steps=200,
+                    search_max_steps=10,
+                )
+            )
+            labels.append("AutoTimeBase")
         if include_timebase_trend:
-            models.append(TimeBaseTrend(h=forecast_horizon, **timebase_trend_kwargs))
-            labels.append("TimeBaseTrend")
+            models.append(
+                AutoTimeBaseTrend(
+                    h=forecast_horizon,
+                    freq="D",
+                    max_steps=200,
+                    search_max_steps=10,
+                )
+            )
+            labels.append("AutoTimeBaseTrend")
         nf = NeuralForecast(models=models, freq="D")
         nf.fit(train_frame, val_size=forecast_horizon)
         forecast_frame = nf.predict()

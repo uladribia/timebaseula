@@ -130,12 +130,14 @@ class TestBenchmarkDatasetHelpers:
 
         assert profile.long_history is True
         assert profile.dominant_period in {7, 14, 28}
-        dlinear_kwargs = configs[0][2]
-        timebase_kwargs = configs[2][2]
+        dlinear_name, _, dlinear_kwargs = configs[0]
+        auto_name, _, auto_kwargs = configs[2]
+        assert dlinear_name == "DLinear"
+        assert auto_name == "AutoTimeBase"
         assert dlinear_kwargs["max_steps"] >= 150
         assert dlinear_kwargs["learning_rate"] <= 5e-3
-        assert timebase_kwargs["period_len"] in {7, 14, 28}
-        assert timebase_kwargs["basis_num"] >= 6
+        assert auto_kwargs["freq"] == "D"
+        assert auto_kwargs["search_max_steps"] >= 5
 
     def test_profile_dataset_expands_budget_for_long_monthly_regime(self) -> None:
         """Long monthly datasets should get a larger budget and a gentler LR."""

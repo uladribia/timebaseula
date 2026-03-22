@@ -87,7 +87,24 @@ This repository treats that as the supported flow and tests it in the integratio
 
 ## Automatic default selection
 
-The recommendation helpers are the preferred starting point.
+For most users, the easiest entry point is now the auto wrappers.
+
+```python
+from timebaseula import AutoTimeBase, AutoTimeBaseTrend
+
+model = AutoTimeBase(h=24, freq="D", max_steps=150)
+trend_model = AutoTimeBaseTrend(h=24, freq="D", max_steps=150)
+```
+
+These classes:
+
+- start from the same recommendation helpers used elsewhere in the library
+- trim validation and test tails from the internal recommendation frame to avoid leakage
+- can run a short validation-guided local search before the final fit
+- expose the selected configuration on `selected_config_`
+- can expose `recommended_training_iterations_` when iteration guidance is enabled
+
+If you want the recommendations without the auto wrapper, you can still call them directly.
 
 ```python
 from timebaseula import (
@@ -102,12 +119,14 @@ recommended_timebase = recommend_timebase_kwargs(
     freq="D",
     horizon=24,
     max_steps=150,
+    include_iteration_recommendation=True,
 )
 recommended_timebase_trend = recommend_timebase_trend_kwargs(
     frame=frame,
     freq="D",
     horizon=24,
     max_steps=150,
+    include_iteration_recommendation=True,
 )
 
 model = TimeBase(h=24, **recommended_timebase)

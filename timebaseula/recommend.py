@@ -34,6 +34,30 @@ def infer_test_size(
     return min(inferred, series_length - 1)
 
 
+def trim_frame_for_recommendation(
+    frame: pd.DataFrame,
+    holdout_size: int = 0,
+) -> pd.DataFrame:
+    """Trim a trailing holdout per series before recommendation profiling.
+
+    This helper is intended for leakage-safe recommendation workflows where the
+    caller has a fit frame that still includes validation or test tails.
+    """
+    if holdout_size <= 0:
+        return frame.copy()
+
+    trimmed_parts: list[pd.DataFrame] = []
+    for _, series in frame.groupby("unique_id", sort=False):
+        ordered = series.sort_values("ds")
+        if len(ordered) <= holdout_size:
+            continue
+        trimmed_parts.append(ordered.iloc[:-holdout_size])
+
+    if not trimmed_parts:
+        return frame.iloc[0:0].copy()
+    return pd.concat(trimmed_parts, ignore_index=True)
+
+
 def infer_season_length(freq: str) -> int:
     """Choose a standard seasonal length for a frequency string."""
     return 7 if freq.upper() == "D" else 12
@@ -60,11 +84,20 @@ def estimate_lag_correlation(values: np.ndarray, lag: int) -> float:
     return float(np.corrcoef(left, right)[0, 1])
 
 
-def profile_dataset(frame: pd.DataFrame, freq: str, horizon: int) -> DatasetProfile:
+def profile_dataset(
+    frame: pd.DataFrame,
+    freq: str,
+    horizon: int,
+    holdout_size: int = 0,
+) -> DatasetProfile:
     """Build a lightweight dataset profile for model and training defaults."""
-    lengths = frame.groupby("unique_id").size()
-    sampled_ids = frame["unique_id"].drop_duplicates().head(64)
-    sampled = frame[frame["unique_id"].isin(sampled_ids)]
+    profiled_frame = trim_frame_for_recommendation(frame, holdout_size=holdout_size)
+    lengths = profiled_frame.groupby("unique_id").size()
+    if lengths.empty:
+        msg = "No rows remain after trimming the frame for recommendation."
+        raise ValueError(msg)
+    sampled_ids = profiled_frame["unique_id"].drop_duplicates().head(64)
+    sampled = profiled_frame[profiled_frame["unique_id"].isin(sampled_ids)]
     median_length = int(lengths.median())
     train_length_estimate = max(
         1, median_length - infer_test_size(median_length, horizon)
@@ -180,14 +213,41 @@ def recommend_timebase_trend_model_kwargs(
     return {**timebase_kwargs, "moving_avg_window": int(max(3, moving_avg_window))}
 
 
+def recommend_training_iterations(
+    profile: DatasetProfile,
+    horizon: int,
+    input_size: int,
+    batch_size: int,
+    max_steps: int,
+    basis_num: int,
+) -> int:
+    """Estimate a training-iteration budget from data size and model shape."""
+    windows_per_series = max(
+        1, profile.train_length_estimate - input_size - horizon + 1
+    )
+    total_windows = max(1, profile.n_series * windows_per_series)
+    effective_batch_size = max(1, batch_size)
+    base_iterations = int(np.ceil(total_windows / effective_batch_size))
+    complexity_factor = 1.0 + (basis_num / max(2, input_size))
+    return int(max(max_steps, np.ceil(base_iterations * complexity_factor)))
+
+
 def recommend_timebase_kwargs(
     frame: pd.DataFrame,
     freq: str,
     horizon: int,
     max_steps: int,
+    holdout_size: int = 0,
+    include_iteration_recommendation: bool = False,
+    batch_size: int = 32,
 ) -> dict[str, Any]:
     """Profile a dataset and return recommended TimeBase kwargs."""
-    profile = profile_dataset(frame, freq=freq, horizon=horizon)
+    profile = profile_dataset(
+        frame,
+        freq=freq,
+        horizon=horizon,
+        holdout_size=holdout_size,
+    )
     training_kwargs = recommend_training_kwargs(
         profile,
         horizon=horizon,
@@ -198,10 +258,20 @@ def recommend_timebase_kwargs(
             float(training_kwargs["learning_rate"]),
             1e-3,
         )
-    return {
-        **recommend_timebase_model_kwargs(profile, horizon=horizon),
-        **training_kwargs,
-    }
+    model_kwargs = recommend_timebase_model_kwargs(profile, horizon=horizon)
+    recommendation = {**model_kwargs, **training_kwargs}
+    if include_iteration_recommendation:
+        recommendation["recommended_training_iterations"] = (
+            recommend_training_iterations(
+                profile=profile,
+                horizon=horizon,
+                input_size=int(model_kwargs["input_size"]),
+                batch_size=batch_size,
+                max_steps=int(training_kwargs["max_steps"]),
+                basis_num=int(model_kwargs["basis_num"]),
+            )
+        )
+    return recommendation
 
 
 def recommend_timebase_trend_kwargs(
@@ -209,9 +279,17 @@ def recommend_timebase_trend_kwargs(
     freq: str,
     horizon: int,
     max_steps: int,
+    holdout_size: int = 0,
+    include_iteration_recommendation: bool = False,
+    batch_size: int = 32,
 ) -> dict[str, Any]:
     """Profile a dataset and return recommended TimeBaseTrend kwargs."""
-    profile = profile_dataset(frame, freq=freq, horizon=horizon)
+    profile = profile_dataset(
+        frame,
+        freq=freq,
+        horizon=horizon,
+        holdout_size=holdout_size,
+    )
     training_kwargs = recommend_training_kwargs(
         profile,
         horizon=horizon,
@@ -222,7 +300,17 @@ def recommend_timebase_trend_kwargs(
             float(training_kwargs["learning_rate"]),
             1e-3,
         )
-    return {
-        **recommend_timebase_trend_model_kwargs(profile, horizon=horizon),
-        **training_kwargs,
-    }
+    model_kwargs = recommend_timebase_trend_model_kwargs(profile, horizon=horizon)
+    recommendation = {**model_kwargs, **training_kwargs}
+    if include_iteration_recommendation:
+        recommendation["recommended_training_iterations"] = (
+            recommend_training_iterations(
+                profile=profile,
+                horizon=horizon,
+                input_size=int(model_kwargs["input_size"]),
+                batch_size=batch_size,
+                max_steps=int(training_kwargs["max_steps"]),
+                basis_num=int(model_kwargs["basis_num"]),
+            )
+        )
+    return recommendation

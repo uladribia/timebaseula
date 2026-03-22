@@ -9,7 +9,16 @@ import pandas as pd
 import pytest
 import torch
 
-from timebaseula.models.timebase import TimeBase, TimeBaseTrend
+from timebaseula.models.timebase import (
+    AutoTimeBase,
+    AutoTimeBaseTrend,
+    TimeBase,
+    TimeBaseTrend,
+)
+from timebaseula.recommend import (
+    recommend_timebase_kwargs,
+    trim_frame_for_recommendation,
+)
 
 
 class TestTimeBase:
@@ -132,6 +141,92 @@ class TestTimeBaseTrend:
         assert hasattr(model, "decomp")
 
 
+class TestAutoTimeBase:
+    """Validate auto-configured TimeBase wrappers."""
+
+    def test_recommendation_helpers_can_emit_iteration_recommendation(self) -> None:
+        """Recommendation helpers should optionally include iteration guidance."""
+        frame = pd.DataFrame(
+            {
+                "unique_id": ["a"] * 80 + ["b"] * 80,
+                "ds": list(pd.date_range("2024-01-01", periods=80, freq="D")) * 2,
+                "y": [float(step % 7) for step in range(80)] * 2,
+            }
+        )
+
+        recommendation = recommend_timebase_kwargs(
+            frame=frame,
+            freq="D",
+            horizon=14,
+            max_steps=120,
+            include_iteration_recommendation=True,
+        )
+
+        assert recommendation["recommended_training_iterations"] >= 1
+        assert (
+            recommendation["recommended_training_iterations"]
+            >= recommendation["max_steps"]
+        )
+
+    def test_trim_frame_for_recommendation_excludes_tail_per_series(self) -> None:
+        """Recommendation trimming should remove the requested tail from each series."""
+        frame = pd.DataFrame(
+            {
+                "unique_id": ["a"] * 6 + ["b"] * 6,
+                "ds": pd.date_range("2024-01-01", periods=6, freq="D").tolist() * 2,
+                "y": list(range(6)) + list(range(6)),
+            }
+        )
+
+        trimmed = trim_frame_for_recommendation(frame, holdout_size=2)
+
+        assert trimmed.groupby("unique_id").size().tolist() == [4, 4]
+        assert trimmed.groupby("unique_id")["y"].max().tolist() == [3, 3]
+
+    def test_auto_timebase_recommend_defaults(self) -> None:
+        """AutoTimeBase should expose heuristic defaults before any search."""
+        frame = pd.DataFrame(
+            {
+                "unique_id": ["a"] * 60 + ["b"] * 60,
+                "ds": list(pd.date_range("2024-01-01", periods=60, freq="D")) * 2,
+                "y": [float(step % 7) for step in range(60)] * 2,
+            }
+        )
+
+        defaults = AutoTimeBase.recommend_defaults(
+            frame,
+            freq="D",
+            horizon=14,
+            max_steps=120,
+            include_iteration_recommendation=True,
+        )
+
+        assert defaults["input_size"] >= 16
+        assert defaults["period_len"] >= 2
+        assert defaults["recommended_training_iterations"] >= defaults["max_steps"]
+
+    def test_auto_timebase_trend_recommend_defaults(self) -> None:
+        """AutoTimeBaseTrend should include decomposition-aware defaults."""
+        frame = pd.DataFrame(
+            {
+                "unique_id": ["a"] * 36 + ["b"] * 36,
+                "ds": list(pd.date_range("2024-01-31", periods=36, freq="ME")) * 2,
+                "y": [float(step % 12) for step in range(36)] * 2,
+            }
+        )
+
+        defaults = AutoTimeBaseTrend.recommend_defaults(
+            frame,
+            freq="ME",
+            horizon=6,
+            max_steps=80,
+            include_iteration_recommendation=True,
+        )
+
+        assert defaults["moving_avg_window"] % 2 == 1
+        assert defaults["recommended_training_iterations"] >= defaults["max_steps"]
+
+
 class TestIntegration:
     """Integration tests with NeuralForecast.
 
@@ -205,6 +300,43 @@ class TestIntegration:
             pred = nf.predict()
         assert len(pred) == 8
         assert "TimeBase" in pred.columns
+
+    @pytest.mark.integration
+    def test_auto_timebase_fit_predict(self) -> None:
+        """AutoTimeBase should fit and predict through NeuralForecast."""
+        pytest.importorskip("neuralforecast")
+        import pandas as pd
+        from neuralforecast import NeuralForecast
+
+        np = pytest.importorskip("numpy")
+        np.random.seed(42)
+        n = 100
+        dates = pd.date_range(start="2020-01-01", periods=n, freq="D")
+        y = np.random.randn(n).cumsum() + 10
+        df = pd.DataFrame({"ds": dates, "y": y, "unique_id": "series_1"})
+
+        model = AutoTimeBase(
+            h=8,
+            freq="D",
+            max_steps=40,
+            search_enabled=True,
+            search_max_steps=5,
+            n_search_configs=2,
+            logger=cast(Any, False),
+            enable_progress_bar=cast(Any, False),
+            enable_model_summary=cast(Any, False),
+            log_every_n_steps=cast(Any, 1),
+        )
+
+        nf = NeuralForecast(models=[model], freq="D")
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            nf.fit(df, val_size=8)
+            pred = nf.predict()
+
+        assert len(pred) == 8
+        assert "AutoTimeBase" in pred.columns
+        assert model.selected_config_["input_size"] >= 8
 
     @pytest.mark.integration
     def test_multiseries_training_can_predict_only_one_series(self) -> None:

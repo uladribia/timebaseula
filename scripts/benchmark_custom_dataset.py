@@ -26,12 +26,7 @@ from rich.table import Table
 from statsforecast import StatsForecast
 from statsforecast.models import AutoMFLES
 
-from timebaseula import (
-    TimeBase,
-    TimeBaseTrend,
-    recommend_timebase_kwargs,
-    recommend_timebase_trend_kwargs,
-)
+from timebaseula import AutoTimeBase, AutoTimeBaseTrend
 from timebaseula.recommend import (
     profile_dataset,
     recommend_timebase_model_kwargs,
@@ -47,14 +42,16 @@ DEFAULT_OUTPUT_DIR = Path("logs") / "custom_dataset_benchmark"
 MODEL_NAMES = (
     "SeasonalNaive",
     "MFLES",
-    "TimeBase",
-    "TimeBaseTrend",
+    "AutoTimeBase",
+    "AutoTimeBaseTrend",
     "NLinear",
     "DLinear",
 )
 MODEL_COLORS = {
     "SeasonalNaive": "#7dd3fc",
     "MFLES": "#34d399",
+    "AutoTimeBase": "#f59e0b",
+    "AutoTimeBaseTrend": "#f97316",
     "TimeBase": "#f59e0b",
     "TimeBaseTrend": "#f97316",
     "NLinear": "#a78bfa",
@@ -379,7 +376,8 @@ def run_neural_model(
     nf.fit(df=train_frame, val_size=model.h)
     train_time = time.perf_counter() - start_train
 
-    if checkpoint_callback.best_model_path:
+    can_reload_checkpoint = not isinstance(model, (AutoTimeBase, AutoTimeBaseTrend))
+    if checkpoint_callback.best_model_path and can_reload_checkpoint:
         best_model = type(model).load_from_checkpoint(
             checkpoint_callback.best_model_path
         )
@@ -937,7 +935,7 @@ def build_neural_diagnostics_section(training_curves: pd.DataFrame) -> str:
             '<section class="card"><h2>Neural model diagnostics</h2>'
             "<p>No neural training curves were captured.</p></section>"
         )
-    neural_models = ["DLinear", "NLinear", "TimeBase", "TimeBaseTrend"]
+    neural_models = ["DLinear", "NLinear", "AutoTimeBase", "AutoTimeBaseTrend"]
     fig, axes = plt.subplots(1, 2, figsize=(12.0, 4.2), facecolor="#0f172a")
     for ax in axes:
         ax.set_facecolor("#0f172a")
@@ -1082,7 +1080,7 @@ def build_html_report(
           <p>Professional benchmark comparison for the custom monthly toll dataset.</p>
         </div>
       </div>
-      <p>Benchmark of SeasonalNaive, MFLES, TimeBase, TimeBaseTrend, NLinear, and DLinear on the custom monthly dataset using the same trailing holdout horizon for every series. The goal is to compare absolute accuracy, relative accuracy, stability across series, and diagnostic signs of misfit.</p>
+      <p>Benchmark of SeasonalNaive, MFLES, AutoTimeBase, AutoTimeBaseTrend, NLinear, and DLinear on the custom monthly dataset using the same trailing holdout horizon for every series. The goal is to compare absolute accuracy, relative accuracy, stability across series, and diagnostic signs of misfit.</p>
       <div class=\"kpi\"><strong>Best model:</strong> {escape(str(leaderboard.iloc[0]["model_name"]))}</div>
       <div class=\"kpi\"><strong>Best overall MAE:</strong> {leaderboard.iloc[0]["overall_mae"]:.4f}</div>
       <div class=\"kpi\"><strong>Series count:</strong> {dataset_summary["n_series"]}</div>
@@ -1198,19 +1196,6 @@ def main(
         horizon=horizon,
         max_steps=max_steps,
     )
-    timebase_kwargs = recommend_timebase_kwargs(
-        frame=train_frame,
-        freq="MS",
-        horizon=horizon,
-        max_steps=max_steps,
-    )
-    timebase_trend_kwargs = recommend_timebase_trend_kwargs(
-        frame=train_frame,
-        freq="MS",
-        horizon=horizon,
-        max_steps=max_steps,
-    )
-
     if not quiet and not json_output:
         console.print(
             f"Running benchmark on {dataset_summary['n_series']} series, {dataset_summary['n_rows']} rows, horizon={horizon}.",
@@ -1247,10 +1232,20 @@ def main(
     neural_models = [
         DLinear(h=horizon, **common_kwargs),
         NLinear(h=horizon, **common_kwargs),
-        TimeBase(h=horizon, **timebase_kwargs),
-        TimeBaseTrend(h=horizon, **timebase_trend_kwargs),
+        AutoTimeBase(h=horizon, freq="MS", max_steps=max_steps, search_max_steps=10),
+        AutoTimeBaseTrend(
+            h=horizon,
+            freq="MS",
+            max_steps=max_steps,
+            search_max_steps=10,
+        ),
     ]
-    prediction_columns = ["DLinear", "NLinear", "TimeBase", "TimeBaseTrend"]
+    prediction_columns = [
+        "DLinear",
+        "NLinear",
+        "AutoTimeBase",
+        "AutoTimeBaseTrend",
+    ]
 
     for model, prediction_column in zip(neural_models, prediction_columns, strict=True):
         aggregate, per_series, forecast_frame, training_curve = run_neural_model(

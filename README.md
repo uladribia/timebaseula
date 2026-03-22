@@ -10,7 +10,7 @@ description: TimeBaseUla README with installation, usage, testing, benchmarks, a
 
 **TL;DR**
 - Install with `uv sync` for development or `pip install timebaseula` for usage.
-- Main exports: `TimeBase`, `TimeBaseTrend`, `make_synthetic_series`.
+- Main exports: `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, `AutoTimeBaseTrend`, `make_synthetic_series`.
 - NeuralForecast already supports forecasting a filtered subset of series after multi-series training.
 - Visual reports and generated charts in this repo prefer **Matplotlib**, including HTML reports with embedded static figures.
 - Fast tests are unit-only; heavier training checks live under integration tests.
@@ -89,12 +89,36 @@ This repository includes an integration test for that flow.
 ## Automatic defaults
 
 ```python
+from timebaseula import AutoTimeBase, AutoTimeBaseTrend
+
+model = AutoTimeBase(h=24, freq="D", max_steps=150)
+trend_model = AutoTimeBaseTrend(h=24, freq="D", max_steps=150)
+```
+
+If you want recommendations without the auto-search wrapper, you can still use:
+
+```python
 from timebaseula import recommend_timebase_kwargs, recommend_timebase_trend_kwargs
 
-model = TimeBase(h=24, **recommend_timebase_kwargs(frame, freq="D", horizon=24, max_steps=150))
+model = TimeBase(
+    h=24,
+    **recommend_timebase_kwargs(
+        frame,
+        freq="D",
+        horizon=24,
+        max_steps=150,
+        include_iteration_recommendation=True,
+    ),
+)
 trend_model = TimeBaseTrend(
     h=24,
-    **recommend_timebase_trend_kwargs(frame, freq="D", horizon=24, max_steps=150),
+    **recommend_timebase_trend_kwargs(
+        frame,
+        freq="D",
+        horizon=24,
+        max_steps=150,
+        include_iteration_recommendation=True,
+    ),
 )
 ```
 

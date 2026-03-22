@@ -26,12 +26,11 @@ from statsforecast import StatsForecast
 from statsforecast.models import AutoARIMA, AutoMFLES
 
 from scripts.reporting import build_html_benchmark_report
-from timebaseula import TimeBase, TimeBaseTrend
+from timebaseula import AutoTimeBase, AutoTimeBaseTrend
 from timebaseula.recommend import (
     DatasetProfile,
     profile_dataset,
     recommend_timebase_model_kwargs,
-    recommend_timebase_trend_model_kwargs,
     recommend_training_kwargs,
 )
 
@@ -415,11 +414,10 @@ def benchmark_configuration(
 ) -> list[tuple[str, str, dict[str, Any]]]:
     """Return the list of neural model configurations for a frequency."""
     training_kwargs = recommend_training_kwargs(profile, horizon, max_steps)
-    timebase_kwargs = recommend_timebase_model_kwargs(profile, horizon)
-    timebase_trend_kwargs = recommend_timebase_trend_model_kwargs(profile, horizon)
+    model_defaults = recommend_timebase_model_kwargs(profile, horizon)
 
     common_kwargs = {
-        "input_size": int(timebase_kwargs["input_size"]),
+        "input_size": int(model_defaults["input_size"]),
         **training_kwargs,
         "accelerator": "cpu",
         "devices": 1,
@@ -428,15 +426,20 @@ def benchmark_configuration(
         "logger": False,
         "start_padding_enabled": True,
     }
+    auto_kwargs = {
+        "freq": freq,
+        "search_max_steps": max(5, min(10, int(training_kwargs["val_check_steps"]))),
+        "n_search_configs": 2,
+    }
 
     return [
         ("DLinear", "dlinear", common_kwargs.copy()),
         ("NLinear", "nlinear", common_kwargs.copy()),
-        ("TimeBase", "timebase", {**common_kwargs, **timebase_kwargs}),
+        ("AutoTimeBase", "auto_timebase", {**common_kwargs, **auto_kwargs}),
         (
-            "TimeBaseTrend",
-            "timebase_trend",
-            {**common_kwargs, **timebase_trend_kwargs},
+            "AutoTimeBaseTrend",
+            "auto_timebase_trend",
+            {**common_kwargs, **auto_kwargs},
         ),
     ]
 
@@ -519,9 +522,9 @@ def run_benchmark_for_dataset(
             train,
             test,
             normalized_freq,
-            TimeBase,
+            AutoTimeBase,
             configs[2][2],
-            "TimeBase",
+            "AutoTimeBase",
             dataset,
             horizon,
         ),
@@ -529,9 +532,9 @@ def run_benchmark_for_dataset(
             train,
             test,
             normalized_freq,
-            TimeBaseTrend,
+            AutoTimeBaseTrend,
             configs[3][2],
-            "TimeBaseTrend",
+            "AutoTimeBaseTrend",
             dataset,
             horizon,
         ),
