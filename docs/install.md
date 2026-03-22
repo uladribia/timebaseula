@@ -50,21 +50,7 @@ The examples in this repository use the standard `NeuralForecast` long format:
 | `ds` | timestamp |
 | `y` | target value |
 
-Example:
-
-```python
-import pandas as pd
-
-frame = pd.DataFrame(
-    {
-        "unique_id": ["series_1"] * 5,
-        "ds": pd.date_range("2024-01-01", periods=5, freq="D"),
-        "y": [10.0, 11.0, 12.0, 13.0, 14.0],
-    }
-)
-```
-
-## Quality commands for contributors
+## Contributor quality gates
 
 ```bash
 make format
@@ -72,28 +58,16 @@ make lint
 make test
 ```
 
-## Build the HTML docs
+Optional heavier checks:
 
-Build the static site:
+```bash
+make test-integration
+make test-benchmark
+```
+
+## Build the HTML docs
 
 ```bash
 make docs
-```
-
-Generated files are written to:
-
-```text
-site/
-```
-
-Run the local docs server:
-
-```bash
 make docs-serve
-```
-
-Open:
-
-```text
-http://127.0.0.1:8000
 ```

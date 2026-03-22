@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from tests.utils.synthetic_series import make_synthetic_series
+from timebaseula.synthetic import make_synthetic_series
 
 
 class TestSyntheticSeries:

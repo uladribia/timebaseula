@@ -1,4 +1,4 @@
-"""TimeBaseUla."""
+"""TimeBaseUla public package exports."""
 
 from importlib.metadata import PackageNotFoundError, version
 
@@ -14,14 +14,14 @@ from timebaseula.recommend import (
     recommend_timebase_kwargs,
     recommend_timebase_trend_kwargs,
 )
-from timebaseula.utils import predict_single_series
+from timebaseula.synthetic import make_synthetic_series
 
 __all__ = [
     "DatasetProfile",
     "TimeBase",
     "TimeBaseTrend",
     "__version__",
-    "predict_single_series",
+    "make_synthetic_series",
     "profile_dataset",
     "recommend_timebase_kwargs",
     "recommend_timebase_trend_kwargs",

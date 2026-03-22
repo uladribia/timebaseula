@@ -17,8 +17,9 @@ from rich.console import Console
 from statsforecast import StatsForecast
 from statsforecast.models import AutoMFLES
 
-from tests.utils.synthetic_series import make_synthetic_series
+from timebaseula import recommend_timebase_kwargs, recommend_timebase_trend_kwargs
 from timebaseula.models.timebase import TimeBase, TimeBaseTrend
+from timebaseula.synthetic import make_synthetic_series
 
 app = typer.Typer(help="Generate a synthetic series plot for documentation.")
 console = Console()
@@ -122,7 +123,20 @@ def main(
     if (
         include_reference or include_timebase or include_timebase_trend
     ) and length > forecast_horizon:
-        input_size = min(48, length - forecast_horizon)
+        train_frame = frame.iloc[:-forecast_horizon].copy()
+        timebase_kwargs = recommend_timebase_kwargs(
+            frame=train_frame,
+            freq="D",
+            horizon=forecast_horizon,
+            max_steps=200,
+        )
+        timebase_trend_kwargs = recommend_timebase_trend_kwargs(
+            frame=train_frame,
+            freq="D",
+            horizon=forecast_horizon,
+            max_steps=200,
+        )
+        input_size = int(timebase_kwargs["input_size"])
         models = []
         if include_reference:
             models.append(
@@ -134,30 +148,10 @@ def main(
                 )
             )
         if include_timebase:
-            models.append(
-                TimeBase(
-                    h=forecast_horizon,
-                    input_size=input_size,
-                    period_len=24,
-                    basis_num=6,
-                    max_steps=200,
-                    learning_rate=1e-2,
-                )
-            )
+            models.append(TimeBase(h=forecast_horizon, **timebase_kwargs))
         if include_timebase_trend:
-            models.append(
-                TimeBaseTrend(
-                    h=forecast_horizon,
-                    input_size=input_size,
-                    period_len=24,
-                    basis_num=6,
-                    moving_avg_window=25,
-                    max_steps=200,
-                    learning_rate=1e-2,
-                )
-            )
+            models.append(TimeBaseTrend(h=forecast_horizon, **timebase_trend_kwargs))
         nf = NeuralForecast(models=models, freq="D")
-        train_frame = frame.iloc[:-forecast_horizon]
         nf.fit(train_frame, val_size=forecast_horizon)
         forecast_frame = nf.predict()
 

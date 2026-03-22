@@ -16,8 +16,9 @@ from rich.table import Table
 from statsforecast import StatsForecast
 from statsforecast.models import AutoMFLES
 
-from tests.utils.synthetic_series import make_synthetic_series
+from timebaseula import recommend_timebase_kwargs, recommend_timebase_trend_kwargs
 from timebaseula.models.timebase import TimeBase, TimeBaseTrend
+from timebaseula.synthetic import make_synthetic_series
 
 app = typer.Typer(help="Compare MAE across baseline and model forecasts.")
 console = Console()
@@ -81,25 +82,22 @@ def evaluate_models(
     )
     naive = build_naive_forecast(target, last_values)
 
+    timebase_kwargs = recommend_timebase_kwargs(
+        frame=train_frame,
+        freq="D",
+        horizon=h,
+        max_steps=200,
+    )
+    timebase_trend_kwargs = recommend_timebase_trend_kwargs(
+        frame=train_frame,
+        freq="D",
+        horizon=h,
+        max_steps=200,
+    )
     models = [
         DLinear(h=h, input_size=input_size, max_steps=200, learning_rate=1e-2),
-        TimeBase(
-            h=h,
-            input_size=input_size,
-            period_len=24,
-            basis_num=6,
-            max_steps=200,
-            learning_rate=1e-2,
-        ),
-        TimeBaseTrend(
-            h=h,
-            input_size=input_size,
-            period_len=24,
-            basis_num=6,
-            moving_avg_window=25,
-            max_steps=200,
-            learning_rate=1e-2,
-        ),
+        TimeBase(h=h, **timebase_kwargs),
+        TimeBaseTrend(h=h, **timebase_trend_kwargs),
     ]
     nf = NeuralForecast(models=models, freq="D")
     nf.fit(train_frame, val_size=val_size)

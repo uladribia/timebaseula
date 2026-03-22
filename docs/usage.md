@@ -1,5 +1,5 @@
 ---
-description: Usage guide for TimeBaseUla with univariate, multi-series, and inference helper examples.
+description: Usage guide for TimeBaseUla with univariate, multi-series, and recommendation examples.
 ---
 
 # Usage
@@ -8,6 +8,7 @@ description: Usage guide for TimeBaseUla with univariate, multi-series, and infe
 - Instantiate a `TimeBase` or `TimeBaseTrend` model.
 - Pass it to `NeuralForecast(models=[...], freq=...)`.
 - Train with `fit(...)` and predict with `predict()`.
+- For a single-series forecast after multi-series training, filter the frame and call `nf.predict(df=...)`.
 
 ## Univariate example
 
@@ -72,11 +73,18 @@ nf.fit(frame, val_size=24)
 forecast = nf.predict()
 ```
 
+## Predict one series after multi-series training
+
+NeuralForecast already supports this use case directly.
+
+```python
+single_series = frame[frame["unique_id"] == "series_0"].copy()
+result = nf.predict(df=single_series)
+```
+
+This repository keeps that flow as the supported approach and tests it in the integration suite.
+
 ## Automatic default selection
-
-You can ask the library to inspect your training frame and recommend sensible defaults.
-
-### Top-level helpers
 
 ```python
 from timebaseula import recommend_timebase_kwargs, recommend_timebase_trend_kwargs
@@ -98,97 +106,9 @@ model = TimeBase(h=24, **recommended_timebase)
 trend_model = TimeBaseTrend(h=24, **recommended_timebase_trend)
 ```
 
-### Class helpers
+## Synthetic experiment assets
 
-```python
-profile = TimeBase.profile_dataset(frame, freq="D", horizon=24)
-defaults = TimeBase.recommend_defaults(frame, freq="D", horizon=24, max_steps=150)
-trend_defaults = TimeBaseTrend.recommend_defaults(
-    frame,
-    freq="D",
-    horizon=24,
-    max_steps=150,
-)
-```
-
-The profiler is intentionally lightweight. It samples a small subset of series, estimates practical history length, checks simple lag correlations, and uses that information to adjust model size and training budget.
-
-## Single-series helper
-
-The package exports `predict_single_series`, intended to support focused inference after model training.
-
-```python
-from timebaseula import predict_single_series
-
-single_series = frame[frame["unique_id"] == "series_0"].copy()
-result = predict_single_series(
-    model=model,
-    series=single_series,
-    h=24,
-    input_size=48,
-    freq="D",
-)
-```
-
-## Choosing a model
-
-| Use case | Recommended model |
-|---|---|
-| mostly seasonal or repeating patterns | `TimeBase` |
-| clear trend + repeating structure | `TimeBaseTrend` |
-| quick baseline comparison | use the scripts in `scripts/` |
-
-## Practical parameter tips
-
-| Parameter | Guidance |
-|---|---|
-| `period_len` | set to the natural period when known |
-| `basis_num` | start small, such as `4` to `8` |
-| `use_period_norm` | keep enabled unless period-wise centering hurts the series |
-| `moving_avg_window` | must be odd for `TimeBaseTrend` |
-| `scaler_type` | defaults to `identity` to avoid double normalization |
-
-## Long-horizon benchmark workflow
-
-This repository includes a CPU benchmark for aggregated ECL and TrafficL data.
-
-### Prepare cached aggregates
-
-```bash
-uv run --frozen python scripts/benchmark_long_horizon.py prepare-data
-```
-
-This creates and reuses only these files under `datasets/`:
-
-- `ecl_daily.parquet`
-- `ecl_monthly.parquet`
-- `trafficl_daily.parquet`
-- `trafficl_monthly.parquet`
-
-### Run a quick verification benchmark
-
-```bash
-uv run --frozen python scripts/benchmark_long_horizon.py main \
-  --n-series 5 \
-  --horizon 7 \
-  --test-size 7 \
-  --max-steps 10 \
-  --skip-arima \
-  --output logs/benchmark_results_smoke.csv
-```
-
-### Run the overnight benchmark
-
-```bash
-uv run --frozen python scripts/benchmark_long_horizon.py main \
-  --output logs/benchmark_results_full.csv
-```
-
-By default, the script aims for a broad slice of the available series, using up to 300 and at least 200 when available.
-
-## Synthetic experiment assets in this repo
-
-The repository includes a deterministic synthetic generator in `tests/utils/synthetic_series.py` used by the evaluation scripts. The generated scenarios are represented in the docs images below.
+The repository exposes `timebaseula.make_synthetic_series(...)` as a deterministic generator reused by tests, scripts, and docs.
 
 ### Easy scenario
 
@@ -201,3 +121,23 @@ The repository includes a deterministic synthetic generator in `tests/utils/synt
 ### Hard scenario
 
 ![Hard synthetic series](img/synthetic_series_hard.png)
+
+## Long-horizon benchmark workflow
+
+Prepare cached aggregates:
+
+```bash
+uv run --frozen python scripts/generate_datasets.py main
+```
+
+Quick verification benchmark:
+
+```bash
+uv run --frozen python scripts/benchmark_long_horizon.py main \
+  --mode daily \
+  --n-series 5 \
+  --horizon 7 \
+  --max-steps 10 \
+  --skip-arima \
+  --output logs/benchmark_results_smoke.csv
+```

@@ -7,11 +7,7 @@ description: Contribution guide for TimeBaseUla development, testing, and docume
 **TL;DR**
 - Clone the repository and use `uv sync`.
 - Run `make format`, `make lint`, and `make test` before opening a PR.
-- Keep changes small, readable, and CPU-friendly.
-
-## Maintainers
-
-TimeBaseUla is maintained by Dribia.
+- Keep changes small, readable, CPU-friendly, and documented.
 
 ## Development setup
 
@@ -29,23 +25,20 @@ make lint
 make test
 ```
 
-If you need integration coverage:
+Optional heavier checks:
 
 ```bash
 make test-integration
+make test-benchmark
 ```
 
-## Documentation commands
+## Testing policy
 
-```bash
-make docs
-```
-
-To preview the site locally:
-
-```bash
-make docs-serve
-```
+| Suite | Purpose |
+|---|---|
+| `make test` | fast default unit suite |
+| `make test-integration` | actual NeuralForecast fitting behavior |
+| `make test-benchmark` | benchmark-oriented checks when present |
 
 ## Contribution expectations
 
@@ -54,25 +47,11 @@ make docs-serve
 - prefer clear, small changes
 - update documentation when behavior changes
 - preserve CPU-first compatibility
+- avoid putting reusable package logic under `tests/`
 
-## Project tools
-
-| Task | Tool |
-|---|---|
-| dependency management | `uv` |
-| formatting and linting | `ruff`, `tombi`, `ty` |
-| tests | `pytest` |
-| docs | `mkdocs-material` |
-
-## Reporting issues
-
-When filing a bug, include:
-
-- package version
-- Python version
-- operating system
-- minimal reproduction
+## Documentation commands
 
 ```bash
-python -c "import timebaseula; print(timebaseula.__version__)"
+make docs
+make docs-serve
 ```

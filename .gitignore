@@ -94,3 +94,6 @@ manifest.json
 datasets/
 data/
 .cache/
+
+# generated run artifacts
+logs/

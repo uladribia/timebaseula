@@ -106,7 +106,7 @@ class TestTimeBaseTrend:
         output = model(windows_batch)
         assert output.shape == (2, 12)
 
-    def test_trend_weight_is_learnable(self) -> None:
+    def test_linear_trend_head_is_present(self) -> None:
         """The linear_trend layer should be present."""
         model = TimeBaseTrend(h=4, input_size=8, period_len=4, basis_num=4)
         assert hasattr(model, "linear_trend")
@@ -207,8 +207,8 @@ class TestIntegration:
         assert "TimeBase" in pred.columns
 
     @pytest.mark.integration
-    def test_multivariate_fit(self) -> None:
-        """Multivariate training with multiple series works."""
+    def test_multiseries_training_can_predict_only_one_series(self) -> None:
+        """A model trained on multiple series should still predict one series."""
         pytest.importorskip("neuralforecast")
         import pandas as pd
         from neuralforecast import NeuralForecast
@@ -274,5 +274,6 @@ class TestIntegration:
                 message=r"The 'predict_dataloader' does not have many workers.*",
             )
             warnings.filterwarnings("ignore", category=Warning)
-            pred = nf.predict()
-        assert len(pred) == 8 * n_series  # Predictions for all series
+            pred = nf.predict(df=df[df["unique_id"] == "series_1"])
+        assert pred["unique_id"].eq("series_1").all()
+        assert len(pred) == 8

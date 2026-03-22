@@ -122,6 +122,7 @@ xfail_strict = true
 testpaths = ["tests"]
 markers = [
 	"integration: heavy integration tests, run only with --run-integration",
+	"benchmark: benchmark-oriented tests that are excluded from the fast default suite",
 ]
 
 [tool.coverage.run]

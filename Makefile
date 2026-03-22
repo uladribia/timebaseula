@@ -1,4 +1,4 @@
-.PHONY: all clean check test lint format docs docs-serve
+.PHONY: all clean check test test-unit test-integration test-benchmark lint format docs docs-serve
 
 COMMIT_VERSION ?= $(shell bash -c 'read -p "Semantic bump (\"major\", \"minor\" or \"patch\") or new version (eg. \"0.1.3\"): " bmp; echo $${bmp}')
 
@@ -33,13 +33,16 @@ lock:
 	uv lock --frozen
 
 test:
-	uv run --frozen pytest --cov --cov-report=html --cov-report=xml -m "not integration"
+	uv run --frozen pytest --cov --cov-report=html --cov-report=xml -m "not integration and not benchmark"
 
 test-unit:
-	uv run --frozen pytest --cov --cov-report=html --cov-report=xml -m "not integration"
+	uv run --frozen pytest --cov --cov-report=html --cov-report=xml -m "not integration and not benchmark"
 
 test-integration:
 	uv run --frozen pytest --run-integration -m "integration"
+
+test-benchmark:
+	uv run --frozen pytest -m "benchmark"
 
 docs:
 	uv run --frozen mkdocs build --strict

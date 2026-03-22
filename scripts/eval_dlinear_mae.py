@@ -13,7 +13,7 @@ from neuralforecast import NeuralForecast
 from neuralforecast.models import DLinear
 from rich.console import Console
 
-from tests.utils.synthetic_series import make_synthetic_series
+from timebaseula.synthetic import make_synthetic_series
 
 app = typer.Typer(help="Evaluate DLinear MAE on synthetic scenarios.")
 console = Console()

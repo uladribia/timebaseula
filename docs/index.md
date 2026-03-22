@@ -1,14 +1,14 @@
 ---
-description: Home page for TimeBaseUla with overview, architecture, and links to the practical guides.
+description: Overview page for TimeBaseUla with package scope, API, and documentation map.
 ---
 
 # TimeBaseUla
 
 **TL;DR**
-- `timebaseula` provides `TimeBase` and `TimeBaseTrend` for long-horizon forecasting.
+- `timebaseula` provides `TimeBase`, `TimeBaseTrend`, and `make_synthetic_series`.
 - The models plug into **NeuralForecast**.
-- This repo also includes evaluation scripts, synthetic data utilities, and tests.
-- Start with [installation](install.md), then read [usage](usage.md) and [models](models.md).
+- Multi-series training plus single-series prediction is handled directly by NeuralForecast.
+- Start with [install](install.md), then [usage](usage.md), [models](models.md), and [paper-for-agents](paper-for-agents.md).
 
 <p align="center">
   <img src="img/logo_dribia_blau_cropped.png" alt="TimeBaseUla logo" width="320">
@@ -16,23 +16,29 @@ description: Home page for TimeBaseUla with overview, architecture, and links to
 
 ## Why this project exists
 
-TimeBaseUla is a Python adaptation of the **TimeBase** forecasting idea, implemented in a style that fits this repository:
+TimeBaseUla is a Python adaptation of the **TimeBase** forecasting idea with a repository style that emphasizes:
 
 - CPU-first execution
-- simple PyTorch modules
+- small PyTorch modules
 - compatibility with Nixtla's `NeuralForecast`
-- reproducible tests and scripts
-- concise MkDocs documentation
+- fast unit tests and explicit heavier checks
+- scannable MkDocs documentation
+
+## Package surface
+
+```python
+from timebaseula import TimeBase, TimeBaseTrend, make_synthetic_series
+```
 
 ## What you get
 
 | Feature | Notes |
 |---|---|
 | `TimeBase` | Segment + basis forecasting with two linear layers |
-| `TimeBaseTrend` | Adds moving-average trend decomposition |
-| `predict_single_series` | Convenience helper for focused inference |
-| Synthetic evaluation scripts | Compare TimeBase against DLinear, naive, and MFLES |
-| Long-horizon benchmark script | Runs on ECL and Traffic datasets |
+| `TimeBaseTrend` | Adds moving-average decomposition and a linear trend head |
+| `make_synthetic_series` | Deterministic synthetic generator reused by tests, scripts, and docs |
+| benchmark scripts | CPU-oriented experiments on ECL and Traffic |
+| recommendation helpers | Lightweight defaults based on dataset profiling |
 
 ## Architecture at a glance
 
@@ -59,32 +65,17 @@ flowchart TD
     G --> H[Forecast]
 ```
 
-## Package surface
-
-```python
-from timebaseula import TimeBase, TimeBaseTrend, predict_single_series
-```
-
 ## How to read the docs
 
 1. [Install the library](install.md)
 2. [Follow the usage guide](usage.md)
 3. [Review the model notes](models.md)
 4. [Explore the scripts](scripts.md)
-5. [Check the paper summary and references](references.md)
-
-## Project layout
-
-| Path | Role |
-|---|---|
-| `timebaseula/models/timebase.py` | model definitions |
-| `timebaseula/utils.py` | helper utilities |
-| `scripts/` | CLI scripts built with Typer + Rich |
-| `tests/` | unit and integration tests |
-| `docs/` | MkDocs site |
+5. [Read the agent-friendly paper digest](paper-for-agents.md)
+6. [Check the references](references.md)
 
 ## Important caveats
 
-- The library is small and focused: it currently exposes the TimeBase family and one helper utility.
-- Some development utilities live under `tests/utils/` and are used by scripts for synthetic experiments.
-- The docs describe the current repository behavior, not an aspirational future API.
+- This package is intentionally small and focused.
+- The entire package has been **vibecoded** and then reviewed; keep that in mind when extending it.
+- Fast tests avoid full benchmark runs by design; heavy training checks are separated from the default suite.

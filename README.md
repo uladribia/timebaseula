@@ -1,16 +1,18 @@
 ---
-description: TimeBaseUla README with installation, quickstart, model notes, scripts, and paper references.
+description: TimeBaseUla README with installation, usage, testing, benchmarks, and documentation notes.
 ---
 
 # TimeBaseUla
 
-> Lightweight long-horizon forecasting models for NeuralForecast, built around the TimeBase paper and adapted to a CPU-first Python workflow.
+> Lightweight TimeBase-style forecasting models for NeuralForecast, built for a CPU-first workflow.
+
+> **Disclosure:** this package has been **vibecoded** and should be treated like an actively reviewed research-to-library port.
 
 **TL;DR**
 - Install with `uv sync` for development or `pip install timebaseula` for usage.
-- Main exports: `TimeBase`, `TimeBaseTrend`, `predict_single_series`.
-- Works with [Nixtla NeuralForecast](https://nixtlaverse.nixtla.io/neuralforecast/).
-- Includes benchmark and evaluation scripts for synthetic and long-horizon datasets.
+- Main exports: `TimeBase`, `TimeBaseTrend`, `make_synthetic_series`.
+- NeuralForecast already supports forecasting a filtered subset of series after multi-series training.
+- Fast tests are unit-only; heavier training checks live under integration tests.
 - Documentation site: <https://dribia.github.io/timebaseula>
 
 <p align="center">
@@ -19,12 +21,13 @@ description: TimeBaseUla README with installation, quickstart, model notes, scri
 
 ## What this library is
 
-TimeBaseUla is a small forecasting library that implements a **NeuralForecast-compatible** version of the **TimeBase** architecture:
+TimeBaseUla is a compact implementation of the **TimeBase** forecasting idea, adapted to work with [Nixtla NeuralForecast](https://nixtlaverse.nixtla.io/neuralforecast/).
 
-- **TimeBase**: segment the input history into periods, learn a compact basis, forecast future segments, flatten back to the target horizon.
-- **TimeBaseTrend**: decompose the series into trend + seasonal parts, forecast the seasonal component with TimeBase, and project the trend with a linear head.
-
-The implementation is intentionally simple, readable, and CPU-friendly.
+| Object | Purpose |
+|---|---|
+| `TimeBase` | Basis-based segment forecaster |
+| `TimeBaseTrend` | TimeBase seasonal branch plus linear trend head |
+| `make_synthetic_series` | Deterministic synthetic generator used by tests, scripts, and docs |
 
 ## Installation
 
@@ -69,69 +72,34 @@ model = TimeBase(
 nf = NeuralForecast(models=[model], freq="D")
 nf.fit(frame, val_size=24)
 forecast = nf.predict()
-print(forecast.head())
 ```
 
-## Main API
+## Multi-series training, single-series forecast
 
-| Object | Purpose |
-|---|---|
-| `TimeBase` | Basis-based segment forecaster |
-| `TimeBaseTrend` | TimeBase with moving-average trend decomposition |
-| `predict_single_series` | Helper for single-series inference after multi-series training |
+You do **not** need a package helper for this. Train on multiple series, then ask NeuralForecast to predict only the subset you want.
 
-## Model intuition
-
-```mermaid
-flowchart LR
-    A[Input window] --> B[Segment by period_len]
-    B --> C[Normalize by period or series mean]
-    C --> D[Linear layer: history segments → basis]
-    D --> E[Linear layer: basis → future segments]
-    E --> F[Flatten to horizon h]
+```python
+subset = frame[frame["unique_id"] == "series_1"].copy()
+prediction = nf.predict(df=subset)
 ```
 
-For `TimeBaseTrend`:
+This repository includes an integration test for that flow.
 
-```mermaid
-flowchart LR
-    A[Input window] --> B[Moving-average decomposition]
-    B --> C[Seasonal branch]
-    B --> D[Trend branch]
-    C --> E[TimeBaseCore]
-    D --> F[Linear trend head]
-    E --> G[Add forecasts]
-    F --> G
-    G --> H[Final horizon forecast]
+## Automatic defaults
+
+```python
+from timebaseula import recommend_timebase_kwargs, recommend_timebase_trend_kwargs
+
+model = TimeBase(h=24, **recommend_timebase_kwargs(frame, freq="D", horizon=24, max_steps=150))
+trend_model = TimeBaseTrend(
+    h=24,
+    **recommend_timebase_trend_kwargs(frame, freq="D", horizon=24, max_steps=150),
+)
 ```
-
-## Key hyperparameters
-
-| Parameter | Meaning | Typical value |
-|---|---|---|
-| `h` | Forecast horizon | `24` |
-| `input_size` | Historical context window | `48` or more |
-| `period_len` | Segment length / natural period | `24` for daily hourly-style seasonality |
-| `basis_num` | Basis rank | `6` |
-| `use_period_norm` | Normalize each period separately | `True` |
-| `use_orthogonal` | Add orthogonal basis regularization | `False` |
-| `orthogonal_weight` | Strength of orthogonal penalty | `0.0+` |
-| `moving_avg_window` | Trend smoother for `TimeBaseTrend` | odd, e.g. `25` |
-
-## Repository contents
-
-| Path | What it contains |
-|---|---|
-| `timebaseula/models/timebase.py` | Core model implementation |
-| `timebaseula/utils.py` | Inference helper |
-| `scripts/benchmark_long_horizon.py` | Benchmarks on ECL / TrafficL daily and monthly aggregates |
-| `scripts/check_forecast_mae.py` | Synthetic MAE comparison table |
-| `scripts/eval_dlinear_mae.py` | DLinear synthetic baseline |
-| `scripts/generate_synthetic_plot.py` | Plot generation for docs |
-| `tests/` | Unit and integration tests |
-| `docs/` | MkDocs documentation |
 
 ## Development workflow
+
+Fast quality gates:
 
 ```bash
 make format
@@ -139,53 +107,27 @@ make lint
 make test
 ```
 
-Integration tests are available with:
+Heavier checks:
 
 ```bash
 make test-integration
+make test-benchmark
 ```
 
-## Generate HTML documentation
+Notes:
+- `make test` runs the fast suite only.
+- integration tests cover actual NeuralForecast fitting behavior.
+- benchmark-oriented checks are separated from the default suite to keep feedback fast.
 
-Build the static docs site:
+## Benchmarking
+
+Prepare cached aggregates:
 
 ```bash
-make docs
+uv run --frozen python scripts/generate_datasets.py main
 ```
 
-This writes the generated HTML to:
-
-```text
-site/
-```
-
-Serve the docs locally with live reload:
-
-```bash
-make docs-serve
-```
-
-Then open:
-
-```text
-http://127.0.0.1:8000
-```
-
-## Benchmarking notes
-
-Long-horizon benchmarks use cached aggregates stored only under `datasets/`:
-
-- `datasets/ecl_daily.parquet`
-- `datasets/ecl_monthly.parquet`
-- `datasets/trafficl_daily.parquet`
-- `datasets/trafficl_monthly.parquet`
-
-The benchmark CLI supports tuned modes:
-
-- `--mode daily` → daily aggregate defaults (`horizon=14`, `max_steps=50`)
-- `--mode monthly` → monthly aggregate defaults (`horizon=5`, `max_steps=30`)
-
-Quick smoke test on CPU:
+Quick smoke benchmark:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py main \
@@ -197,28 +139,7 @@ uv run --frozen python scripts/benchmark_long_horizon.py main \
   --output logs/benchmark_results_smoke.csv
 ```
 
-Fast overnight run without ARIMA:
-
-```bash
-uv run --frozen python scripts/benchmark_long_horizon.py main \
-  --mode daily \
-  --skip-arima \
-  --output logs/benchmark_results_full.csv
-```
-
-Full overnight run including both frequencies and ARIMA:
-
-```bash
-uv run --frozen python scripts/benchmark_long_horizon.py main \
-  --mode all \
-  --output logs/benchmark_results_full_with_arima.csv
-```
-
-By default, the benchmark tries to use a broad slice of the data: all available series up to `300`, and at least `200` when that many are present.
-
-On this machine, an `ECL` daily smoke run with `5` series took about `10.7s` with `--skip-arima` and about `49.5s` with ARIMA enabled, so the new skip flag is useful for iterative work.
-
-After producing a CSV, generate a markdown benchmark report with:
+Generate the benchmark report page:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py report \
@@ -226,66 +147,17 @@ uv run --frozen python scripts/benchmark_long_horizon.py report \
   --output-md docs/benchmark.md
 ```
 
-## Automatic default recommendation
+## Documentation highlights
 
-The library now includes lightweight dataset profilers and recommenders for `TimeBase` and `TimeBaseTrend`.
-
-You can call them directly:
-
-```python
-from timebaseula import recommend_timebase_kwargs, recommend_timebase_trend_kwargs
-
-recommended_timebase = recommend_timebase_kwargs(
-    frame=train_df,
-    freq="D",
-    horizon=28,
-    max_steps=200,
-)
-recommended_timebase_trend = recommend_timebase_trend_kwargs(
-    frame=train_df,
-    freq="D",
-    horizon=28,
-    max_steps=200,
-)
-```
-
-Or use the model classes directly:
-
-```python
-from timebaseula import TimeBase, TimeBaseTrend
-
-profile = TimeBase.profile_dataset(train_df, freq="D", horizon=28)
-defaults = TimeBase.recommend_defaults(train_df, freq="D", horizon=28, max_steps=200)
-trend_defaults = TimeBaseTrend.recommend_defaults(
-    train_df,
-    freq="D",
-    horizon=28,
-    max_steps=200,
-)
-```
-
-These helpers inspect the provided dataset quickly and recommend architecture and training defaults such as:
-
-- `input_size`
-- `period_len`
-- `basis_num`
-- `moving_avg_window`
-- `max_steps`
-- `learning_rate`
-- `early_stop_patience_steps`
-- `val_check_steps`
-
-## Documentation notes
-
-The documentation in this repository was refreshed by an AI coding agent after inspecting the codebase, scripts, tests, and existing docs.
+- `docs/usage.md`: NeuralForecast usage patterns
+- `docs/models.md`: model structure and tuning notes
+- `docs/scripts.md`: script reference and logging behavior
+- `docs/paper-for-agents.md`: markdown paper digest for LLMs and agents
+- `docs/references.md`: original PDF and bibliographic reference
 
 ## Paper reference
 
-This project is based on the TimeBase paper included in the repository:
-
-- Huang et al., **TimeBase** — see `docs/huang25az.pdf`
-
-See the documentation site for a short paper summary, architecture notes, and references.
+The original paper PDF is bundled as `docs/huang25az.pdf`. A readable markdown digest is available at `docs/paper-for-agents.md`.
 
 ## License
 

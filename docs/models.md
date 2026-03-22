@@ -1,5 +1,5 @@
 ---
-description: Model notes for TimeBase and TimeBaseTrend, including how the repository implementation maps to the paper.
+description: Model notes for TimeBase and TimeBaseTrend, including implementation and tuning details.
 ---
 
 # Models
@@ -7,11 +7,9 @@ description: Model notes for TimeBase and TimeBaseTrend, including how the repos
 **TL;DR**
 - `TimeBase` uses two linear layers: history segments → basis, then basis → forecast segments.
 - `TimeBaseTrend` applies moving-average decomposition and adds a linear trend projection.
-- The implementation lives in `timebaseula/models/timebase.py`.
+- Shared training logic lives in a common internal wrapper so both models behave consistently.
 
 ## `TimeBase`
-
-### Core idea
 
 The model assumes long histories contain repeated temporal structure. It:
 
@@ -22,15 +20,7 @@ The model assumes long histories contain repeated temporal structure. It:
 5. forecasts future segments from that basis
 6. flattens the result back to horizon `h`
 
-### Repository implementation
-
-The implementation uses:
-
-- `TimeBaseConfig`
-- `TimeBaseCore`
-- `TimeBase(BaseWindows)`
-
-The core layers are:
+Core layers:
 
 | Layer | Role |
 |---|---|
@@ -55,20 +45,7 @@ Both models can compute an orthogonal penalty on the learned basis matrix.
 | `use_orthogonal` | enable orthogonal regularization |
 | `orthogonal_weight` | weight of the penalty term |
 
-The implementation computes a Gram matrix from the basis tensor and penalizes off-diagonal energy.
-
-## Shapes and behavior
-
-| Stage | Shape |
-|---|---|
-| input window | `(batch, input_size)` |
-| segmented input | `(batch, period_len, seg_num_x)` |
-| basis | `(batch, period_len, basis_num)` |
-| forecast | `(batch, h)` |
-
-## Automatic parameter recommendation
-
-The library includes lightweight helpers for profiling a dataset and recommending defaults.
+## Recommendation helpers
 
 Top-level helpers:
 
@@ -85,21 +62,17 @@ Class helpers:
 
 These helpers inspect a long-format dataframe with `unique_id`, `ds`, and `y`, then derive compact defaults for:
 
-- model shape (`input_size`, `period_len`, `basis_num`)
-- trend decomposition (`moving_avg_window`)
-- training budget (`max_steps`, `learning_rate`, `early_stop_patience_steps`, `val_check_steps`)
+- `input_size`
+- `period_len`
+- `basis_num`
+- `moving_avg_window`
+- `max_steps`
+- `learning_rate`
+- `early_stop_patience_steps`
+- `val_check_steps`
 
-This is especially useful when moving between long daily datasets and short monthly datasets, where sensible defaults differ substantially.
+## Testing policy
 
-## What is tested
-
-The test suite currently checks:
-
-- output shapes
-- padding behavior
-- deterministic behavior under a fixed seed
-- orthogonal loss sanity
-- odd-window validation for `TimeBaseTrend`
-- basic NeuralForecast fit/predict integration
-
-See `tests/test_timebase.py`.
+- unit tests cover shape, padding, recommendation logic, and synthetic helpers
+- integration tests cover actual NeuralForecast fitting behavior
+- benchmark-oriented runs stay outside the fast default suite
