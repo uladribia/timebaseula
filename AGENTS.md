@@ -37,8 +37,10 @@ This repository follows a disciplined, maintainable, and CPU-first workflow. Age
 4. **When everything passes**:
    - Update **README** and relevant documentation using the **`write-docs` skill**.
    - Ensure the README notes that changes are **agent-made** when relevant.
-4. **Commit**:
+5. **Commit after each relevant completed change**:
    - Use the **`commit` skill** and follow Conventional Commits.
+   - Do not leave substantial finished code or documentation changes uncommitted.
+   - After a relevant change clears its intended quality gates, create a commit before moving on to the next substantial task.
 
 ## Integrity & Evaluation Rules
 - **No cheating or shortcuts** when training or evaluating models.

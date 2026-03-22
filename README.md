@@ -159,11 +159,33 @@ uv run --frozen python scripts/check_forecast_mae.py report-html \
 
 ## Documentation highlights
 
-- `docs/usage.md`: NeuralForecast usage patterns
-- `docs/models.md`: model structure and tuning notes
+- `docs/usage.md`: NeuralForecast usage patterns, validation tracking, and convergence troubleshooting
+- `docs/models.md`: model structure, assumptions, and tuning notes
 - `docs/scripts.md`: script reference and logging behavior
-- `docs/paper-for-agents.md`: markdown paper digest for LLMs and agents
+- `docs/paper-for-agents.md`: expanded markdown paper digest for LLMs and human readers
 - `docs/references.md`: original PDF and bibliographic reference
+
+## Troubleshooting training quality
+
+If a model seems weak, check convergence before blaming the architecture.
+
+Typical signals:
+- **underfitting**: both train and validation losses stay high, and validation is still improving at the end
+- **overfitting**: train loss keeps dropping while validation gets worse after an earlier best point
+- **non-convergence**: losses oscillate, jump, or validation is best very early and then drifts
+
+Recommended first actions:
+- use `recommend_timebase_kwargs(...)` or `recommend_timebase_trend_kwargs(...)`
+- fit with a non-zero `val_size`
+- log validation metrics
+- keep the best validation checkpoint instead of only the final weights
+- reduce learning rate before making the model larger
+
+See `docs/usage.md` for concrete code examples using:
+- `CSVLogger`
+- `ModelCheckpoint`
+- `EarlyStopping`
+- best-checkpoint evaluation with NeuralForecast and TimeBaseUla
 
 ## Paper reference
 
