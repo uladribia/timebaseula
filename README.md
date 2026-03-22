@@ -181,6 +181,13 @@ uv run --frozen python scripts/check_forecast_mae.py report-html \
   --output-html logs/synthetic_benchmark_report.html
 ```
 
+The HTML reports now share the same tabbed structure used by the custom-dataset benchmark, so long-horizon, synthetic, and custom runs are easier to compare side by side. Representative-series tabs consistently prioritize:
+
+- the longest series
+- the highest-variance series
+- the strongest-trend series
+- two additional random series when the slice contains at least five series
+
 ## Documentation highlights
 
 - `docs/usage.md`: NeuralForecast usage patterns, validation tracking, and convergence troubleshooting

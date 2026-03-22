@@ -181,6 +181,7 @@ def main(
                     freq="D",
                     max_steps=200,
                     search_max_steps=10,
+                    include_iteration_recommendation=True,
                 )
             )
             labels.append("AutoTimeBase")
@@ -191,6 +192,7 @@ def main(
                     freq="D",
                     max_steps=200,
                     search_max_steps=10,
+                    include_iteration_recommendation=True,
                 )
             )
             labels.append("AutoTimeBaseTrend")

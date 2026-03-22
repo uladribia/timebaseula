@@ -102,6 +102,7 @@ class TestBenchmarkReporting:
             source_label="logs/example.csv",
             slice_columns=["dataset", "frequency"],
             description="Reusable benchmark report.",
+            representative_sections=["<figure>Representative series</figure>"],
         )
 
         assert "Example benchmark" in report
@@ -109,6 +110,8 @@ class TestBenchmarkReporting:
         assert "data:image/png;base64," in report
         assert "Leaderboard" in report
         assert "Best by slice" in report
+        assert "Representative series" in report
+        assert "tab-button" in report
 
     def test_resolve_html_report_output_uses_csv_stem_by_default(self) -> None:
         """Automatic HTML output should reuse the CSV stem with .html extension."""

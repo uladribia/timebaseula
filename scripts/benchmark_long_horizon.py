@@ -25,7 +25,10 @@ from rich.table import Table
 from statsforecast import StatsForecast
 from statsforecast.models import AutoARIMA, AutoMFLES
 
-from scripts.reporting import build_html_benchmark_report
+from scripts.reporting import (
+    build_html_benchmark_report,
+    build_representative_series_sections,
+)
 from timebaseula import AutoTimeBase, AutoTimeBaseTrend
 from timebaseula.recommend import (
     DatasetProfile,
@@ -430,6 +433,7 @@ def benchmark_configuration(
         "freq": freq,
         "search_max_steps": max(5, min(10, int(training_kwargs["val_check_steps"]))),
         "n_search_configs": 2,
+        "include_iteration_recommendation": True,
     }
 
     return [
@@ -837,6 +841,7 @@ def main(
     ensure_aggregated_datasets(force_download=force_download)
 
     all_results: list[BenchmarkResult] = []
+    representative_source_frames: list[pd.DataFrame] = []
     for current_dataset in datasets:
         for current_freq in frequencies:
             if not quiet:
@@ -850,6 +855,11 @@ def main(
             selected_series = choose_series_count(
                 int(current_frame["unique_id"].nunique()),
                 n_series,
+            )
+            representative_source_frames.append(
+                select_series_subset(current_frame, n_series).assign(
+                    dataset=current_dataset, frequency=current_freq
+                )
             )
             logger.info(
                 "Running benchmark block",
@@ -892,6 +902,10 @@ def main(
     )
     if html_output is not None:
         html_output.parent.mkdir(parents=True, exist_ok=True)
+        representative_sections = build_representative_series_sections(
+            pd.concat(representative_source_frames, ignore_index=True),
+            slice_columns=["dataset", "frequency"],
+        )
         html_output.write_text(
             build_html_benchmark_report(
                 results_frame,
@@ -903,6 +917,7 @@ def main(
                 description=(
                     "Reusable Matplotlib benchmark report for the long-horizon real datasets."
                 ),
+                representative_sections=representative_sections,
             ),
             encoding="utf-8",
         )

@@ -16,7 +16,10 @@ from rich.table import Table
 from statsforecast import StatsForecast
 from statsforecast.models import AutoMFLES
 
-from scripts.reporting import build_html_benchmark_report
+from scripts.reporting import (
+    build_html_benchmark_report,
+    build_representative_series_sections,
+)
 from timebaseula.models.timebase import AutoTimeBase, AutoTimeBaseTrend
 from timebaseula.synthetic import make_synthetic_series
 
@@ -24,6 +27,30 @@ app = typer.Typer(help="Compare MAE across baseline and model forecasts.")
 console = Console()
 
 LOG_PATH = Path("logs") / "forecast_mae_check.log"
+
+
+def synthetic_scenarios() -> dict[str, dict[str, float | int | None]]:
+    """Return the named synthetic benchmark scenarios."""
+    return {
+        "easy": {
+            "noise_std": 0.15,
+            "amplitude_period": None,
+            "amplitude_strength": 0.0,
+            "amplitude_growth_rate": 0.0,
+        },
+        "medium": {
+            "noise_std": 0.15,
+            "amplitude_period": 48,
+            "amplitude_strength": 0.4,
+            "amplitude_growth_rate": 0.0,
+        },
+        "hard": {
+            "noise_std": 0.15,
+            "amplitude_period": 96,
+            "amplitude_strength": 0.9,
+            "amplitude_growth_rate": 1.2,
+        },
+    }
 
 
 def configure_logging() -> logging.Logger:
@@ -84,12 +111,19 @@ def evaluate_models(
 
     models = [
         DLinear(h=h, input_size=input_size, max_steps=200, learning_rate=1e-2),
-        AutoTimeBase(h=h, freq="D", max_steps=200, search_max_steps=10),
+        AutoTimeBase(
+            h=h,
+            freq="D",
+            max_steps=200,
+            search_max_steps=10,
+            include_iteration_recommendation=True,
+        ),
         AutoTimeBaseTrend(
             h=h,
             freq="D",
             max_steps=200,
             search_max_steps=10,
+            include_iteration_recommendation=True,
         ),
     ]
     nf = NeuralForecast(models=models, freq="D")
@@ -149,26 +183,7 @@ def run_synthetic_mae_checks(
     test_size: int,
 ) -> pd.DataFrame:
     """Run the synthetic scenarios and return a long-format result table."""
-    scenarios = {
-        "easy": {
-            "noise_std": 0.15,
-            "amplitude_period": None,
-            "amplitude_strength": 0.0,
-            "amplitude_growth_rate": 0.0,
-        },
-        "medium": {
-            "noise_std": 0.15,
-            "amplitude_period": 48,
-            "amplitude_strength": 0.4,
-            "amplitude_growth_rate": 0.0,
-        },
-        "hard": {
-            "noise_std": 0.15,
-            "amplitude_period": 96,
-            "amplitude_strength": 0.9,
-            "amplitude_growth_rate": 1.2,
-        },
-    }
+    scenarios = synthetic_scenarios()
     variations = [
         ("series_a", 1.0, 0.0),
         ("series_b", 1.15, 0.5),
@@ -204,6 +219,32 @@ def run_synthetic_mae_checks(
             ]
         )
     return pd.DataFrame(rows)
+
+
+def build_synthetic_report_frame(length: int) -> pd.DataFrame:
+    """Build the combined observed frame used for representative-series reports."""
+    variations = [
+        ("series_a", 1.0, 0.0),
+        ("series_b", 1.15, 0.5),
+        ("series_c", 0.85, -0.3),
+    ]
+    frames: list[pd.DataFrame] = []
+    for name, params in synthetic_scenarios().items():
+        base_frame = make_synthetic_series(
+            length=length,
+            noise_std=float(params["noise_std"]),
+            include_trend=True,
+            include_seasonality=True,
+            season_period=24,
+            amplitude_period=params["amplitude_period"],
+            amplitude_strength=float(params["amplitude_strength"]),
+            amplitude_growth_rate=float(params["amplitude_growth_rate"]),
+        )
+        scenario_frame = build_multivariate_frame(base_frame, variations).assign(
+            scenario=name
+        )
+        frames.append(scenario_frame)
+    return pd.concat(frames, ignore_index=True)
 
 
 @app.command()
@@ -276,6 +317,10 @@ def report_html(
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     output_html.parent.mkdir(parents=True, exist_ok=True)
     results_frame.to_csv(output_csv, index=False)
+    representative_sections = build_representative_series_sections(
+        build_synthetic_report_frame(length),
+        slice_columns=["scenario"],
+    )
     output_html.write_text(
         build_html_benchmark_report(
             results_frame,
@@ -283,6 +328,7 @@ def report_html(
             source_label=str(output_csv),
             slice_columns=["scenario"],
             description="Reusable Matplotlib report for synthetic MAE benchmark scenarios.",
+            representative_sections=representative_sections,
         ),
         encoding="utf-8",
     )

@@ -92,20 +92,48 @@ class TestCustomDatasetBenchmark:
         )
         assert forecast["SeasonalNaive"].tolist() == [40.0, 50.0, 60.0, 40.0]
 
-    def test_choose_representative_series_prefers_best_median_worst(self) -> None:
-        per_series = pd.DataFrame(
+    def test_choose_representative_series_prefers_long_var_trend_and_random(
+        self,
+    ) -> None:
+        frame = pd.DataFrame(
             {
-                "unique_id": ["a", "b", "c", "d", "e"],
-                "model_name": ["TimeBase"] * 5,
-                "mae": [1.0, 2.0, 3.0, 4.0, 5.0],
-                "rmse": [1.1, 2.1, 3.1, 4.1, 5.1],
+                "unique_id": (
+                    ["a"] * 4 + ["b"] * 6 + ["c"] * 5 + ["d"] * 5 + ["e"] * 5
+                ),
+                "ds": pd.date_range("2024-01-01", periods=25, freq="D"),
+                "y": [
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    2.0,
+                    3.0,
+                    4.0,
+                    5.0,
+                    6.0,
+                    0.0,
+                    10.0,
+                    0.0,
+                    10.0,
+                    0.0,
+                    1.0,
+                    2.0,
+                    4.0,
+                    7.0,
+                    11.0,
+                    3.0,
+                    3.0,
+                    4.0,
+                    4.0,
+                    5.0,
+                ],
             }
         )
-        selected = choose_representative_series(
-            per_series, anchor_model="TimeBase", n_examples=5
-        )
-        assert selected[0] == "a"
-        assert selected[-1] == "e"
+        selected = choose_representative_series(frame, n_examples=5)
+        assert "b" in selected
+        assert "c" in selected
+        assert "d" in selected
         assert len(selected) == 5
 
     def test_add_average_ranks_computes_mean_rank_per_model(self) -> None:

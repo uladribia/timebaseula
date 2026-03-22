@@ -26,6 +26,9 @@ from rich.table import Table
 from statsforecast import StatsForecast
 from statsforecast.models import AutoMFLES
 
+from scripts.reporting import (
+    choose_representative_series as choose_report_representative_series,
+)
 from timebaseula import AutoTimeBase, AutoTimeBaseTrend
 from timebaseula.recommend import (
     profile_dataset,
@@ -549,23 +552,13 @@ def summarise_dataset(frame: pd.DataFrame, freq: str, horizon: int) -> dict[str,
 
 
 def choose_representative_series(
-    per_series_results: pd.DataFrame,
-    anchor_model: str,
+    full_frame: pd.DataFrame,
+    anchor_model: str | None = None,
     n_examples: int = 5,
 ) -> list[str]:
-    """Choose representative series spread across the anchor-model ranking."""
-    anchor = per_series_results[per_series_results["model_name"] == anchor_model]
-    ranked = anchor.sort_values(["mae", "unique_id"]).reset_index(drop=True)
-    if ranked.empty:
-        return []
-    target_count = min(n_examples, len(ranked))
-    positions = np.linspace(0, len(ranked) - 1, num=target_count)
-    selected_ids: list[str] = []
-    for position in positions:
-        unique_id = str(ranked.iloc[round(position)]["unique_id"])
-        if unique_id not in selected_ids:
-            selected_ids.append(unique_id)
-    return selected_ids
+    """Choose representative series by structural variety, not forecast rank."""
+    del anchor_model
+    return choose_report_representative_series(full_frame, n_examples=n_examples)
 
 
 def build_logo_data_uri() -> str:
@@ -1232,12 +1225,19 @@ def main(
     neural_models = [
         DLinear(h=horizon, **common_kwargs),
         NLinear(h=horizon, **common_kwargs),
-        AutoTimeBase(h=horizon, freq="MS", max_steps=max_steps, search_max_steps=10),
+        AutoTimeBase(
+            h=horizon,
+            freq="MS",
+            max_steps=max_steps,
+            search_max_steps=10,
+            include_iteration_recommendation=True,
+        ),
         AutoTimeBaseTrend(
             h=horizon,
             freq="MS",
             max_steps=max_steps,
             search_max_steps=10,
+            include_iteration_recommendation=True,
         ),
     ]
     prediction_columns = [
@@ -1278,8 +1278,7 @@ def main(
     aggregate_results = aggregate_results.sort_values(["overall_mae", "overall_rmse"])
 
     representative_ids = choose_representative_series(
-        per_series_results=per_series_results,
-        anchor_model=str(aggregate_results.iloc[0]["model_name"]),
+        full_frame=frame,
         n_examples=representative_series_count,
     )
     representative_plot_sections = build_representative_plot_sections(

@@ -16,7 +16,7 @@ description: Reference for repository scripts used for datasets, synthetic plots
 | `scripts/generate_datasets.py` | prepare cached benchmark datasets |
 | `scripts/generate_synthetic_plot.py` | generate standalone HTML visualizations with embedded Matplotlib figures and optional forecast overlays |
 | `scripts/eval_dlinear_mae.py` | get DLinear MAE on synthetic scenarios |
-| `scripts/check_forecast_mae.py` | compare naive, DLinear, TimeBase, TimeBaseTrend, MFLES and emit a reusable synthetic HTML report |
+| `scripts/check_forecast_mae.py` | compare naive, DLinear, AutoTimeBase, AutoTimeBaseTrend, MFLES and emit a reusable synthetic HTML report |
 | `scripts/benchmark_long_horizon.py` | benchmark models on ECL and Traffic and emit markdown or HTML reports |
 
 ## Prepare cached benchmark datasets
@@ -86,6 +86,13 @@ uv run --frozen python scripts/benchmark_long_horizon.py main \
 ```
 
 Generate reports from a benchmark CSV, or emit the HTML report directly from `main` with `--html-report`:
+
+The HTML reports now follow the same tabbed layout as the custom benchmark report. When observed series are available at report-generation time, the representative-series tab uses a consistent selection policy:
+
+- longest history
+- highest variance
+- strongest absolute linear trend
+- two additional random series when the slice has at least five series
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py report \
