@@ -51,6 +51,13 @@ When creating or modifying CLIs, use the **`create-cli` skill** and ensure the i
 - **CLI rendering**: all CLI output must use **Rich**.
 - **Scripts/entrypoints**: any script must be implemented with **Typer**.
 
+## Visualization Standards
+- Prefer **Matplotlib** for charts, diagnostics, and generated reports across the repository.
+- For HTML outputs, embed Matplotlib figures as static images rather than relying on browser-side chart runtimes.
+- Keep figures readable, reproducible, scriptable, and suitable for docs, reports, and offline review.
+- Avoid introducing **Altair** for new visualization work in this repository.
+- When updating existing plots, prefer migrating them toward Matplotlib if the change is substantial or the plot is user-facing.
+
 ## Documentation Expectations
 - Keep README and docs accurate and concise.
 - Ensure any agent-driven change is reflected in documentation where it matters.

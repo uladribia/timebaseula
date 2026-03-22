@@ -19,7 +19,9 @@ from scripts.benchmark_long_horizon import (
 )
 from timebaseula.recommend import (
     profile_dataset,
+    recommend_timebase_kwargs,
     recommend_timebase_model_kwargs,
+    recommend_timebase_trend_kwargs,
     recommend_training_kwargs,
 )
 
@@ -131,8 +133,41 @@ class TestBenchmarkDatasetHelpers:
         dlinear_kwargs = configs[0][2]
         timebase_kwargs = configs[2][2]
         assert dlinear_kwargs["max_steps"] >= 150
+        assert dlinear_kwargs["learning_rate"] <= 5e-3
         assert timebase_kwargs["period_len"] in {7, 14, 28}
         assert timebase_kwargs["basis_num"] >= 6
+
+    def test_profile_dataset_expands_budget_for_long_monthly_regime(self) -> None:
+        """Long monthly datasets should get a larger budget and a gentler LR."""
+        rows = []
+        for unique_id in ("a", "b", "c"):
+            for step in range(264):
+                rows.append(
+                    {
+                        "unique_id": unique_id,
+                        "ds": pd.Timestamp("2004-01-31") + pd.offsets.MonthEnd(step),
+                        "y": float(step % 12),
+                    }
+                )
+        frame = pd.DataFrame(rows)
+
+        profile = profile_dataset(frame, freq="ME", horizon=12)
+        training = recommend_training_kwargs(profile, horizon=12, max_steps=30)
+        timebase = recommend_timebase_kwargs(frame, freq="ME", horizon=12, max_steps=30)
+        timebase_trend = recommend_timebase_trend_kwargs(
+            frame,
+            freq="ME",
+            horizon=12,
+            max_steps=30,
+        )
+
+        assert profile.long_history is True
+        assert training["max_steps"] >= 120
+        assert training["learning_rate"] <= 5e-3
+        assert timebase["max_steps"] >= 120
+        assert timebase_trend["max_steps"] >= 120
+        assert timebase["learning_rate"] < training["learning_rate"]
+        assert timebase_trend["learning_rate"] <= timebase["learning_rate"]
 
     def test_aggregate_frame_daily(self) -> None:
         """Daily aggregation should preserve unique_id and mean by day."""

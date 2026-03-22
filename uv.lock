@@ -3827,6 +3827,7 @@ dependencies = [
 	{ name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
 	{ name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 	{ name = "pandas" },
+	{ name = "pytorch-lightning" },
 	{ name = "rich" },
 	{ name = "scikit-learn", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
 	{ name = "scikit-learn", version = "1.8.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -3862,11 +3863,12 @@ test = [
 [package.metadata]
 requires-dist = [
 	{ name = "datasetsforecast", specifier = ">=1.0.0,<2" },
-	{ name = "matplotlib", specifier = ">=3.9.0,<4" },
+	{ name = "matplotlib", specifier = ">=3.10.0,<4" },
 	{ name = "neuralforecast", specifier = ">=1.7.4,<2" },
 	{ name = "nixtla", specifier = ">=0.7.0,<1" },
 	{ name = "numpy", specifier = ">=2.2.0,<3" },
 	{ name = "pandas", specifier = ">=2.2.0,<3" },
+	{ name = "pytorch-lightning", specifier = ">=2.5.0,<3" },
 	{ name = "rich", specifier = ">=14.1.0,<15" },
 	{ name = "scikit-learn", specifier = ">=1.5.0,<2" },
 	{ name = "statsforecast", specifier = ">=1.7.0,<2" },

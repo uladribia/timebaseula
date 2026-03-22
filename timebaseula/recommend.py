@@ -123,10 +123,19 @@ def recommend_training_kwargs(
     recommended_max_steps = max_steps
     if profile.short_history:
         recommended_max_steps = min(max_steps, 100)
-    elif profile.long_history and horizon >= 14:
-        recommended_max_steps = max(max_steps, 150)
+    elif profile.long_history:
+        if horizon >= 24:
+            recommended_max_steps = max(max_steps, 200)
+        elif horizon >= 14:
+            recommended_max_steps = max(max_steps, 150)
+        elif horizon >= 12:
+            recommended_max_steps = max(max_steps, 120)
+        elif horizon >= 6:
+            recommended_max_steps = max(max_steps, 80)
 
-    learning_rate = 5e-3 if profile.short_history else 1e-2
+    learning_rate = 5e-3
+    if profile.long_history and horizon >= 12:
+        learning_rate = 3e-3
     early_stop_patience_steps = max(10, recommended_max_steps // 5)
     val_check_steps = max(10, recommended_max_steps // 4)
     return {
@@ -179,9 +188,19 @@ def recommend_timebase_kwargs(
 ) -> dict[str, Any]:
     """Profile a dataset and return recommended TimeBase kwargs."""
     profile = profile_dataset(frame, freq=freq, horizon=horizon)
+    training_kwargs = recommend_training_kwargs(
+        profile,
+        horizon=horizon,
+        max_steps=max_steps,
+    )
+    if profile.long_history and horizon >= 12:
+        training_kwargs["learning_rate"] = min(
+            float(training_kwargs["learning_rate"]),
+            1e-3,
+        )
     return {
         **recommend_timebase_model_kwargs(profile, horizon=horizon),
-        **recommend_training_kwargs(profile, horizon=horizon, max_steps=max_steps),
+        **training_kwargs,
     }
 
 
@@ -193,7 +212,17 @@ def recommend_timebase_trend_kwargs(
 ) -> dict[str, Any]:
     """Profile a dataset and return recommended TimeBaseTrend kwargs."""
     profile = profile_dataset(frame, freq=freq, horizon=horizon)
+    training_kwargs = recommend_training_kwargs(
+        profile,
+        horizon=horizon,
+        max_steps=max_steps,
+    )
+    if profile.long_history and horizon >= 12:
+        training_kwargs["learning_rate"] = min(
+            float(training_kwargs["learning_rate"]),
+            1e-3,
+        )
     return {
         **recommend_timebase_trend_model_kwargs(profile, horizon=horizon),
-        **recommend_training_kwargs(profile, horizon=horizon, max_steps=max_steps),
+        **training_kwargs,
     }

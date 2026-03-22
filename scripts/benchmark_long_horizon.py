@@ -25,6 +25,7 @@ from rich.table import Table
 from statsforecast import StatsForecast
 from statsforecast.models import AutoARIMA, AutoMFLES
 
+from scripts.reporting import build_html_benchmark_report
 from timebaseula import TimeBase, TimeBaseTrend
 from timebaseula.recommend import (
     DatasetProfile,
@@ -680,6 +681,21 @@ def format_markdown_report(results_frame: pd.DataFrame, source_csv: str) -> str:
     return "\n".join(report_lines)
 
 
+def resolve_html_report_output(
+    emit_html_report: bool,
+    html_report_output: str | Path | None,
+    csv_output: str | Path | None,
+) -> Path | None:
+    """Resolve the optional HTML report output path for a benchmark run."""
+    if not emit_html_report:
+        return None
+    if html_report_output is not None:
+        return Path(html_report_output)
+    if csv_output is not None:
+        return Path(csv_output).with_suffix(".html")
+    return Path("logs/benchmark_long_horizon_report.html")
+
+
 def render_results_table(results: list[BenchmarkResult]) -> None:
     """Render a Rich table for benchmark results."""
     table = Table(title="Long-horizon benchmark")
@@ -735,6 +751,33 @@ def report(
     console.print(f"[green]report saved[/green] {output_md}")
 
 
+@app.command("report-html")
+def report_html(
+    input_csv: Path = typer.Option(
+        ..., help="Benchmark CSV produced by the main command."
+    ),
+    output_html: Path = typer.Option(
+        Path("logs/benchmark_report.html"), help="HTML report output path."
+    ),
+) -> None:
+    """Generate a reusable HTML benchmark report from a benchmark CSV."""
+    frame = pd.read_csv(input_csv)
+    output_html.parent.mkdir(parents=True, exist_ok=True)
+    output_html.write_text(
+        build_html_benchmark_report(
+            frame,
+            title="Long-horizon benchmark report",
+            source_label=str(input_csv),
+            slice_columns=["dataset", "frequency"],
+            description=(
+                "Reusable Matplotlib benchmark report for the long-horizon real datasets."
+            ),
+        ),
+        encoding="utf-8",
+    )
+    console.print(f"[green]HTML report saved[/green] {output_html}")
+
+
 @app.command()
 def main(
     dataset: str = typer.Option("all", help="Dataset: ECL, TrafficL, or all."),
@@ -752,6 +795,15 @@ def main(
         None, help="Max training steps override for neural models."
     ),
     output: Path | None = typer.Option(None, help="Optional CSV output path."),
+    emit_html_report: bool = typer.Option(
+        False,
+        "--html-report",
+        help="Also emit an HTML report for the current benchmark run.",
+    ),
+    html_report_output: Path | None = typer.Option(
+        None,
+        help="Optional HTML output path. Defaults to the CSV path with .html.",
+    ),
     json_output: bool = typer.Option(
         False, "--json", help="Emit JSON instead of only a Rich table."
     ),
@@ -829,6 +881,30 @@ def main(
         results_frame.to_csv(output, index=False)
         if not quiet:
             console.print(f"[green]saved[/green] {output}")
+
+    html_output = resolve_html_report_output(
+        emit_html_report,
+        html_report_output,
+        output,
+    )
+    if html_output is not None:
+        html_output.parent.mkdir(parents=True, exist_ok=True)
+        html_output.write_text(
+            build_html_benchmark_report(
+                results_frame,
+                title="Long-horizon benchmark report",
+                source_label=str(output)
+                if output is not None
+                else "current benchmark run",
+                slice_columns=["dataset", "frequency"],
+                description=(
+                    "Reusable Matplotlib benchmark report for the long-horizon real datasets."
+                ),
+            ),
+            encoding="utf-8",
+        )
+        if not quiet:
+            console.print(f"[green]HTML report saved[/green] {html_output}")
 
     if json_output:
         console.print_json(

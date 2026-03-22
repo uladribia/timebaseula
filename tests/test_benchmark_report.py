@@ -7,8 +7,10 @@ import pandas as pd
 from scripts.benchmark_long_horizon import (
     build_benchmark_summary,
     format_markdown_report,
+    resolve_html_report_output,
     should_include_arima,
 )
+from scripts.reporting import build_best_by_slice_summary, build_html_benchmark_report
 
 
 class TestBenchmarkReporting:
@@ -62,3 +64,64 @@ class TestBenchmarkReporting:
         assert "logs/example.csv" in report
         assert "TimeBase" in report
         assert "Best MAE by slice" in report
+
+    def test_build_best_by_slice_summary_supports_custom_slice_columns(self) -> None:
+        """HTML summary helper should support non-long-horizon slice columns."""
+        frame = pd.DataFrame(
+            {
+                "scenario": ["easy", "easy", "hard"],
+                "model_name": ["A", "B", "C"],
+                "mae": [0.4, 0.2, 0.3],
+            }
+        )
+
+        summary = build_best_by_slice_summary(frame, ["scenario"])
+
+        assert summary[0]["scenario"] == "easy"
+        assert summary[0]["best_model"] == "B"
+        assert summary[1]["scenario"] == "hard"
+
+    def test_build_html_benchmark_report_renders_embedded_png_html(self) -> None:
+        """Reusable HTML report should include plots, source, and tables."""
+        frame = pd.DataFrame(
+            {
+                "dataset": ["ECL", "ECL", "TrafficL"],
+                "frequency": ["D", "ME", "D"],
+                "model_name": ["TimeBase", "NLinear", "MFLES"],
+                "mae": [0.2, 0.3, 0.1],
+                "rmse": [0.3, 0.4, 0.2],
+                "params": [31, 300, 0],
+                "train_time": [0.1, 0.2, 0.0],
+                "inference_time": [0.01, 0.02, 0.0],
+            }
+        )
+
+        report = build_html_benchmark_report(
+            frame,
+            title="Example benchmark",
+            source_label="logs/example.csv",
+            slice_columns=["dataset", "frequency"],
+            description="Reusable benchmark report.",
+        )
+
+        assert "Example benchmark" in report
+        assert "logs/example.csv" in report
+        assert "data:image/png;base64," in report
+        assert "Leaderboard" in report
+        assert "Best by slice" in report
+
+    def test_resolve_html_report_output_uses_csv_stem_by_default(self) -> None:
+        """Automatic HTML output should reuse the CSV stem with .html extension."""
+        result = resolve_html_report_output(True, None, "logs/example.csv")
+
+        assert str(result) == "logs/example.html"
+
+    def test_resolve_html_report_output_prefers_explicit_path(self) -> None:
+        """Explicit HTML path should override the automatic default."""
+        result = resolve_html_report_output(
+            True,
+            "logs/custom-report.html",
+            "logs/example.csv",
+        )
+
+        assert str(result) == "logs/custom-report.html"

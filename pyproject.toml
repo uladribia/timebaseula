@@ -9,11 +9,12 @@ authors = [{ name = "Oleguer Sagarra", email = "ula@dribia.com" }]
 maintainers = [{ name = "Oleguer Sagarra", email = "ula@dribia.com" }]
 dependencies = [
 	"datasetsforecast>=1.0.0,<2",
-	"matplotlib>=3.9.0,<4",
+	"matplotlib>=3.10.0,<4",
 	"neuralforecast>=1.7.4,<2",
 	"nixtla>=0.7.0,<1",
 	"numpy>=2.2.0,<3",
 	"pandas>=2.2.0,<3",
+	"pytorch-lightning>=2.5.0,<3",
 	"rich>=14.1.0,<15",
 	"scikit-learn>=1.5.0,<2",
 	"statsforecast>=1.7.0,<2",
@@ -106,7 +107,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["D"]
-"scripts/*.py" = ["B008"]
+"scripts/*.py" = ["ANN401", "B008", "E501", "PD010"]
 "timebaseula/cli.py" = ["B008"]
 
 [tool.ruff.lint.isort]

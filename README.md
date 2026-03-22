@@ -12,6 +12,7 @@ description: TimeBaseUla README with installation, usage, testing, benchmarks, a
 - Install with `uv sync` for development or `pip install timebaseula` for usage.
 - Main exports: `TimeBase`, `TimeBaseTrend`, `make_synthetic_series`.
 - NeuralForecast already supports forecasting a filtered subset of series after multi-series training.
+- Visual reports and generated charts in this repo prefer **Matplotlib**, including HTML reports with embedded static figures.
 - Fast tests are unit-only; heavier training checks live under integration tests.
 - Documentation site: <https://dribia.github.io/timebaseula>
 
@@ -136,15 +137,24 @@ uv run --frozen python scripts/benchmark_long_horizon.py main \
   --horizon 7 \
   --max-steps 10 \
   --skip-arima \
-  --output logs/benchmark_results_smoke.csv
+  --output logs/benchmark_results_smoke.csv \
+  --html-report
 ```
 
-Generate the benchmark report page:
+Generate benchmark reports:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py report \
   --input-csv logs/benchmark_results_smoke.csv \
   --output-md docs/benchmark.md
+
+uv run --frozen python scripts/benchmark_long_horizon.py report-html \
+  --input-csv logs/benchmark_results_smoke.csv \
+  --output-html logs/benchmark_results_smoke.html
+
+uv run --frozen python scripts/check_forecast_mae.py report-html \
+  --output-csv logs/synthetic_benchmark_results.csv \
+  --output-html logs/synthetic_benchmark_report.html
 ```
 
 ## Documentation highlights

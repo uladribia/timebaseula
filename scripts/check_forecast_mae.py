@@ -16,6 +16,7 @@ from rich.table import Table
 from statsforecast import StatsForecast
 from statsforecast.models import AutoMFLES
 
+from scripts.reporting import build_html_benchmark_report
 from timebaseula import recommend_timebase_kwargs, recommend_timebase_trend_kwargs
 from timebaseula.models.timebase import TimeBase, TimeBaseTrend
 from timebaseula.synthetic import make_synthetic_series
@@ -69,7 +70,7 @@ def evaluate_models(
     val_size: int,
     test_size: int,
 ) -> dict[str, float]:
-    """Fit models and compute MAE for each forecast."""
+    """Fit neural and naive models and compute MAE for each forecast."""
     group_sizes = frame.groupby("unique_id")["ds"].transform("size")
     positions = frame.groupby("unique_id").cumcount()
     train_frame = frame[positions < (group_sizes - test_size)]
@@ -148,17 +149,14 @@ def evaluate_mfles(
     }
 
 
-@app.command()
-def main(
-    length: int = typer.Option(360, help="Length of each synthetic series."),
-    h: int = typer.Option(24, help="Forecast horizon."),
-    input_size: int = typer.Option(48, help="Input window size."),
-    val_size: int = typer.Option(24, help="Validation window size."),
-    test_size: int = typer.Option(24, help="Test window size."),
-) -> None:
-    """Run MAE checks across synthetic scenarios."""
-    logger = configure_logging()
-
+def run_synthetic_mae_checks(
+    length: int,
+    h: int,
+    input_size: int,
+    val_size: int,
+    test_size: int,
+) -> pd.DataFrame:
+    """Run the synthetic scenarios and return a long-format result table."""
     scenarios = {
         "easy": {
             "noise_std": 0.15,
@@ -179,21 +177,12 @@ def main(
             "amplitude_growth_rate": 1.2,
         },
     }
-
     variations = [
         ("series_a", 1.0, 0.0),
         ("series_b", 1.15, 0.5),
         ("series_c", 0.85, -0.3),
     ]
-
-    table = Table(title="Synthetic scenario MAE")
-    table.add_column("Scenario")
-    table.add_column("Naive", justify="right")
-    table.add_column("DLinear", justify="right")
-    table.add_column("TimeBase", justify="right")
-    table.add_column("TimeBaseTrend", justify="right")
-    table.add_column("MFLES", justify="right")
-
+    rows: list[dict[str, float | str | int]] = []
     for name, params in scenarios.items():
         base_frame = make_synthetic_series(
             length=length,
@@ -207,19 +196,106 @@ def main(
         )
         frame = build_multivariate_frame(base_frame, variations)
         results = evaluate_models(frame, h, input_size, val_size, test_size)
-        mfles_results = evaluate_mfles(frame, h, test_size)
-        results.update(mfles_results)
-        logger.info("Scenario MAE", extra={"scenario": name, **results})
+        results.update(evaluate_mfles(frame, h, test_size))
+        rows.extend(
+            {
+                "scenario": name,
+                "model_name": model_name,
+                "mae": mae,
+            }
+            for model_name, mae in [
+                ("Naive", results["naive"]),
+                ("DLinear", results["dlinear"]),
+                ("TimeBase", results["timebase"]),
+                ("TimeBaseTrend", results["timebase_trend"]),
+                ("MFLES", results["mfles"]),
+            ]
+        )
+    return pd.DataFrame(rows)
+
+
+@app.command()
+def main(
+    length: int = typer.Option(360, help="Length of each synthetic series."),
+    h: int = typer.Option(24, help="Forecast horizon."),
+    input_size: int = typer.Option(48, help="Input window size."),
+    val_size: int = typer.Option(24, help="Validation window size."),
+    test_size: int = typer.Option(24, help="Test window size."),
+) -> None:
+    """Run MAE checks across synthetic scenarios."""
+    logger = configure_logging()
+    results_frame = run_synthetic_mae_checks(length, h, input_size, val_size, test_size)
+    pivoted = (
+        results_frame.pivot(index="scenario", columns="model_name", values="mae")
+        .reset_index()
+        .rename_axis(columns=None)
+    )
+
+    table = Table(title="Synthetic scenario MAE")
+    table.add_column("Scenario")
+    table.add_column("Naive", justify="right")
+    table.add_column("DLinear", justify="right")
+    table.add_column("TimeBase", justify="right")
+    table.add_column("TimeBaseTrend", justify="right")
+    table.add_column("MFLES", justify="right")
+
+    for row in pivoted.itertuples(index=False):
+        logger.info(
+            "Scenario MAE",
+            extra={
+                "scenario": row.scenario,
+                "naive": row.Naive,
+                "dlinear": row.DLinear,
+                "timebase": row.TimeBase,
+                "timebase_trend": row.TimeBaseTrend,
+                "mfles": row.MFLES,
+            },
+        )
         table.add_row(
-            name,
-            f"{results['naive']:.4f}",
-            f"{results['dlinear']:.4f}",
-            f"{results['timebase']:.4f}",
-            f"{results['timebase_trend']:.4f}",
-            f"{results['mfles']:.4f}",
+            row.scenario,
+            f"{row.Naive:.4f}",
+            f"{row.DLinear:.4f}",
+            f"{row.TimeBase:.4f}",
+            f"{row.TimeBaseTrend:.4f}",
+            f"{row.MFLES:.4f}",
         )
 
     console.print(table)
+
+
+@app.command("report-html")
+def report_html(
+    output_csv: Path = typer.Option(
+        Path("logs/synthetic_benchmark_results.csv"),
+        help="CSV output path for the synthetic benchmark table.",
+    ),
+    output_html: Path = typer.Option(
+        Path("logs/synthetic_benchmark_report.html"),
+        help="HTML report output path for the synthetic benchmark table.",
+    ),
+    length: int = typer.Option(360, help="Length of each synthetic series."),
+    h: int = typer.Option(24, help="Forecast horizon."),
+    input_size: int = typer.Option(48, help="Input window size."),
+    val_size: int = typer.Option(24, help="Validation window size."),
+    test_size: int = typer.Option(24, help="Test window size."),
+) -> None:
+    """Run synthetic MAE checks and save a reusable HTML report."""
+    results_frame = run_synthetic_mae_checks(length, h, input_size, val_size, test_size)
+    output_csv.parent.mkdir(parents=True, exist_ok=True)
+    output_html.parent.mkdir(parents=True, exist_ok=True)
+    results_frame.to_csv(output_csv, index=False)
+    output_html.write_text(
+        build_html_benchmark_report(
+            results_frame,
+            title="Synthetic benchmark report",
+            source_label=str(output_csv),
+            slice_columns=["scenario"],
+            description="Reusable Matplotlib report for synthetic MAE benchmark scenarios.",
+        ),
+        encoding="utf-8",
+    )
+    console.print(f"[green]saved[/green] {output_csv}")
+    console.print(f"[green]HTML report saved[/green] {output_html}")
 
 
 if __name__ == "__main__":

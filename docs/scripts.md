@@ -5,7 +5,7 @@ description: Reference for repository scripts used for datasets, synthetic plots
 # Scripts
 
 **TL;DR**
-- Operational scripts use **Typer**, **Rich**, and rotating log files.
+- Operational scripts use **Typer**, **Rich**, rotating log files, and **Matplotlib** for report-friendly visualizations.
 - Logs are written under `logs/`.
 - Benchmarking and synthetic evaluation are intentionally kept outside the default fast test suite.
 
@@ -14,10 +14,10 @@ description: Reference for repository scripts used for datasets, synthetic plots
 | Script | Purpose |
 |---|---|
 | `scripts/generate_datasets.py` | prepare cached benchmark datasets |
-| `scripts/generate_synthetic_plot.py` | generate doc images with optional forecast overlays |
+| `scripts/generate_synthetic_plot.py` | generate standalone HTML visualizations with embedded Matplotlib figures and optional forecast overlays |
 | `scripts/eval_dlinear_mae.py` | get DLinear MAE on synthetic scenarios |
-| `scripts/check_forecast_mae.py` | compare naive, DLinear, TimeBase, TimeBaseTrend, MFLES |
-| `scripts/benchmark_long_horizon.py` | benchmark models on ECL and Traffic |
+| `scripts/check_forecast_mae.py` | compare naive, DLinear, TimeBase, TimeBaseTrend, MFLES and emit a reusable synthetic HTML report |
+| `scripts/benchmark_long_horizon.py` | benchmark models on ECL and Traffic and emit markdown or HTML reports |
 
 ## Prepare cached benchmark datasets
 
@@ -37,6 +37,7 @@ uv run --frozen python scripts/generate_datasets.py main --force-download
 uv run --frozen python scripts/generate_synthetic_plot.py --help
 ```
 
+This script now emits a standalone **HTML** visualization backed by **Matplotlib**.
 Useful options include:
 - `--output`
 - `--title`
@@ -50,6 +51,10 @@ Useful options include:
 
 ```bash
 uv run --frozen python scripts/check_forecast_mae.py main
+
+uv run --frozen python scripts/check_forecast_mae.py report-html \
+  --output-csv logs/synthetic_benchmark_results.csv \
+  --output-html logs/synthetic_benchmark_report.html
 ```
 
 ## Benchmark long-horizon datasets
@@ -63,7 +68,8 @@ uv run --frozen python scripts/benchmark_long_horizon.py main \
   --horizon 7 \
   --max-steps 10 \
   --skip-arima \
-  --output logs/benchmark_results_smoke.csv
+  --output logs/benchmark_results_smoke.csv \
+  --html-report
 ```
 
 Longer run without ARIMA:
@@ -75,15 +81,20 @@ uv run --frozen python scripts/benchmark_long_horizon.py main \
   --horizon 28 \
   --max-steps 200 \
   --skip-arima \
-  --output logs/benchmark_results_300_daily_h28_no_arima.csv
+  --output logs/benchmark_results_300_daily_h28_no_arima.csv \
+  --html-report
 ```
 
-Generate the markdown report:
+Generate reports from a benchmark CSV, or emit the HTML report directly from `main` with `--html-report`:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py report \
   --input-csv logs/benchmark_results_smoke.csv \
   --output-md docs/benchmark.md
+
+uv run --frozen python scripts/benchmark_long_horizon.py report-html \
+  --input-csv logs/benchmark_results_smoke.csv \
+  --output-html logs/benchmark_results_smoke.html
 ```
 
 ## Logging
