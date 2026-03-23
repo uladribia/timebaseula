@@ -6,6 +6,7 @@ description: Reference for repository scripts used for datasets, synthetic plots
 
 **TL;DR**
 - Operational scripts are thin **Typer** wrappers over internal `devtools/` modules.
+- Benchmark scripts now use a consistent `benchmark_*` naming convention.
 - Logs are written under `logs/`.
 - Benchmarking and synthetic evaluation are intentionally kept outside the default fast test suite.
 
@@ -15,10 +16,19 @@ description: Reference for repository scripts used for datasets, synthetic plots
 |---|---|
 | `scripts/generate_datasets.py` | prepare cached benchmark datasets via `devtools.generate_datasets` |
 | `scripts/generate_synthetic_plot.py` | generate standalone HTML visualizations with embedded Matplotlib figures and optional forecast overlays |
-| `scripts/eval_dlinear_mae.py` | get DLinear MAE on synthetic scenarios |
-| `scripts/check_forecast_mae.py` | compare naive, DLinear, AutoTimeBase, AutoTimeBaseTrend, MFLES and emit a reusable synthetic HTML report |
+| `scripts/benchmark_synthetic_dlinear.py` | get DLinear MAE on synthetic scenarios |
+| `scripts/benchmark_synthetic.py` | compare naive, DLinear, AutoTimeBase, AutoTimeBaseTrend, MFLES and emit a reusable synthetic HTML report |
 | `scripts/benchmark_long_horizon.py` | benchmark models on ECL and Traffic and emit markdown or HTML reports |
-| `scripts/benchmark_custom_dataset.py` | benchmark the custom monthly dataset and render the custom HTML report |
+| `scripts/benchmark_custom.py` | benchmark the custom monthly dataset and render the custom HTML report |
+
+Canonical benchmark entrypoints use the `benchmark_*` prefix:
+- `benchmark_synthetic.py`
+- `benchmark_synthetic_dlinear.py`
+- `benchmark_long_horizon.py`
+- `benchmark_custom.py`
+
+Backward-compatible aliases remain available for older names such as
+`check_forecast_mae.py`, `eval_dlinear_mae.py`, and `benchmark_custom_dataset.py`.
 
 ## Prepare cached benchmark datasets
 
@@ -53,7 +63,7 @@ Useful options include:
 Run the benchmark once and persist the result table plus report inputs:
 
 ```bash
-uv run --frozen python scripts/check_forecast_mae.py run \
+uv run --frozen python scripts/benchmark_synthetic.py run \
   --max-steps 20 \
   --output-csv logs/synthetic_benchmark_results.csv
 ```
@@ -61,7 +71,7 @@ uv run --frozen python scripts/check_forecast_mae.py run \
 Regenerate the HTML report later without rerunning the models:
 
 ```bash
-uv run --frozen python scripts/check_forecast_mae.py report-html \
+uv run --frozen python scripts/benchmark_synthetic.py report-html \
   --input-csv logs/synthetic_benchmark_results.csv \
   --output-html logs/synthetic_benchmark_report.html
 ```
@@ -117,6 +127,6 @@ These scripts use rotating log files with a 5 MB limit:
 
 - `logs/generate_datasets.log`
 - `logs/synthetic_plot.log`
-- `logs/dlinear_mae.log`
-- `logs/forecast_mae_check.log`
+- `logs/benchmark_synthetic_dlinear.log`
+- `logs/benchmark_synthetic.log`
 - `logs/benchmark.log`

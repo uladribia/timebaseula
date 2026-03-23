@@ -1,4 +1,4 @@
-"""Backward-compatible alias for the custom benchmark CLI."""
+"""CLI wrapper for the custom benchmark devtool."""
 
 from devtools.benchmark_custom import app
 

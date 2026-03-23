@@ -5,7 +5,7 @@ from __future__ import annotations
 import pandas as pd
 from pytest import MonkeyPatch
 
-from devtools import check_forecast_mae as synthetic_benchmark
+from devtools import benchmark_synthetic as synthetic_benchmark
 
 
 class TestSyntheticBenchmarkHelpers:

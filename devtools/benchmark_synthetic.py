@@ -28,7 +28,7 @@ from timebaseula.synthetic import make_synthetic_series
 app = typer.Typer(help="Compare MAE across baseline and model forecasts.")
 console = Console()
 
-LOG_PATH = Path("logs") / "forecast_mae_check.log"
+LOG_PATH = Path("logs") / "benchmark_synthetic.log"
 DEFAULT_OUTPUT_CSV = Path("logs/synthetic_benchmark_results.csv")
 DEFAULT_OUTPUT_HTML = Path("logs/synthetic_benchmark_report.html")
 
@@ -60,7 +60,7 @@ def synthetic_scenarios() -> dict[str, dict[str, float | int | None]]:
 def configure_logging() -> logging.Logger:
     """Configure structured logging for script execution."""
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    logger = logging.getLogger("forecast_mae_check")
+    logger = logging.getLogger("benchmark_synthetic")
     if logger.handlers:
         return logger
 

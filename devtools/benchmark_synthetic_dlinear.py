@@ -18,13 +18,13 @@ from timebaseula.synthetic import make_synthetic_series
 app = typer.Typer(help="Evaluate DLinear MAE on synthetic scenarios.")
 console = Console()
 
-LOG_PATH = Path("logs") / "dlinear_mae.log"
+LOG_PATH = Path("logs") / "benchmark_synthetic_dlinear.log"
 
 
 def configure_logging() -> logging.Logger:
     """Configure structured logging for script execution."""
     LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    logger = logging.getLogger("dlinear_mae")
+    logger = logging.getLogger("benchmark_synthetic_dlinear")
     if logger.handlers:
         return logger
 

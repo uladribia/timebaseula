@@ -189,16 +189,16 @@ uv run --frozen python scripts/benchmark_long_horizon.py report-html \
   --input-csv logs/benchmark_results_smoke.csv \
   --output-html logs/benchmark_results_smoke.html
 
-uv run --frozen python scripts/check_forecast_mae.py run \
+uv run --frozen python scripts/benchmark_synthetic.py run \
   --max-steps 20 \
   --output-csv logs/synthetic_benchmark_results.csv
 
-uv run --frozen python scripts/check_forecast_mae.py report-html \
+uv run --frozen python scripts/benchmark_synthetic.py report-html \
   --input-csv logs/synthetic_benchmark_results.csv \
   --output-html logs/synthetic_benchmark_report.html
 ```
 
-Both benchmark scripts persist report inputs next to the CSV by default, so HTML can be regenerated without rerunning model training. The benchmark CLIs also keep fixed search budgets and do not use the current iteration auto-suggestion helper.
+Both benchmark scripts persist report inputs next to the CSV by default, so HTML can be regenerated without rerunning model training. Benchmark entrypoints now use a consistent `benchmark_*` naming scheme, with older script names kept as compatibility aliases. The benchmark CLIs also keep fixed search budgets and do not use the current iteration auto-suggestion helper.
 
 The HTML reports now share the same tabbed structure used by the custom-dataset benchmark, so long-horizon, synthetic, and custom runs are easier to compare side by side. Representative-series tabs consistently prioritize:
 

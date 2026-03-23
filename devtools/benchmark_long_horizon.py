@@ -439,13 +439,29 @@ def benchmark_configuration(
     max_steps: int,
     profile: DatasetProfile,
 ) -> list[tuple[str, str, dict[str, Any]]]:
-    """Return the list of neural model configurations for a frequency."""
+    """Return the list of neural model configurations for a frequency.
+
+    The user-provided ``max_steps`` acts as a hard cap for smoke and benchmark
+    runs, even when recommendation helpers would otherwise expand the budget.
+    """
     training_kwargs = recommend_training_kwargs(profile, horizon, max_steps)
     model_defaults = recommend_timebase_model_kwargs(profile, horizon)
+    bounded_max_steps = max(1, int(max_steps))
+    bounded_val_check_steps = max(
+        1,
+        min(int(training_kwargs["val_check_steps"]), bounded_max_steps),
+    )
+    bounded_early_stop = max(
+        bounded_val_check_steps,
+        min(int(training_kwargs["early_stop_patience_steps"]), bounded_max_steps),
+    )
 
     common_kwargs = {
         "input_size": int(model_defaults["input_size"]),
-        **training_kwargs,
+        "max_steps": bounded_max_steps,
+        "learning_rate": float(training_kwargs["learning_rate"]),
+        "early_stop_patience_steps": bounded_early_stop,
+        "val_check_steps": bounded_val_check_steps,
         "accelerator": "cpu",
         "devices": 1,
         "enable_progress_bar": False,
@@ -455,7 +471,7 @@ def benchmark_configuration(
     }
     auto_kwargs = {
         "freq": freq,
-        "search_max_steps": max(5, min(10, int(training_kwargs["val_check_steps"]))),
+        "search_max_steps": max(1, min(10, bounded_max_steps)),
         "n_search_configs": 2,
     }
 

@@ -134,10 +134,11 @@ class TestBenchmarkDatasetHelpers:
         auto_name, _, auto_kwargs = configs[2]
         assert dlinear_name == "DLinear"
         assert auto_name == "AutoTimeBase"
-        assert dlinear_kwargs["max_steps"] >= 150
+        assert dlinear_kwargs["max_steps"] == 50
+        assert dlinear_kwargs["val_check_steps"] <= 50
         assert dlinear_kwargs["learning_rate"] <= 5e-3
         assert auto_kwargs["freq"] == "D"
-        assert auto_kwargs["search_max_steps"] >= 5
+        assert auto_kwargs["search_max_steps"] == 10
         assert "include_iteration_recommendation" not in auto_kwargs
 
     def test_profile_dataset_expands_budget_for_long_monthly_regime(self) -> None:

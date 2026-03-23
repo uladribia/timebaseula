@@ -1,4 +1,4 @@
-"""Backward-compatible alias for the synthetic benchmark CLI."""
+"""CLI wrapper for the synthetic benchmark devtool."""
 
 from devtools.benchmark_synthetic import app
 

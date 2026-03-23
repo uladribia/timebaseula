@@ -1,4 +1,4 @@
-"""Backward-compatible alias for the DLinear-only synthetic benchmark CLI."""
+"""CLI wrapper for the DLinear-only synthetic benchmark devtool."""
 
 from devtools.benchmark_synthetic_dlinear import app
 
