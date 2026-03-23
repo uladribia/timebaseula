@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import Mock
 
 import pandas as pd
+import pytest
 
 from devtools.benchmark_long_horizon import (
     aggregate_frame,
@@ -15,6 +16,7 @@ from devtools.benchmark_long_horizon import (
     infer_test_size,
     prepare_train_test,
     resolve_dataset_group,
+    resolve_mode,
     resolve_mode_defaults,
 )
 from timebaseula.recommend import (
@@ -49,12 +51,21 @@ class TestBenchmarkDatasetHelpers:
             "freq": "D",
             "horizon": 14,
             "max_steps": 50,
+            "test_fraction": 0.2,
+            "report_name": "daily",
         }
         assert resolve_mode_defaults("monthly") == {
             "freq": "ME",
             "horizon": 5,
             "max_steps": 30,
+            "test_fraction": 0.2,
+            "report_name": "monthly",
         }
+
+    def test_resolve_mode_rejects_mixed_all_mode(self) -> None:
+        """Long-horizon runs should not allow mixed daily/monthly mode."""
+        with pytest.raises(ValueError, match="Unsupported mode"):
+            resolve_mode("all")
 
     def test_choose_series_count_prefers_broad_slice(self) -> None:
         """Automatic selection should prefer 200-300 series when available."""

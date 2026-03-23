@@ -7,6 +7,7 @@ import pandas as pd
 from devtools.benchmark_long_horizon import (
     build_benchmark_summary,
     format_markdown_report,
+    infer_report_title,
     resolve_html_report_output,
     should_include_arima,
 )
@@ -122,6 +123,14 @@ class TestBenchmarkReporting:
         result = resolve_html_report_output(True, None, "logs/example.csv")
 
         assert str(result) == "logs/example.html"
+
+    def test_infer_report_title_uses_single_frequency_mode_name(self) -> None:
+        """Single-frequency reports should use mode-specific titles."""
+        daily = pd.DataFrame({"frequency": ["D", "D"]})
+        monthly = pd.DataFrame({"frequency": ["ME", "ME"]})
+
+        assert infer_report_title(daily) == "Long-horizon daily benchmark report"
+        assert infer_report_title(monthly) == "Long-horizon monthly benchmark report"
 
     def test_resolve_html_report_output_prefers_explicit_path(self) -> None:
         """Explicit HTML path should override the automatic default."""

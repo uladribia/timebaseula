@@ -18,7 +18,7 @@ description: Reference for repository scripts used for datasets, synthetic plots
 | `scripts/generate_synthetic_plot.py` | generate standalone HTML visualizations with embedded Matplotlib figures and optional forecast overlays |
 | `scripts/benchmark_synthetic_dlinear.py` | get DLinear MAE on synthetic scenarios |
 | `scripts/benchmark_synthetic.py` | compare naive, DLinear, AutoTimeBase, AutoTimeBaseTrend, MFLES and emit a reusable synthetic HTML report |
-| `scripts/benchmark_long_horizon.py` | benchmark models on ECL and Traffic and emit markdown or HTML reports |
+| `scripts/benchmark_long_horizon.py` | benchmark models on ECL and Traffic for one frequency regime per run and emit markdown or HTML reports |
 | `scripts/benchmark_custom.py` | benchmark the custom monthly dataset and render the custom HTML report |
 
 Canonical benchmark entrypoints use the `benchmark_*` prefix:
@@ -78,7 +78,9 @@ uv run --frozen python scripts/benchmark_synthetic.py report-html \
 
 ## Benchmark long-horizon datasets
 
-Quick smoke test:
+Daily and monthly long-horizon runs are intentionally kept separate. A single run must stay within one frequency regime so train/test splitting, holdout sizing, persisted report data, and HTML reporting remain consistent.
+
+Quick daily smoke test:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py run \
@@ -90,7 +92,18 @@ uv run --frozen python scripts/benchmark_long_horizon.py run \
   --output logs/benchmark_results_smoke.csv
 ```
 
-Longer run without ARIMA:
+Monthly runs should use a separate output/report pair, for example:
+
+```bash
+uv run --frozen python scripts/benchmark_long_horizon.py run \
+  --mode monthly \
+  --n-series 50 \
+  --output logs/benchmark_long_horizon_monthly.csv \
+  --html-report \
+  --html-report-output logs/benchmark_long_horizon_monthly.html
+```
+
+Longer daily run without ARIMA:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py run \
@@ -102,7 +115,7 @@ uv run --frozen python scripts/benchmark_long_horizon.py run \
   --output logs/benchmark_results_300_daily_h28_no_arima.csv
 ```
 
-Generate reports from a persisted benchmark CSV. The run stores report inputs in a sibling `*_report_data/` directory by default, so report-only changes do not require another full benchmark run.
+Generate reports from a persisted benchmark CSV. Daily and monthly runs should always use separate CSV, report-data, and HTML paths. The run stores report inputs in a sibling `*_report_data/` directory by default, so report-only changes do not require another full benchmark run.
 
 The benchmark scripts keep search budgets explicit and do not use the current iteration auto-suggestion helper. Synthetic and custom benchmark runs now honor the user-provided step cap directly instead of expanding it through recommendation helpers. The HTML reports now follow the same tabbed layout as the custom benchmark report. When observed series are available at report-generation time, the representative-series tab uses a consistent selection policy:
 

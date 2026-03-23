@@ -55,7 +55,7 @@ DATASETS_DIR = Path("datasets")
 LOG_PATH = Path("logs") / "benchmark.log"
 DEFAULT_MIN_SERIES = 200
 DEFAULT_MAX_SERIES = 300
-MODE_TO_FREQUENCY = {"daily": "D", "monthly": "ME", "all": "all"}
+MODE_TO_FREQUENCY = {"daily": "D", "monthly": "ME"}
 
 FREQ_DISPLAY_TO_PANDAS = {"D": "D", "M": "ME", "ME": "ME"}
 DATASET_ALIASES = {
@@ -106,14 +106,24 @@ def resolve_mode(mode: str) -> str:
     return normalized_mode
 
 
-def resolve_mode_defaults(mode: str) -> dict[str, int | str]:
+def resolve_mode_defaults(mode: str) -> dict[str, int | float | str]:
     """Return recommended defaults for daily or monthly benchmark runs."""
     normalized_mode = resolve_mode(mode)
     if normalized_mode == "daily":
-        return {"freq": "D", "horizon": 14, "max_steps": 50}
-    if normalized_mode == "monthly":
-        return {"freq": "ME", "horizon": 5, "max_steps": 30}
-    return {"freq": "all", "horizon": 5, "max_steps": 30}
+        return {
+            "freq": "D",
+            "horizon": 14,
+            "max_steps": 50,
+            "test_fraction": 0.2,
+            "report_name": "daily",
+        }
+    return {
+        "freq": "ME",
+        "horizon": 5,
+        "max_steps": 30,
+        "test_fraction": 0.2,
+        "report_name": "monthly",
+    }
 
 
 def resolve_dataset_group(dataset: str) -> str:
@@ -752,7 +762,7 @@ def resolve_html_report_output(
         return Path(html_report_output)
     if csv_output is not None:
         return Path(csv_output).with_suffix(".html")
-    return Path("logs/benchmark_long_horizon_report.html")
+    return Path("logs/benchmark_long_horizon_daily.html")
 
 
 def resolve_report_data_dir(
@@ -766,6 +776,20 @@ def resolve_report_data_dir(
         return None
     csv_path = Path(csv_output)
     return csv_path.with_suffix("").with_name(f"{csv_path.stem}_report_data")
+
+
+def infer_report_title(results_frame: pd.DataFrame) -> str:
+    """Infer a daily/monthly report title from a single-frequency result frame."""
+    frequencies = sorted(results_frame["frequency"].dropna().astype(str).unique())
+    if frequencies == ["D"]:
+        return "Long-horizon daily benchmark report"
+    if frequencies == ["ME"]:
+        return "Long-horizon monthly benchmark report"
+    msg = (
+        "Long-horizon reports must be generated from a single frequency regime. "
+        f"Found frequencies: {frequencies}"
+    )
+    raise ValueError(msg)
 
 
 def save_report_data(
@@ -884,7 +908,8 @@ def report_html(
         ..., help="Benchmark CSV produced by the main command."
     ),
     output_html: Path = typer.Option(
-        Path("logs/benchmark_report.html"), help="HTML report output path."
+        Path("logs/benchmark_long_horizon_daily.html"),
+        help="HTML report output path. Use a daily/monthly-specific filename.",
     ),
     report_data_dir: Path | None = typer.Option(
         None,
@@ -897,6 +922,7 @@ def report_html(
     """Generate a reusable HTML benchmark report from a benchmark CSV."""
     frame = pd.read_csv(input_csv)
     representative_sections: list[str] | None = None
+    title = infer_report_title(frame)
     resolved_report_data_dir = resolve_report_data_dir(report_data_dir, input_csv)
     if resolved_report_data_dir is not None:
         loaded = load_report_data(resolved_report_data_dir)
@@ -913,7 +939,7 @@ def report_html(
     output_html.write_text(
         build_html_benchmark_report(
             frame,
-            title="Long-horizon benchmark report",
+            title=title,
             source_label=str(input_csv),
             slice_columns=["dataset", "frequency"],
             description=(
@@ -928,8 +954,17 @@ def report_html(
 
 def run_command(
     dataset: str = typer.Option("all", help="Dataset: ECL, TrafficL, or all."),
-    mode: str = typer.Option("daily", help="Benchmark mode: daily, monthly, or all."),
-    freq: str | None = typer.Option(None, help="Optional frequency override: D or M."),
+    mode: str = typer.Option(
+        "daily",
+        help=(
+            "Benchmark mode: daily or monthly. Daily and monthly runs are "
+            "kept completely separate."
+        ),
+    ),
+    freq: str | None = typer.Option(
+        None,
+        help="Optional single-frequency override: D for daily or M/ME for monthly.",
+    ),
     horizon: int | None = typer.Option(None, help="Forecast horizon override."),
     n_series: int | None = typer.Option(
         None,
@@ -969,7 +1004,7 @@ def run_command(
         False, "--force-download", help="Recreate cached aggregated datasets."
     ),
 ) -> None:
-    """Run the benchmark on aggregated ECL and Traffic daily/monthly datasets."""
+    """Run the benchmark on aggregated ECL and Traffic datasets for one frequency."""
     logger = configure_logging()
     defaults = resolve_mode_defaults(mode)
 
@@ -977,13 +1012,27 @@ def run_command(
         ["ECL", "TrafficL"] if dataset == "all" else [resolve_dataset_group(dataset)]
     )
     resolved_freq = defaults["freq"] if freq is None else freq
+    normalized_frequency = normalize_frequency(str(resolved_freq))
+    expected_mode_frequency = str(defaults["freq"])
+    if normalized_frequency != expected_mode_frequency:
+        msg = (
+            "Long-horizon benchmark runs must stay within one frequency regime. "
+            f"Mode '{mode}' expects frequency {expected_mode_frequency}, got {normalized_frequency}."
+        )
+        raise ValueError(msg)
+
     resolved_horizon = int(defaults["horizon"] if horizon is None else horizon)
     resolved_max_steps = int(defaults["max_steps"] if max_steps is None else max_steps)
-    frequencies = (
-        ["D", "ME"]
-        if str(resolved_freq).lower() == "all"
-        else [normalize_frequency(str(resolved_freq))]
-    )
+    resolved_test_fraction = float(defaults["test_fraction"])
+    report_name = str(defaults["report_name"])
+    frequencies = [normalized_frequency]
+
+    if output is None and not json_output:
+        output = Path(f"logs/benchmark_long_horizon_{report_name}.csv")
+    if html_report_output is None and emit_html_report:
+        html_report_output = Path(f"logs/benchmark_long_horizon_{report_name}.html")
+    if report_data_dir is None and output is not None:
+        report_data_dir = output.with_suffix("").with_name(f"{output.stem}_report_data")
 
     ensure_aggregated_datasets(force_download=force_download)
 
@@ -1030,6 +1079,7 @@ def run_command(
                 n_series=n_series,
                 max_steps=resolved_max_steps,
                 skip_arima=skip_arima,
+                test_fraction=resolved_test_fraction,
                 return_forecasts=persist_report_data_enabled,
             )
             if persist_report_data_enabled:
@@ -1094,7 +1144,7 @@ def run_command(
         html_output.write_text(
             build_html_benchmark_report(
                 results_frame,
-                title="Long-horizon benchmark report",
+                title=infer_report_title(results_frame),
                 source_label=str(output)
                 if output is not None
                 else "current benchmark run",

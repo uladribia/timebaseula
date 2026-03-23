@@ -178,7 +178,7 @@ uv run --frozen python scripts/benchmark_long_horizon.py run \
   --output logs/benchmark_results_smoke.csv
 ```
 
-Generate benchmark reports from persisted outputs:
+Generate benchmark reports from persisted outputs. Keep daily and monthly runs in separate CSV and HTML files:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py report \
@@ -198,7 +198,7 @@ uv run --frozen python scripts/benchmark_synthetic.py report-html \
   --output-html logs/synthetic_benchmark_report.html
 ```
 
-Both benchmark scripts persist report inputs next to the CSV by default, so HTML can be regenerated without rerunning model training. Benchmark entrypoints now use a consistent `benchmark_*` naming scheme, with older script names kept as compatibility aliases. The benchmark CLIs also keep fixed search budgets and do not use the current iteration auto-suggestion helper.
+Both benchmark scripts persist report inputs next to the CSV by default, so HTML can be regenerated without rerunning model training. Benchmark entrypoints now use a consistent `benchmark_*` naming scheme, with older script names kept as compatibility aliases. Long-horizon daily and monthly runs are intentionally separated and must be executed independently so splitting, holdouts, and report artifacts are never mixed across frequencies. The benchmark CLIs also keep fixed search budgets and do not use the current iteration auto-suggestion helper.
 
 The HTML reports now share the same tabbed structure used by the custom-dataset benchmark, so long-horizon, synthetic, and custom runs are easier to compare side by side. Representative-series tabs consistently prioritize:
 
