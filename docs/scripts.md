@@ -8,7 +8,8 @@ description: Reference for the internal benchmark and dataset-preparation script
 - Operational scripts are thin Typer wrappers over internal `devtools/` modules.
 - Only the dataset-preparation and benchmark entrypoints remain.
 - Benchmarks write CSV, markdown, plot, and optional PDF outputs.
-- Neural benchmark entries are `DLinear`, `NLinear`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
+- Neural benchmark entries are `AutoDLinear`, `AutoNLinear`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
+- `--auto-preset smoke|normal|thorough` selects benchmark-friendly auto-search defaults for all neural auto wrappers.
 - `--auto-num-samples` controls how many Ray Tune trials the auto wrappers sample.
 
 ## Available scripts
@@ -37,7 +38,7 @@ uv run --frozen python scripts/generate_datasets.py main --force-download
 uv run --frozen python scripts/benchmark_long_horizon.py run \
   --mode daily \
   --n-series 50 \
-  --auto-num-samples 1 \
+  --auto-preset smoke \
   --output logs/benchmark_long_horizon_daily.csv \
   --output-md logs/benchmark_long_horizon_daily.md \
   --output-pdf logs/benchmark_long_horizon_daily.pdf

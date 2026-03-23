@@ -131,8 +131,8 @@ Both benchmark entrypoints now write:
 - a plot directory with train/test/prediction comparisons for selected series
 - an optional PDF export of the markdown report via `--output-pdf` rendered with headless Chrome and embedded plot images
 
-Benchmark neural comparisons now use `DLinear`, `NLinear`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
-The auto wrappers now run a real Ray Tune search space constrained to CPU-safe benchmark settings, and `--auto-num-samples` controls how many auto trials are sampled.
+Benchmark neural comparisons now use `AutoDLinear`, `AutoNLinear`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
+The auto wrappers now run a real Ray Tune search space constrained to CPU-safe benchmark settings across `AutoDLinear`, `AutoNLinear`, `AutoTimeBase`, and `AutoTimeBaseTrend`, and `--auto-num-samples` controls how many auto trials are sampled.
 Benchmark cross-validation always runs with `refit=True`; the CLIs no longer expose a refit toggle.
 
 ## License

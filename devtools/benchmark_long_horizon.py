@@ -13,7 +13,7 @@ import pandas as pd
 import typer
 from datasetsforecast.long_horizon import LongHorizon
 from neuralforecast import NeuralForecast
-from neuralforecast.models import DLinear, NLinear
+from neuralforecast.auto import AutoDLinear, AutoNLinear
 from rich.console import Console
 from rich.table import Table
 from statsforecast import StatsForecast
@@ -237,13 +237,16 @@ def _common_neural_kwargs(horizon: int, max_steps: int) -> dict[str, Any]:
 
 
 def _auto_config(
-    auto_model_class: type[AutoTimeBase] | type[AutoTimeBaseTrend],
+    auto_model_class: type[Any],
     horizon: int,
     max_steps: int,
-    freq: str,
+    freq: str | None = None,
 ) -> dict[str, Any]:
     """Return the benchmark search space used by the auto wrappers."""
-    config = auto_model_class.get_default_config(h=horizon, backend="ray", freq=freq)
+    get_default_config_kwargs: dict[str, Any] = {"h": horizon, "backend": "ray"}
+    if freq is not None:
+        get_default_config_kwargs["freq"] = freq
+    config = auto_model_class.get_default_config(**get_default_config_kwargs)
     config["max_steps"] = max_steps
     config["val_check_steps"] = max_steps
     config["accelerator"] = "cpu"
@@ -256,9 +259,8 @@ def _auto_config(
 
 def _count_benchmark_model_params(model: Any) -> int:
     """Count parameters for one fitted benchmark model."""
-    if isinstance(model, AutoTimeBase | AutoTimeBaseTrend):
-        return count_params(model.model)
-    return count_params(model)
+    fitted_model = getattr(model, "model", model)
+    return count_params(fitted_model)
 
 
 def _build_neural_models(
@@ -268,10 +270,23 @@ def _build_neural_models(
     auto_num_samples: int,
 ) -> list[Any]:
     """Build the benchmark neural models."""
-    common_kwargs = _common_neural_kwargs(horizon, max_steps)
     return [
-        DLinear(h=horizon, **common_kwargs),
-        NLinear(h=horizon, **common_kwargs),
+        AutoDLinear(
+            h=horizon,
+            config=_auto_config(AutoDLinear, horizon, max_steps),
+            num_samples=auto_num_samples,
+            cpus=1,
+            gpus=0,
+            verbose=False,
+        ),
+        AutoNLinear(
+            h=horizon,
+            config=_auto_config(AutoNLinear, horizon, max_steps),
+            num_samples=auto_num_samples,
+            cpus=1,
+            gpus=0,
+            verbose=False,
+        ),
         AutoTimeBase(
             h=horizon,
             freq=freq,

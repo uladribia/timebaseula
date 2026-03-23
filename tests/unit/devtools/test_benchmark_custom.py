@@ -7,6 +7,7 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
+from neuralforecast.auto import AutoDLinear, AutoNLinear
 from typer.testing import CliRunner
 
 from devtools import benchmark_custom
@@ -57,22 +58,33 @@ class TestBenchmarkCustom:
         """The benchmark should use searched auto wrappers instead of raw models."""
         models = _build_neural_models(horizon=2, max_steps=1, auto_num_samples=3)
 
+        assert any(isinstance(model, AutoDLinear) for model in models)
+        assert any(isinstance(model, AutoNLinear) for model in models)
         assert any(isinstance(model, AutoTimeBase) for model in models)
         assert any(isinstance(model, AutoTimeBaseTrend) for model in models)
+        assert not any(type(model).__name__ == "DLinear" for model in models)
+        assert not any(type(model).__name__ == "NLinear" for model in models)
         assert not any(type(model).__name__ == "TimeBase" for model in models)
         assert not any(type(model).__name__ == "TimeBaseTrend" for model in models)
 
+        auto_dlinear = next(model for model in models if isinstance(model, AutoDLinear))
+        auto_nlinear = next(model for model in models if isinstance(model, AutoNLinear))
         auto_timebase = next(
             model for model in models if isinstance(model, AutoTimeBase)
         )
         auto_timebase_trend = next(
             model for model in models if isinstance(model, AutoTimeBaseTrend)
         )
+        assert auto_dlinear.num_samples == 3
+        assert auto_nlinear.num_samples == 3
         assert auto_timebase.num_samples == 3
         assert auto_timebase_trend.num_samples == 3
-        assert auto_timebase.config["max_steps"] == 1
-        assert auto_timebase.config["accelerator"] == "cpu"
-        assert auto_timebase.config["devices"] == 1
+        assert auto_dlinear.config["max_steps"] == 1
+        assert auto_nlinear.config["max_steps"] == 1
+        assert auto_dlinear.config["accelerator"] == "cpu"
+        assert auto_dlinear.config["devices"] == 1
+        assert not isinstance(auto_dlinear.config["input_size"], int)
+        assert not isinstance(auto_nlinear.config["input_size"], int)
         assert not isinstance(auto_timebase.config["input_size"], int)
         assert not isinstance(auto_timebase.config["period_len"], int)
         assert not isinstance(auto_timebase_trend.config["moving_avg_window"], int)
