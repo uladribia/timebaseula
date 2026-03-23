@@ -182,8 +182,15 @@ class TestBenchmarkLongHorizon:
             fake_save_plots,
         )
 
+        def fake_save_pdf(markdown_text: str, output_pdf: Path, base_dir: Path) -> None:
+            del markdown_text, base_dir
+            output_pdf.write_bytes(b"%PDF-1.4\n")
+
+        monkeypatch.setattr(benchmark_long_horizon, "save_markdown_pdf", fake_save_pdf)
+
         output_csv = tmp_path / "benchmark.csv"
         output_md = tmp_path / "benchmark.md"
+        output_pdf = tmp_path / "benchmark.pdf"
         result = runner.invoke(
             benchmark_long_horizon.app,
             [
@@ -196,12 +203,15 @@ class TestBenchmarkLongHorizon:
                 str(output_csv),
                 "--output-md",
                 str(output_md),
+                "--output-pdf",
+                str(output_pdf),
             ],
         )
 
         assert result.exit_code == 0
         assert output_csv.exists()
         assert output_md.exists()
+        assert output_pdf.exists()
         assert "Representative forecast plots" in output_md.read_text(encoding="utf-8")
         benchmark_mock.assert_called_once()
 

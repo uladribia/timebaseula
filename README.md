@@ -121,14 +121,15 @@ make test-integration
 
 ```bash
 uv run --frozen python scripts/generate_datasets.py main
-uv run --frozen python scripts/benchmark_long_horizon.py run --mode daily
-uv run --frozen python scripts/benchmark_custom.py
+uv run --frozen python scripts/benchmark_long_horizon.py run --mode daily --output-pdf logs/benchmark_long_horizon_daily.pdf
+uv run --frozen python scripts/benchmark_custom.py --output-pdf logs/custom_dataset_benchmark/report.pdf
 ```
 
 Both benchmark entrypoints now write:
 - a CSV leaderboard with `mae`, `rmse`, `rmae`, `params`, and per-model `execution_time`
 - a markdown report with metric notes, a data summary, and representative forecast plots
 - a plot directory with train/test/prediction comparisons for selected series
+- an optional PDF export of the markdown report via `--output-pdf`
 
 Benchmark cross-validation always runs with `refit=True`; the CLIs no longer expose a refit toggle.
 

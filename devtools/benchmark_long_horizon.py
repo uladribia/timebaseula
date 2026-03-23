@@ -32,6 +32,7 @@ from devtools.benchmark_common import (
     evaluate_cv_results,
     merge_baseline_forecast,
     normalize_forecast_frame,
+    save_markdown_pdf,
     save_representative_forecast_plots,
 )
 from timebaseula import TimeBase, TimeBaseTrend
@@ -506,23 +507,30 @@ def report(
         Path("docs/benchmark.md"),
         help="Markdown report output path.",
     ),
+    output_pdf: Path | None = typer.Option(None, help="Optional PDF report path."),
 ) -> None:
     """Generate a markdown benchmark report from a benchmark CSV."""
     frame = pd.read_csv(input_csv)
-    output_md.parent.mkdir(parents=True, exist_ok=True)
-    output_md.write_text(
-        build_markdown_report(
-            title="Long-horizon benchmark report",
-            source_label=str(input_csv),
-            results_frame=frame,
-            slice_columns=["dataset", "frequency"],
-            extra_sections=[
-                ("Metrics", dataframe_to_markdown_table(build_metrics_frame()))
-            ],
-        ),
-        encoding="utf-8",
+    report_text = build_markdown_report(
+        title="Long-horizon benchmark report",
+        source_label=str(input_csv),
+        results_frame=frame,
+        slice_columns=["dataset", "frequency"],
+        extra_sections=[
+            ("Metrics", dataframe_to_markdown_table(build_metrics_frame()))
+        ],
     )
+    output_md.parent.mkdir(parents=True, exist_ok=True)
+    output_md.write_text(report_text, encoding="utf-8")
+    if output_pdf is not None:
+        save_markdown_pdf(
+            markdown_text=report_text,
+            output_pdf=output_pdf,
+            base_dir=output_md.parent,
+        )
     console.print(f"[green]report saved[/green] {output_md}")
+    if output_pdf is not None:
+        console.print(f"[green]pdf report saved[/green] {output_pdf}")
 
 
 @app.command("run")
@@ -544,6 +552,7 @@ def run_command(
     ),
     output: Path | None = typer.Option(None, help="Optional CSV output path."),
     output_md: Path | None = typer.Option(None, help="Optional markdown report path."),
+    output_pdf: Path | None = typer.Option(None, help="Optional PDF report path."),
     quiet: bool = typer.Option(False, "--quiet", help="Suppress progress messages."),
     force_download: bool = typer.Option(
         False,
@@ -616,39 +625,45 @@ def run_command(
             )
         )
 
-    output_md.parent.mkdir(parents=True, exist_ok=True)
-    output_md.write_text(
-        build_markdown_report(
-            title="Long-horizon benchmark report",
-            source_label=str(output),
-            results_frame=results_frame,
-            slice_columns=["dataset", "frequency"],
-            extra_sections=[
-                ("Metrics", dataframe_to_markdown_table(build_metrics_frame())),
-                (
-                    "Data summary",
-                    dataframe_to_markdown_table(
-                        pd.concat(summary_frames, ignore_index=True)
-                    ),
+    report_text = build_markdown_report(
+        title="Long-horizon benchmark report",
+        source_label=str(output),
+        results_frame=results_frame,
+        slice_columns=["dataset", "frequency"],
+        extra_sections=[
+            ("Metrics", dataframe_to_markdown_table(build_metrics_frame())),
+            (
+                "Data summary",
+                dataframe_to_markdown_table(
+                    pd.concat(summary_frames, ignore_index=True)
                 ),
-                (
-                    "Representative forecast plots",
-                    "\n".join(
-                        [
-                            "Plots show train history, holdout targets, and model predictions.",
-                            "Legend entries include RMAE and parameter counts.",
-                            "",
-                            build_plot_markdown(saved_plots, output_md),
-                        ]
-                    ),
+            ),
+            (
+                "Representative forecast plots",
+                "\n".join(
+                    [
+                        "Plots show train history, holdout targets, and model predictions.",
+                        "Legend entries include RMAE and parameter counts.",
+                        "",
+                        build_plot_markdown(saved_plots, output_md),
+                    ]
                 ),
-            ],
-        ),
-        encoding="utf-8",
+            ),
+        ],
     )
+    output_md.parent.mkdir(parents=True, exist_ok=True)
+    output_md.write_text(report_text, encoding="utf-8")
+    if output_pdf is not None:
+        save_markdown_pdf(
+            markdown_text=report_text,
+            output_pdf=output_pdf,
+            base_dir=output_md.parent,
+        )
     if not quiet:
         console.print(f"[green]saved[/green] {output}")
         console.print(f"[green]report saved[/green] {output_md}")
+        if output_pdf is not None:
+            console.print(f"[green]pdf report saved[/green] {output_pdf}")
 
 
 if __name__ == "__main__":

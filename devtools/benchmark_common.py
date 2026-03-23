@@ -6,6 +6,7 @@ import logging
 import numbers
 import os
 import re
+import textwrap
 from dataclasses import dataclass
 from functools import partial
 from logging.handlers import RotatingFileHandler
@@ -20,6 +21,7 @@ from utilsforecast.losses import mae, rmae, rmse
 
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
 
 BASELINE_MODEL_NAME = "SeasonalNaive"
 FORECAST_JOIN_KEYS = ["unique_id", "ds", "cutoff", "y"]
@@ -31,6 +33,10 @@ REPRESENTATIVE_SERIES_RULES = (
     ("max_value", False),
     ("min_value", True),
 )
+MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[(?P<alt>[^\]]*)\]\((?P<path>[^)]+)\)")
+PDF_PAGE_SIZE = (8.27, 11.69)
+PDF_TEXT_WIDTH = 92
+PDF_LINES_PER_PAGE = 48
 
 
 @dataclass(frozen=True)
@@ -436,3 +442,88 @@ def build_plot_markdown(saved_plots: list[SavedPlot], report_path: Path) -> str:
             ]
         )
     return "\n".join(lines)
+
+
+def _wrap_markdown_lines(markdown_text: str) -> list[str]:
+    """Wrap markdown text into fixed-width lines suitable for PDF pages."""
+    wrapped_lines: list[str] = []
+    for raw_line in markdown_text.splitlines():
+        stripped_line = raw_line.strip()
+        if MARKDOWN_IMAGE_PATTERN.search(stripped_line):
+            continue
+        if not stripped_line:
+            wrapped_lines.append("")
+            continue
+        wrapped_lines.extend(
+            textwrap.wrap(
+                raw_line,
+                width=PDF_TEXT_WIDTH,
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
+            or [""]
+        )
+    return wrapped_lines
+
+
+def _extract_markdown_images(
+    markdown_text: str, base_dir: Path
+) -> list[tuple[str, Path]]:
+    """Extract markdown image references resolved against one base directory."""
+    images: list[tuple[str, Path]] = []
+    for match in MARKDOWN_IMAGE_PATTERN.finditer(markdown_text):
+        title = match.group("alt") or Path(match.group("path")).stem
+        resolved_path = Path(match.group("path"))
+        if not resolved_path.is_absolute():
+            resolved_path = base_dir / resolved_path
+        images.append((title, resolved_path.resolve()))
+    return images
+
+
+def _save_pdf_text_pages(markdown_text: str, pdf_pages: PdfPages) -> None:
+    """Save the markdown text as one or more PDF pages."""
+    wrapped_lines = _wrap_markdown_lines(markdown_text)
+    if not wrapped_lines:
+        wrapped_lines = ["No report content available."]
+
+    for start in range(0, len(wrapped_lines), PDF_LINES_PER_PAGE):
+        page_lines = wrapped_lines[start : start + PDF_LINES_PER_PAGE]
+        figure = plt.figure(figsize=PDF_PAGE_SIZE)
+        figure.text(
+            0.05,
+            0.97,
+            "\n".join(page_lines),
+            va="top",
+            ha="left",
+            family="monospace",
+            fontsize=9,
+        )
+        plt.axis("off")
+        pdf_pages.savefig(figure, bbox_inches="tight")
+        plt.close(figure)
+
+
+def _save_pdf_image_pages(
+    markdown_text: str,
+    pdf_pages: PdfPages,
+    base_dir: Path,
+) -> None:
+    """Append markdown-linked images as dedicated PDF pages."""
+    for title, image_path in _extract_markdown_images(markdown_text, base_dir):
+        if not image_path.exists():
+            continue
+        figure, axis = plt.subplots(figsize=PDF_PAGE_SIZE)
+        axis.imshow(plt.imread(image_path))
+        axis.set_title(title)
+        axis.axis("off")
+        figure.tight_layout()
+        pdf_pages.savefig(figure, bbox_inches="tight")
+        plt.close(figure)
+
+
+def save_markdown_pdf(markdown_text: str, output_pdf: Path, base_dir: Path) -> None:
+    """Render a markdown report and its linked images into a PDF file."""
+    output_pdf.parent.mkdir(parents=True, exist_ok=True)
+    with PdfPages(output_pdf) as pdf_pages:
+        _save_pdf_text_pages(markdown_text, pdf_pages)
+        _save_pdf_image_pages(markdown_text, pdf_pages, base_dir)

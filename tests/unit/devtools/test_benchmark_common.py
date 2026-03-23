@@ -5,10 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+from matplotlib import pyplot as plt
 
 from devtools.benchmark_common import (
     build_markdown_report,
     evaluate_cv_results,
+    save_markdown_pdf,
     save_representative_forecast_plots,
     select_representative_series_ids,
 )
@@ -202,3 +204,24 @@ class TestBenchmarkCommon:
         for saved_plot in saved_plots:
             assert saved_plot.path.exists()
             assert saved_plot.path.suffix == ".png"
+
+    def test_save_markdown_pdf_writes_pdf(self, tmp_path: Path) -> None:
+        """Markdown reports should be exportable as PDF files."""
+        image_path = tmp_path / "plot.png"
+        figure, axis = plt.subplots()
+        axis.plot([0, 1], [0, 1])
+        figure.savefig(image_path)
+        plt.close(figure)
+        output_pdf = tmp_path / "report.pdf"
+
+        markdown_text = (
+            "# Report\n\n## Summary\n\nA short paragraph.\n\n![Plot](plot.png)\n"
+        )
+        save_markdown_pdf(
+            markdown_text=markdown_text,
+            output_pdf=output_pdf,
+            base_dir=tmp_path,
+        )
+
+        assert output_pdf.exists()
+        assert output_pdf.read_bytes().startswith(b"%PDF")

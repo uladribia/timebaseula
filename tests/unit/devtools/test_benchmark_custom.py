@@ -38,12 +38,12 @@ class TestBenchmarkCustom:
         with pytest.raises(ValueError, match="too short"):
             validate_series_lengths(frame, horizon=2)
 
-    def test_main_writes_csv_markdown_and_plots(
+    def test_main_writes_csv_markdown_plots_and_pdf(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The CLI should persist the leaderboard, markdown report, and plots."""
+        """The CLI should persist the leaderboard, markdown report, plots, and PDF."""
         runner = CliRunner()
         benchmark_mock = Mock(
             return_value=BenchmarkArtifacts(
@@ -83,24 +83,33 @@ class TestBenchmarkCustom:
             plot_path.write_text("placeholder", encoding="utf-8")
             return [SavedPlot(title="Series a", path=plot_path)]
 
+        def fake_save_pdf(markdown_text: str, output_pdf: Path, base_dir: Path) -> None:
+            del markdown_text, base_dir
+            output_pdf.write_bytes(b"%PDF-1.4\n")
+
         monkeypatch.setattr(
             benchmark_custom,
             "save_representative_forecast_plots",
             fake_save_plots,
         )
+        monkeypatch.setattr(benchmark_custom, "save_markdown_pdf", fake_save_pdf)
 
         output_dir = tmp_path / "custom"
+        output_pdf = output_dir / "report.pdf"
         result = runner.invoke(
             benchmark_custom.app,
             [
                 "--output-dir",
                 str(output_dir),
+                "--output-pdf",
+                str(output_pdf),
             ],
         )
 
         assert result.exit_code == 0
         assert (output_dir / "leaderboard.csv").exists()
         assert (output_dir / "report.md").exists()
+        assert output_pdf.exists()
         assert "Representative forecast plots" in (output_dir / "report.md").read_text(
             encoding="utf-8"
         )

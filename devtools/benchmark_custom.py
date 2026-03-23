@@ -30,6 +30,7 @@ from devtools.benchmark_common import (
     evaluate_cv_results,
     merge_baseline_forecast,
     normalize_forecast_frame,
+    save_markdown_pdf,
     save_representative_forecast_plots,
 )
 from timebaseula import TimeBase, TimeBaseTrend
@@ -323,6 +324,7 @@ def main(
         DEFAULT_OUTPUT_DIR,
         help="Directory for CSV, markdown, and plot outputs.",
     ),
+    output_pdf: Path | None = typer.Option(None, help="Optional PDF report path."),
     horizon: int = typer.Option(
         12,
         min=1,
@@ -382,21 +384,28 @@ def main(
             ),
         ),
     ]
-    report_path.write_text(
-        build_markdown_report(
-            title="Custom dataset benchmark report",
-            source_label=str(leaderboard_path),
-            results_frame=results_frame,
-            slice_columns=[],
-            extra_sections=extra_sections,
-        ),
-        encoding="utf-8",
+    report_text = build_markdown_report(
+        title="Custom dataset benchmark report",
+        source_label=str(leaderboard_path),
+        results_frame=results_frame,
+        slice_columns=[],
+        extra_sections=extra_sections,
     )
+    report_path.write_text(report_text, encoding="utf-8")
+
+    if output_pdf is not None:
+        save_markdown_pdf(
+            markdown_text=report_text,
+            output_pdf=output_pdf,
+            base_dir=report_path.parent,
+        )
 
     if not quiet:
         console.print(render_console_table(results_frame))
         console.print(f"CSV leaderboard written to [bold]{leaderboard_path}[/bold]")
         console.print(f"Markdown report written to [bold]{report_path}[/bold]")
+        if output_pdf is not None:
+            console.print(f"PDF report written to [bold]{output_pdf}[/bold]")
 
 
 if __name__ == "__main__":

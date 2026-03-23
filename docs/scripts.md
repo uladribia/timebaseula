@@ -36,7 +36,8 @@ uv run --frozen python scripts/benchmark_long_horizon.py run \
   --mode daily \
   --n-series 50 \
   --output logs/benchmark_long_horizon_daily.csv \
-  --output-md logs/benchmark_long_horizon_daily.md
+  --output-md logs/benchmark_long_horizon_daily.md \
+  --output-pdf logs/benchmark_long_horizon_daily.pdf
 ```
 
 This command writes:
@@ -56,6 +57,7 @@ This command writes:
 - `leaderboard.csv`
 - `report.md`
 - `plots/*.png`
+- `report.pdf` when `--output-pdf` is provided
 
 Both benchmark CLIs always run cross-validation with `refit=True`.
 
@@ -65,3 +67,5 @@ These scripts use rotating log files with a 5 MB limit:
 - `logs/generate_datasets.log`
 - `logs/benchmark_long_horizon.log`
 - `logs/benchmark_custom.log`
+stom.log`
+g`
