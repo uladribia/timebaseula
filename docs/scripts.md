@@ -68,6 +68,14 @@ uv run --frozen python scripts/benchmark_synthetic.py run \
   --output-csv logs/synthetic_benchmark_results.csv
 ```
 
+For a fuller comparison where the neural models have enough optimization budget to settle, use:
+
+```bash
+uv run --frozen python scripts/benchmark_synthetic.py run \
+  --max-steps 200 \
+  --output-csv logs/synthetic_benchmark_full.csv
+```
+
 Regenerate the HTML report later without rerunning the models:
 
 ```bash
@@ -102,20 +110,27 @@ uv run --frozen python scripts/benchmark_long_horizon.py run \
   --html-report-output logs/benchmark_long_horizon_monthly.html
 ```
 
-Longer daily run:
+Full-budget daily and monthly runs:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py run \
   --mode daily \
-  --n-series 300 \
-  --horizon 28 \
   --max-steps 200 \
-  --output logs/benchmark_results_300_daily_h28.csv
+  --output logs/benchmark_long_horizon_daily_full.csv \
+  --html-report \
+  --html-report-output logs/benchmark_long_horizon_daily_full.html
+
+uv run --frozen python scripts/benchmark_long_horizon.py run \
+  --mode monthly \
+  --max-steps 200 \
+  --output logs/benchmark_long_horizon_monthly_full.csv \
+  --html-report \
+  --html-report-output logs/benchmark_long_horizon_monthly_full.html
 ```
 
 Generate reports from a persisted benchmark CSV. Daily and monthly runs should always use separate CSV, report-data, and HTML paths. The run stores report inputs in a sibling `*_report_data/` directory by default, so report-only changes do not require another full benchmark run.
 
-The benchmark scripts keep search budgets explicit and do not use the current iteration auto-suggestion helper. Synthetic and custom benchmark runs now honor the user-provided step cap directly instead of expanding it through recommendation helpers. The HTML reports now follow the same tabbed layout as the custom benchmark report. When observed series are available at report-generation time, the representative-series tab uses a consistent selection policy:
+The benchmark scripts keep search budgets explicit and do not use the current iteration auto-suggestion helper. Synthetic and custom benchmark runs now honor the user-provided step cap directly instead of expanding it through recommendation helpers. The long-horizon CLI treats `--n-series` as an exact subset size, so omitting the flag uses the configured default slice while `--n-series 0` selects zero series and is only useful for failure testing. The HTML reports now follow the same tabbed layout as the custom benchmark report. When observed series are available at report-generation time, the representative-series tab uses a consistent selection policy:
 
 - longest history
 - highest variance
@@ -131,6 +146,22 @@ uv run --frozen python scripts/benchmark_long_horizon.py report-html \
   --input-csv logs/benchmark_results_smoke.csv \
   --output-html logs/benchmark_results_smoke.html
 ```
+
+## Benchmark the custom dataset
+
+Quick run:
+
+```bash
+uv run --frozen python scripts/benchmark_custom.py --max-steps 10
+```
+
+Full-budget run:
+
+```bash
+uv run --frozen python scripts/benchmark_custom.py --max-steps 200
+```
+
+The command writes `leaderboard.csv`, `per_series.csv`, `forecasts.csv`, `summary.json`, and `report.html` under `logs/custom_dataset_benchmark/`.
 
 ## Logging
 
