@@ -59,6 +59,33 @@ nf.fit(frame, val_size=24)
 forecast = nf.predict()
 ```
 
+## Conformal prediction intervals
+
+TimeBaseUla uses NeuralForecast's built-in conformal prediction support from
+`neuralforecast.utils.PredictionIntervals`. No custom interval code is needed in
+`TimeBase` or `TimeBaseTrend`.
+
+```python
+from neuralforecast import NeuralForecast
+from neuralforecast.utils import PredictionIntervals
+from timebaseula import TimeBaseTrend
+
+model = TimeBaseTrend(h=24, freq="D", max_steps=100)
+nf = NeuralForecast(models=[model], freq="D")
+nf.fit(
+    frame,
+    val_size=24,
+    prediction_intervals=PredictionIntervals(
+        n_windows=2,
+        method="conformal_distribution",
+    ),
+)
+forecast = nf.predict(level=[80, 95])
+```
+
+This adds columns such as `TimeBaseTrend-lo-80` and `TimeBaseTrend-hi-80` to the
+forecast output.
+
 The expected data format is the standard `NeuralForecast` long format:
 
 | Column | Meaning |
