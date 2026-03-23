@@ -1,12 +1,12 @@
 ---
-description: Installation guide for TimeBaseUla with runtime and development setup instructions.
+description: Installation guide for TimeBaseUla with runtime and source setup instructions.
 ---
 
 # Install TimeBaseUla
 
-**TL;DR**
+## TL;DR
 - Use `pip install timebaseula` to consume the package.
-- Use `uv sync` to work on the repository.
+- Use `uv sync` to work from a local checkout.
 - Python requirement: `>=3.10,<3.15`.
 
 ## Runtime install
@@ -15,7 +15,7 @@ description: Installation guide for TimeBaseUla with runtime and development set
 pip install timebaseula
 ```
 
-## Development install
+## Source install
 
 ```bash
 git clone https://github.com/dribia/timebaseula.git
@@ -23,19 +23,14 @@ cd timebaseula
 uv sync
 ```
 
-## Main dependencies
-
-### Published package
+## Main runtime dependencies
 
 | Package | Why it is used |
 |---|---|
 | `neuralforecast` | training and forecasting interface |
 | `torch` | model implementation |
 | `pandas` / `numpy` | tabular and numerical processing |
-
-### Repository-only tooling
-
-The repository also installs a `bench` dependency group for internal `devtools/` modules, benchmark CLIs, and report generation.
+| `ray[tune]` | auto-model hyperparameter search |
 
 ## Verify the install
 
@@ -53,24 +48,8 @@ The examples in this repository use the standard `NeuralForecast` long format:
 | `ds` | timestamp |
 | `y` | target value |
 
-## Contributor quality gates
-
-```bash
-make format
-make lint
-make test
-```
-
-Optional heavier checks:
-
-```bash
-make test-integration
-make test-benchmark
-```
-
 ## Build the HTML docs
 
 ```bash
-make docs
-make docs-serve
+uv run --group docs mkdocs build --strict
 ```

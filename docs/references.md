@@ -4,10 +4,10 @@ description: Paper summary and references for TimeBaseUla, including the origina
 
 # Paper notes and references
 
-**TL;DR**
+## TL;DR
 - The repository includes the original paper as `docs/huang25az.pdf`.
-- A readable markdown digest for agents is available at `paper-for-agents.md`.
-- The core claim is that long-horizon series often show repeated patterns that can be forecast with a compact basis.
+- A readable markdown digest is available at `paper-for-agents.md`.
+- The core idea is that repeated temporal structure can be modeled with a compact basis.
 
 ## Original paper in this repo
 
@@ -20,7 +20,6 @@ description: Paper summary and references for TimeBaseUla, including the origina
 ## High-level method summary
 
 The paper describes TimeBase as a pipeline with:
-
 - segmentation using a period length `P`
 - basis extraction from segmented history
 - segment-level forecasting from the learned basis
@@ -42,5 +41,4 @@ Proceedings of the 42nd International Conference on Machine Learning (ICML 2025)
 ## Related libraries used here
 
 - NeuralForecast
-- StatsForecast
 - PyTorch

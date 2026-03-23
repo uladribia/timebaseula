@@ -1,6 +1,6 @@
 site_name: TimeBaseUla
 site_url: https://dribia.github.io/timebaseula/
-site_description: Port of TimeBase to pythonic and Dribia standards to be used with Nixtla's NeuralForecast
+site_description: Compact TimeBase-style forecasting models for NeuralForecast
 strict: true
 
 repo_name: dribia/timebaseula
@@ -34,12 +34,9 @@ nav:
   - Install: install.md
   - Usage: usage.md
   - Models: models.md
-  - Scripts: scripts.md
   - Release notes: release-notes.md
-  - Benchmark report: benchmark.md
   - Paper for agents: paper-for-agents.md
   - References: references.md
-  - Contribute: contribute.md
 
 extra_css:
   - stylesheets/extra.css

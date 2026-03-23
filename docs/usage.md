@@ -5,10 +5,10 @@ description: Usage guide for explicit and auto TimeBaseUla models.
 # Usage
 
 ## TL;DR
-- Use `TimeBase` or `TimeBaseTrend` when you want explicit models with simple defaults.
-- Use `AutoTimeBase` or `AutoTimeBaseTrend` when you want Nixtla-style search.
-- Always fit with a non-zero `val_size`.
-- For multi-series training, use NeuralForecast directly; no custom helper is needed.
+- Use `TimeBase` or `TimeBaseTrend` for explicit models with simple defaults.
+- Use `AutoTimeBase` or `AutoTimeBaseTrend` for Nixtla-style search.
+- Fit with a non-zero `val_size`.
+- For multi-series training, use `NeuralForecast` directly.
 
 ## Explicit models
 
@@ -33,16 +33,16 @@ nf.fit(frame, val_size=24)
 forecast = nf.predict()
 ```
 
-### Default resolution
+## Default resolution
 
 | Parameter | Default |
 |---|---|
 | `input_size` | `max(2 * h, 8)` |
-| `period_len` with daily freq | `7` |
-| `period_len` with monthly freq | `12` |
-| `period_len` otherwise | `h` |
+| daily `period_len` | `7` |
+| monthly `period_len` | `12` |
+| other `period_len` | `h` |
 | `basis_num` | `6` |
-| `moving_avg_window` on `TimeBaseTrend` | `25` |
+| `TimeBaseTrend.moving_avg_window` | `25` |
 
 ## Auto models
 
@@ -60,10 +60,10 @@ nf.fit(frame, val_size=24)
 forecast = nf.predict()
 ```
 
-These wrappers follow Nixtla's `AutoDLinear` design:
-- compact search space
-- Ray Tune through NeuralForecast's native auto infrastructure
-- no custom dataset profiler or handwritten search loop
+These wrappers:
+- subclass NeuralForecast's `BaseAuto`
+- use Ray Tune through NeuralForecast's native auto infrastructure
+- keep a compact search space for structure and training parameters
 
 ## Multi-series training and subset prediction
 
@@ -72,8 +72,6 @@ subset = frame[frame["unique_id"] == "series_1"].copy()
 prediction = nf.predict(df=subset)
 ```
 
-Depending on the installed NeuralForecast version, `predict` may or may not return `unique_id` as an explicit column. The supported contract here is that the subset flow works without a package-specific helper.
-
 ## Troubleshooting
 
 | Symptom | First thing to try |
@@ -81,4 +79,4 @@ Depending on the installed NeuralForecast version, `predict` may or may not retu
 | weak fit | increase `max_steps` |
 | unstable fit | lower `learning_rate` |
 | auto search is slow | reduce `num_samples` |
-| too much logging | keep `gpus=0` and rely on the built-in quiet defaults in the auto wrappers |
+| too much logging | keep `gpus=0` |

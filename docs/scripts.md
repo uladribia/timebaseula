@@ -1,73 +1,40 @@
 ---
-description: Reference for the internal benchmark and dataset-preparation scripts.
+description: Current repository scope after the cleanup to a library-first package.
 ---
 
-# Scripts
+# Repository scope
 
 ## TL;DR
-- Operational scripts are thin Typer wrappers over internal `devtools/` modules.
-- Only the dataset-preparation and benchmark entrypoints remain.
-- Benchmarks write CSV, markdown, plot, and optional PDF outputs.
-- Neural benchmark entries are the default-parameter `DLinear`, `NLinear`, `TimeBase`, and `TimeBaseTrend` models.
-- Statistical benchmark entries remain `SeasonalNaive` and `MFLES`.
+- This repository is now focused on the `timebaseula` Python package.
+- Historical operational scripts are no longer part of the tracked source tree.
+- Use the library through Python imports and `NeuralForecast`.
+- Package metadata, tests, and docs remain in the repository.
 
-## Available scripts
+## What is in the repository
 
-| Script | Purpose |
+| Path | Purpose |
 |---|---|
-| `scripts/generate_datasets.py` | prepare cached long-horizon datasets |
-| `scripts/benchmark_long_horizon.py` | benchmark ECL and TrafficL and write CSV/markdown/plot/PDF outputs |
-| `scripts/benchmark_custom.py` | benchmark the custom monthly dataset and write CSV/markdown/plot/PDF outputs |
+| `timebaseula/` | library source code |
+| `tests/` | unit and integration tests |
+| `docs/` | MkDocs documentation |
+| `pyproject.toml` | package metadata and dependencies |
+| `Makefile` | common development commands |
 
-## Prepare cached benchmark datasets
+## What is not part of the tracked package workflow
 
-```bash
-uv run --frozen python scripts/generate_datasets.py main
+The repository no longer documents or ships operational benchmark or dataset-preparation entrypoints as part of the current library workflow.
+
+If you want to use TimeBaseUla, start from the package API instead:
+
+```python
+from timebaseula import TimeBase, TimeBaseTrend, AutoTimeBase, AutoTimeBaseTrend
 ```
 
-Force refresh:
+## Main development commands
 
 ```bash
-uv run --frozen python scripts/generate_datasets.py main --force-download
+make format
+make lint
+make test
+make docs
 ```
-
-## Benchmark long-horizon datasets
-
-```bash
-uv run --frozen python scripts/benchmark_long_horizon.py run \
-  --mode daily \
-  --n-series 50 \
-  --output logs/benchmark_long_horizon_daily.csv \
-  --output-md logs/benchmark_long_horizon_daily.md \
-  --output-pdf logs/benchmark_long_horizon_daily.pdf
-```
-
-This command writes:
-- a CSV leaderboard with `mae`, `rmse`, `rmae`, `params`, and `execution_time`
-- a markdown report with metric notes, a data summary, and representative forecast plots
-- a sibling plot directory next to the markdown report
-- an optional PDF export rendered with headless Chrome and embedded plot images
-
-Both benchmark CLIs always run cross-validation with `refit=True`.
-
-## Benchmark the custom dataset
-
-```bash
-uv run --frozen python scripts/benchmark_custom.py \
-  --max-steps 30 \
-  --output-dir logs/custom_dataset_benchmark \
-  --output-pdf logs/custom_dataset_benchmark/report.pdf
-```
-
-This command writes:
-- `leaderboard.csv`
-- `report.md`
-- `plots/*.png`
-- `report.pdf`
-
-## Logging
-
-These scripts use rotating log files with a 5 MB limit:
-- `logs/generate_datasets.log`
-- `logs/benchmark_long_horizon.log`
-- `logs/benchmark_custom.log`

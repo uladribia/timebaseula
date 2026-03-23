@@ -4,9 +4,10 @@ description: Contribution guide for TimeBaseUla development, testing, and docume
 
 # Contribute
 
-**TL;DR**
+## TL;DR
 - Clone the repository and use `uv sync`.
 - Run `make format`, `make lint`, and `make test` before opening a PR.
+- Run `make test-integration` only when your change affects real fit or predict behavior.
 - Keep changes small, readable, CPU-friendly, and documented.
 
 ## Development setup
@@ -25,20 +26,18 @@ make lint
 make test
 ```
 
-Optional heavier checks:
+## Optional heavier check
 
 ```bash
 make test-integration
-make test-benchmark
 ```
 
 ## Testing policy
 
 | Suite | Purpose |
 |---|---|
-| `make test` | fast default unit suite |
-| `make test-integration` | actual NeuralForecast fitting behavior |
-| `make test-benchmark` | benchmark-oriented checks when present |
+| `make test` | fast default non-integration suite |
+| `make test-integration` | real NeuralForecast fitting behavior |
 
 ## Contribution expectations
 

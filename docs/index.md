@@ -6,9 +6,9 @@ description: Overview of the TimeBaseUla package and its public API.
 
 ## TL;DR
 - `timebaseula` exports `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
-- Explicit models now have simple deterministic defaults.
+- Explicit models have simple deterministic defaults.
 - Auto models follow Nixtla's native `BaseAuto` pattern.
-- Benchmark tooling stays in `devtools/` and is not part of the published package.
+- The repository now contains only the library code and its documentation.
 
 ## Package purpose
 
@@ -44,10 +44,9 @@ nf.fit(frame, val_size=12)
 forecast = nf.predict()
 ```
 
-## Internal tooling
+## Repository layout
 
 | Path | Role |
 |---|---|
-| `devtools/` | internal benchmark helpers |
-| `scripts/` | thin Typer wrappers over `devtools/` |
-| `tests/` | unit and integration coverage |
+| `timebaseula/` | publishable library code |
+| `docs/` | package documentation |

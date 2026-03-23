@@ -1,32 +1,30 @@
 ---
-description: Short release-style summary of the latest simplification pass.
+description: Short release-style summary of the repository cleanup that kept the library and docs aligned.
 ---
 
 # Release notes
 
 ## TL;DR
-- simplified the public API to four model classes
-- removed synthetic helpers and custom recommendation utilities from the package surface
-- replaced the handwritten auto-search layer with thin Nixtla-style auto wrappers
-- simplified benchmark tooling to CSV and markdown outputs
+- kept the public API centered on four model classes
+- retained the library source, tests, and documentation
+- removed stale references to non-existent operational tooling
+- simplified the repository to focus on the publishable package
 
-## Library changes
+## Repository changes
 
-- kept `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, and `AutoTimeBaseTrend`
-- added deterministic defaults to `TimeBase` and `TimeBaseTrend`
-- rebuilt the auto wrappers on top of NeuralForecast's `BaseAuto`
-- removed package-level synthetic utilities and recommendation helpers
+- kept `timebaseula/` as the library source
+- kept `tests/` as the validation suite
+- kept `docs/` plus MkDocs configuration
+- removed stale documentation that implied tracked operational tooling still existed
 
-## Devtools changes
+## Library status
 
-- removed synthetic benchmark and plotting scripts
-- removed the custom HTML reporting layer
-- kept only dataset preparation and the two benchmark entrypoints
-- standardized benchmark output around CSV and markdown
+The exported package API remains:
+- `TimeBase`
+- `TimeBaseTrend`
+- `AutoTimeBase`
+- `AutoTimeBaseTrend`
 
 ## Why this change happened
 
-The repository had accumulated too much custom orchestration around features that already exist in the Nixtla stack. The current direction is:
-- use Nixtla primitives first
-- keep the publishable library small
-- keep devtools internal and simple
+The goal of this cleanup was to leave a repository centered on the reusable library and its documentation, without stale references to removed tooling.

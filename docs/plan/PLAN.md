@@ -7,14 +7,14 @@ This folder tracks documentation-safe maintenance work. It is not an implementat
 1. keep the public API aligned with NeuralForecast and Nixtla auto patterns
 2. keep fast tests separate from heavy integration checks
 3. keep the published library small and readable
-4. keep devtools internal and simple
-5. keep docs aligned with shipped behavior
+4. keep docs aligned with shipped behavior
+5. keep repository metadata and docs consistent with the tracked code
 
 ## Current repository truths
 - Public exports are `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
 - Explicit models have deterministic defaults.
 - Auto wrappers rely on NeuralForecast's native `BaseAuto` infrastructure.
-- Benchmark scripts are operational tools, not part of the default unit suite.
+- The repository is maintained as a library-first package.
 
 ## Source of truth
 For behavior, prefer:
