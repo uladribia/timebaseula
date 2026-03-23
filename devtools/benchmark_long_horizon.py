@@ -235,49 +235,47 @@ def _common_neural_kwargs(horizon: int, max_steps: int) -> dict[str, Any]:
     }
 
 
-def _auto_config(horizon: int, max_steps: int) -> dict[str, Any]:
-    """Return a fixed config for the auto wrappers used in benchmarks."""
-    return {
-        **_common_neural_kwargs(horizon, max_steps),
-        "step_size": 1,
-        "random_seed": 1,
-    }
+def _auto_config(
+    auto_model_class: type[AutoTimeBase] | type[AutoTimeBaseTrend],
+    horizon: int,
+    max_steps: int,
+    freq: str,
+) -> dict[str, Any]:
+    """Return the benchmark search space used by the auto wrappers."""
+    config = auto_model_class.get_default_config(h=horizon, backend="ray", freq=freq)
+    config["max_steps"] = max_steps
+    config["val_check_steps"] = max_steps
+    config["accelerator"] = "cpu"
+    config["devices"] = 1
+    config["enable_progress_bar"] = False
+    config["enable_model_summary"] = False
+    config["logger"] = False
+    return config
 
 
-def _count_auto_model_params(
-    model: AutoTimeBase | AutoTimeBaseTrend,
-) -> int:
-    """Count parameters for the wrapped base model selected by an auto model."""
-    base_kwargs = {
-        key: value
-        for key, value in model.config.items()
-        if key not in {"h", "loss", "valid_loss"}
-    }
-    base_model = model.cls_model(
-        h=model.h,
-        loss=model.loss,
-        valid_loss=model.valid_loss,
-        freq=model.freq,
-        **base_kwargs,
-    )
-    return count_params(base_model)
+def _count_benchmark_model_params(model: Any) -> int:
+    """Count parameters for one fitted benchmark model."""
+    if isinstance(model, AutoTimeBase | AutoTimeBaseTrend):
+        return count_params(model.model)
+    return count_params(model)
 
 
 def _build_neural_models(
     horizon: int,
     max_steps: int,
     freq: str,
-) -> tuple[list[Any], dict[str, int]]:
-    """Build the benchmark neural models and their parameter counts."""
+    auto_num_samples: int,
+) -> list[Any]:
+    """Build the benchmark neural models."""
     common_kwargs = _common_neural_kwargs(horizon, max_steps)
-    models = [
+    return [
         DLinear(h=horizon, **common_kwargs),
         NLinear(h=horizon, **common_kwargs),
         AutoTimeBase(
             h=horizon,
             freq=freq,
-            config=_auto_config(horizon, max_steps),
-            num_samples=1,
+            config=_auto_config(AutoTimeBase, horizon, max_steps, freq),
+            num_samples=auto_num_samples,
             cpus=1,
             gpus=0,
             verbose=False,
@@ -285,22 +283,13 @@ def _build_neural_models(
         AutoTimeBaseTrend(
             h=horizon,
             freq=freq,
-            config=_auto_config(horizon, max_steps),
-            num_samples=1,
+            config=_auto_config(AutoTimeBaseTrend, horizon, max_steps, freq),
+            num_samples=auto_num_samples,
             cpus=1,
             gpus=0,
             verbose=False,
         ),
     ]
-    param_map = {
-        repr(model): (
-            _count_auto_model_params(model)
-            if isinstance(model, AutoTimeBase | AutoTimeBaseTrend)
-            else count_params(model)
-        )
-        for model in models
-    }
-    return models, param_map
 
 
 def _build_result_row(
@@ -394,20 +383,23 @@ def _run_neural_benchmark(
     horizon: int,
     max_steps: int,
     baseline_forecast: pd.DataFrame,
+    auto_num_samples: int,
 ) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
     """Run the neural models individually and retain their forecasts."""
-    models, param_map = _build_neural_models(
+    models = _build_neural_models(
         horizon=horizon,
         max_steps=max_steps,
         freq=freq,
+        auto_num_samples=auto_num_samples,
     )
 
     results: list[pd.DataFrame] = []
     forecasts: dict[str, pd.DataFrame] = {}
     for model in models:
         model_name = repr(model)
+        neural_forecast = NeuralForecast(models=[model], freq=freq)
         start_time = time.perf_counter()
-        forecast = NeuralForecast(models=[model], freq=freq).cross_validation(
+        forecast = neural_forecast.cross_validation(
             df=frame,
             n_windows=1,
             val_size=horizon,
@@ -422,7 +414,7 @@ def _run_neural_benchmark(
             _build_result_row(
                 forecast_frame=merged_forecast,
                 model_name=model_name,
-                params=param_map[model_name],
+                params=_count_benchmark_model_params(neural_forecast.models[0]),
                 execution_time=execution_time,
             )
         )
@@ -437,6 +429,7 @@ def run_benchmark_block(
     horizon: int,
     n_series: int | None,
     max_steps: int,
+    auto_num_samples: int,
 ) -> BenchmarkArtifacts:
     """Benchmark one dataset block and return results plus plot artifacts."""
     logger = get_logger()
@@ -464,6 +457,7 @@ def run_benchmark_block(
         horizon=horizon,
         max_steps=max_steps,
         baseline_forecast=baseline_forecast,
+        auto_num_samples=auto_num_samples,
     )
     stats_results, stats_forecasts = _run_stats_benchmark(
         frame=frame,
@@ -510,6 +504,7 @@ def benchmark_dataset(
     horizon: int,
     n_series: int | None,
     max_steps: int,
+    auto_num_samples: int,
 ) -> pd.DataFrame:
     """Benchmark one dataset/frequency block and return only the leaderboard."""
     return run_benchmark_block(
@@ -518,6 +513,7 @@ def benchmark_dataset(
         horizon=horizon,
         n_series=n_series,
         max_steps=max_steps,
+        auto_num_samples=auto_num_samples,
     ).results_frame
 
 
@@ -616,6 +612,11 @@ def run_command(
         None,
         help="Max training steps override for neural models.",
     ),
+    auto_num_samples: int = typer.Option(
+        1,
+        min=1,
+        help="Number of Ray Tune samples for AutoTimeBase wrappers.",
+    ),
     output: Path | None = typer.Option(None, help="Optional CSV output path."),
     output_md: Path | None = typer.Option(None, help="Optional markdown report path."),
     output_pdf: Path | None = typer.Option(None, help="Optional PDF report path."),
@@ -656,6 +657,7 @@ def run_command(
             horizon=resolved_horizon,
             n_series=n_series,
             max_steps=resolved_max_steps,
+            auto_num_samples=auto_num_samples,
         )
         benchmark_artifacts.append(artifacts)
         summary_frames.append(

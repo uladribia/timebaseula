@@ -96,48 +96,46 @@ def _common_neural_kwargs(horizon: int, max_steps: int) -> dict[str, Any]:
     }
 
 
-def _auto_config(horizon: int, max_steps: int) -> dict[str, Any]:
-    """Return a fixed config for the auto wrappers used in benchmarks."""
-    return {
-        **_common_neural_kwargs(horizon, max_steps),
-        "step_size": 1,
-        "random_seed": 1,
-    }
+def _auto_config(
+    auto_model_class: type[AutoTimeBase] | type[AutoTimeBaseTrend],
+    horizon: int,
+    max_steps: int,
+    freq: str,
+) -> dict[str, Any]:
+    """Return the benchmark search space used by the auto wrappers."""
+    config = auto_model_class.get_default_config(h=horizon, backend="ray", freq=freq)
+    config["max_steps"] = max_steps
+    config["val_check_steps"] = max_steps
+    config["accelerator"] = "cpu"
+    config["devices"] = 1
+    config["enable_progress_bar"] = False
+    config["enable_model_summary"] = False
+    config["logger"] = False
+    return config
 
 
-def _count_auto_model_params(
-    model: AutoTimeBase | AutoTimeBaseTrend,
-) -> int:
-    """Count parameters for the wrapped base model selected by an auto model."""
-    base_kwargs = {
-        key: value
-        for key, value in model.config.items()
-        if key not in {"h", "loss", "valid_loss"}
-    }
-    base_model = model.cls_model(
-        h=model.h,
-        loss=model.loss,
-        valid_loss=model.valid_loss,
-        freq=model.freq,
-        **base_kwargs,
-    )
-    return count_params(base_model)
+def _count_benchmark_model_params(model: Any) -> int:
+    """Count parameters for one fitted benchmark model."""
+    if isinstance(model, AutoTimeBase | AutoTimeBaseTrend):
+        return count_params(model.model)
+    return count_params(model)
 
 
 def _build_neural_models(
     horizon: int,
     max_steps: int,
-) -> tuple[list[Any], dict[str, int]]:
-    """Build the benchmark neural models and their parameter counts."""
+    auto_num_samples: int,
+) -> list[Any]:
+    """Build the benchmark neural models."""
     common_kwargs = _common_neural_kwargs(horizon, max_steps)
-    models = [
+    return [
         DLinear(h=horizon, **common_kwargs),
         NLinear(h=horizon, **common_kwargs),
         AutoTimeBase(
             h=horizon,
             freq="MS",
-            config=_auto_config(horizon, max_steps),
-            num_samples=1,
+            config=_auto_config(AutoTimeBase, horizon, max_steps, "MS"),
+            num_samples=auto_num_samples,
             cpus=1,
             gpus=0,
             verbose=False,
@@ -145,22 +143,13 @@ def _build_neural_models(
         AutoTimeBaseTrend(
             h=horizon,
             freq="MS",
-            config=_auto_config(horizon, max_steps),
-            num_samples=1,
+            config=_auto_config(AutoTimeBaseTrend, horizon, max_steps, "MS"),
+            num_samples=auto_num_samples,
             cpus=1,
             gpus=0,
             verbose=False,
         ),
     ]
-    param_map = {
-        repr(model): (
-            _count_auto_model_params(model)
-            if isinstance(model, AutoTimeBase | AutoTimeBaseTrend)
-            else count_params(model)
-        )
-        for model in models
-    }
-    return models, param_map
 
 
 def _build_result_row(
@@ -251,16 +240,22 @@ def _run_neural_benchmark(
     horizon: int,
     max_steps: int,
     baseline_forecast: pd.DataFrame,
+    auto_num_samples: int,
 ) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
     """Run the neural models individually and retain their forecasts."""
-    models, param_map = _build_neural_models(horizon=horizon, max_steps=max_steps)
+    models = _build_neural_models(
+        horizon=horizon,
+        max_steps=max_steps,
+        auto_num_samples=auto_num_samples,
+    )
 
     results: list[pd.DataFrame] = []
     forecasts: dict[str, pd.DataFrame] = {}
     for model in models:
         model_name = repr(model)
+        neural_forecast = NeuralForecast(models=[model], freq="MS")
         start_time = time.perf_counter()
-        forecast = NeuralForecast(models=[model], freq="MS").cross_validation(
+        forecast = neural_forecast.cross_validation(
             df=frame,
             n_windows=1,
             val_size=horizon,
@@ -275,7 +270,7 @@ def _run_neural_benchmark(
             _build_result_row(
                 forecast_frame=merged_forecast,
                 model_name=model_name,
-                params=param_map[model_name],
+                params=_count_benchmark_model_params(neural_forecast.models[0]),
                 execution_time=execution_time,
             )
         )
@@ -288,6 +283,7 @@ def run_custom_benchmark(
     dataset_path: str | Path,
     horizon: int,
     max_steps: int,
+    auto_num_samples: int,
 ) -> BenchmarkArtifacts:
     """Run the custom benchmark and return results plus plot artifacts."""
     logger = get_logger()
@@ -308,6 +304,7 @@ def run_custom_benchmark(
         horizon=horizon,
         max_steps=max_steps,
         baseline_forecast=baseline_forecast,
+        auto_num_samples=auto_num_samples,
     )
     stats_results, stats_forecasts = _run_stats_benchmark(
         frame=frame,
@@ -341,12 +338,14 @@ def benchmark_custom_dataset(
     dataset_path: str | Path,
     horizon: int,
     max_steps: int,
+    auto_num_samples: int,
 ) -> pd.DataFrame:
     """Run the simplified custom benchmark and return only the leaderboard."""
     return run_custom_benchmark(
         dataset_path=dataset_path,
         horizon=horizon,
         max_steps=max_steps,
+        auto_num_samples=auto_num_samples,
     ).results_frame
 
 
@@ -393,6 +392,11 @@ def main(
         min=1,
         help="Maximum neural training steps.",
     ),
+    auto_num_samples: int = typer.Option(
+        1,
+        min=1,
+        help="Number of Ray Tune samples for AutoTimeBase wrappers.",
+    ),
     quiet: bool = typer.Option(False, help="Suppress Rich progress output."),
 ) -> None:
     """Run the custom dataset benchmark and save CSV, markdown, and plots."""
@@ -400,6 +404,7 @@ def main(
         dataset_path=dataset_path,
         horizon=horizon,
         max_steps=max_steps,
+        auto_num_samples=auto_num_samples,
     )
     results_frame = artifacts.results_frame
 

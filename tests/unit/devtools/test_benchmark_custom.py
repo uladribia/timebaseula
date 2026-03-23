@@ -44,15 +44,28 @@ class TestBenchmarkCustom:
             validate_series_lengths(frame, horizon=2)
 
     def test_build_neural_models_uses_auto_wrappers(self) -> None:
-        """The benchmark should use the auto wrappers instead of raw TimeBase models."""
-        models, param_map = _build_neural_models(horizon=2, max_steps=1)
+        """The benchmark should use searched auto wrappers instead of raw models."""
+        models = _build_neural_models(horizon=2, max_steps=1, auto_num_samples=3)
 
         assert any(isinstance(model, AutoTimeBase) for model in models)
         assert any(isinstance(model, AutoTimeBaseTrend) for model in models)
         assert not any(type(model).__name__ == "TimeBase" for model in models)
         assert not any(type(model).__name__ == "TimeBaseTrend" for model in models)
-        assert param_map["AutoTimeBase"] > 0
-        assert param_map["AutoTimeBaseTrend"] > 0
+
+        auto_timebase = next(
+            model for model in models if isinstance(model, AutoTimeBase)
+        )
+        auto_timebase_trend = next(
+            model for model in models if isinstance(model, AutoTimeBaseTrend)
+        )
+        assert auto_timebase.num_samples == 3
+        assert auto_timebase_trend.num_samples == 3
+        assert auto_timebase.config["max_steps"] == 1
+        assert auto_timebase.config["accelerator"] == "cpu"
+        assert auto_timebase.config["devices"] == 1
+        assert not isinstance(auto_timebase.config["input_size"], int)
+        assert not isinstance(auto_timebase.config["period_len"], int)
+        assert not isinstance(auto_timebase_trend.config["moving_avg_window"], int)
 
     def test_main_writes_csv_markdown_plots_and_pdf(
         self,
@@ -65,7 +78,7 @@ class TestBenchmarkCustom:
             return_value=BenchmarkArtifacts(
                 results_frame=pd.DataFrame(
                     {
-                        "model_name": ["TimeBase", "SeasonalNaive"],
+                        "model_name": ["AutoTimeBase", "SeasonalNaive"],
                         "mae": [0.1, 0.2],
                         "rmse": [0.2, 0.3],
                         "rmae": [0.5, 1.0],
@@ -119,6 +132,8 @@ class TestBenchmarkCustom:
                 str(output_dir),
                 "--output-pdf",
                 str(output_pdf),
+                "--auto-num-samples",
+                "2",
             ],
         )
 
@@ -130,6 +145,7 @@ class TestBenchmarkCustom:
             encoding="utf-8"
         )
         benchmark_mock.assert_called_once()
+        assert benchmark_mock.call_args.kwargs["auto_num_samples"] == 2
 
     def test_main_rejects_removed_refit_option(self) -> None:
         """The CLI should not expose a refit toggle anymore."""
