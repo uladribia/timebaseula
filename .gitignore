@@ -99,5 +99,4 @@ data/
 logs/
 
 # generated benchmark and visualization artifacts
-/docs/benchmark.md
 /docs/img/*.html

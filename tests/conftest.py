@@ -2,7 +2,15 @@
 
 from __future__ import annotations
 
+import warnings
+
 import pytest
+
+warnings.filterwarnings(
+    "ignore",
+    category=SyntaxWarning,
+    module=r"neuralforecast\..*",
+)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
