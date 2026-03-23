@@ -13,6 +13,11 @@ from neuralforecast import NeuralForecast
 from neuralforecast.models import DLinear
 from rich.console import Console
 
+from devtools.benchmark_synthetic import (
+    average_cross_validation_predictions,
+    build_multivariate_frame,
+    synthetic_scenarios,
+)
 from timebaseula.synthetic import make_synthetic_series
 
 app = typer.Typer(help="Evaluate DLinear MAE on synthetic scenarios.")
@@ -38,50 +43,31 @@ def configure_logging() -> logging.Logger:
     return logger
 
 
-def build_multivariate_frame(
-    base_frame: pd.DataFrame,
-    variations: list[tuple[str, float, float]],
-) -> pd.DataFrame:
-    """Create a multivariate dataset by scaling and shifting a base frame.
-
-    Args:
-        base_frame: Base synthetic frame with columns [unique_id, ds, y].
-        variations: List of (unique_id, scale, offset) tuples.
-
-    Returns:
-        Concatenated DataFrame for multiple series.
-    """
-    frames: list[pd.DataFrame] = []
-    for unique_id, scale, offset in variations:
-        frame = base_frame.copy()
-        frame["unique_id"] = unique_id
-        frame["y"] = frame["y"] * scale + offset
-        frames.append(frame)
-    return pd.concat(frames, ignore_index=True)
-
-
 def evaluate_scenario(
-    scenario_name: str,
     frame: pd.DataFrame,
     h: int,
     input_size: int,
-    val_size: int,
     test_size: int,
+    refit: bool,
 ) -> float:
-    """Fit DLinear on a multivariate frame and compute MAE on the test split."""
+    """Evaluate DLinear with native NeuralForecast cross-validation."""
     model = DLinear(h=h, input_size=input_size, max_steps=200, learning_rate=1e-2)
     nf = NeuralForecast(models=[model], freq="D")
-
-    train_frame = frame.groupby("unique_id", group_keys=False).apply(
-        lambda df: df.iloc[:-test_size], include_groups=False
+    forecast = nf.cross_validation(
+        df=frame,
+        n_windows=None,
+        val_size=h,
+        test_size=test_size,
+        step_size=1,
+        refit=refit,
     )
-    target = frame.groupby("unique_id").tail(test_size).rename(columns={"y": "y_true"})
-
-    nf.fit(train_frame, val_size=val_size)
-    forecast = nf.predict()
-
-    merged = target.merge(forecast, on=["unique_id", "ds"], how="inner")
-    mae = np.mean(np.abs(merged["y_true"] - merged["DLinear"]))
+    if "unique_id" not in forecast.columns:
+        forecast = forecast.reset_index()
+    averaged = average_cross_validation_predictions(
+        forecast[["unique_id", "ds", "y", "DLinear"]],
+        "DLinear",
+    )
+    mae = np.mean(np.abs(averaged["y"] - averaged["DLinear"]))
     return float(mae)
 
 
@@ -92,30 +78,17 @@ def main(
     input_size: int = typer.Option(48, help="Input window size."),
     val_size: int = typer.Option(24, help="Validation window size."),
     test_size: int = typer.Option(24, help="Test window size."),
+    refit: bool = typer.Option(
+        False,
+        "--refit/--no-refit",
+        help="Whether to refit the model at each cross-validation window.",
+    ),
 ) -> None:
     """Run DLinear evaluations for easy/medium/hard synthetic scenarios."""
     logger = configure_logging()
 
-    scenarios = {
-        "easy": {
-            "noise_std": 0.15,
-            "amplitude_period": None,
-            "amplitude_strength": 0.0,
-            "amplitude_growth_rate": 0.0,
-        },
-        "medium": {
-            "noise_std": 0.15,
-            "amplitude_period": 48,
-            "amplitude_strength": 0.4,
-            "amplitude_growth_rate": 0.0,
-        },
-        "hard": {
-            "noise_std": 0.15,
-            "amplitude_period": 96,
-            "amplitude_strength": 0.9,
-            "amplitude_growth_rate": 1.2,
-        },
-    }
+    del val_size
+    scenarios = synthetic_scenarios()
 
     variations = [
         ("series_a", 1.0, 0.0),
@@ -136,7 +109,7 @@ def main(
             amplitude_growth_rate=params["amplitude_growth_rate"],
         )
         frame = build_multivariate_frame(base_frame, variations)
-        mae = evaluate_scenario(name, frame, h, input_size, val_size, test_size)
+        mae = evaluate_scenario(frame, h, input_size, test_size, refit)
         results[name] = mae
         logger.info("Scenario MAE", extra={"scenario": name, "mae": mae})
 

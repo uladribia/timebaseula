@@ -19,6 +19,7 @@ This repository follows a disciplined, maintainable, and CPU-first workflow. Age
 - Avoid `inplace=True` mutations; return new objects instead.
 - Keep code in **English** for identifiers, comments, and documentation.
 - Keep tests organized: one test file per module, named `tests/test_<module>.py`.
+- Before implementing custom logic, inspect the upstream library source and prefer built-in APIs (for example `cross_validation` or native baseline models in NeuralForecast / StatsForecast) over handwritten benchmark orchestration whenever they provide the needed behavior.
 
 ## Required Agent Workflow (TDD & Quality Gates)
 1. **TDD red/green only**:

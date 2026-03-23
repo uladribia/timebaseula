@@ -21,7 +21,6 @@ MODEL_COLORS = {
     "AutoTimeBaseTrend": "#f97316",
     "NLinear": "#a78bfa",
     "DLinear": "#f472b6",
-    "AutoARIMA": "#cbd5e1",
     "Naive": "#7dd3fc",
     "Observed": "#e2e8f0",
     "Holdout": "#ffffff",

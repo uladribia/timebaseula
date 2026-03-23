@@ -16,7 +16,7 @@ from neuralforecast.models import DLinear
 from rich.console import Console
 from rich.table import Table
 from statsforecast import StatsForecast
-from statsforecast.models import AutoMFLES
+from statsforecast.models import AutoMFLES, Naive
 
 from devtools.reporting import (
     build_html_benchmark_report,
@@ -93,6 +93,39 @@ def build_naive_forecast(target: pd.DataFrame, last_values: pd.Series) -> pd.Ser
     return target["unique_id"].map(last_values)
 
 
+def average_cross_validation_predictions(
+    forecast_frame: pd.DataFrame,
+    prediction_column: str,
+) -> pd.DataFrame:
+    """Average overlapping cross-validation predictions per timestamp."""
+    return (
+        forecast_frame.groupby(["unique_id", "ds"], as_index=False)
+        .agg(y=("y", "first"), **{prediction_column: (prediction_column, "mean")})
+        .sort_values(["unique_id", "ds"])
+        .reset_index(drop=True)
+    )
+
+
+def average_prediction_columns(
+    forecast_frame: pd.DataFrame,
+    prediction_columns: list[str],
+) -> pd.DataFrame:
+    """Average several cross-validation prediction columns over shared timestamps."""
+    averaged = [
+        average_cross_validation_predictions(
+            forecast_frame[["unique_id", "ds", "y", prediction_column]],
+            prediction_column,
+        )
+        for prediction_column in prediction_columns
+    ]
+    merged = averaged[0]
+    for frame in averaged[1:]:
+        merged = merged.merge(
+            frame[["unique_id", "ds", *frame.columns[3:]]], on=["unique_id", "ds"]
+        )
+    return merged
+
+
 def evaluate_models(
     frame: pd.DataFrame,
     h: int,
@@ -100,21 +133,11 @@ def evaluate_models(
     val_size: int,
     test_size: int,
     max_steps: int,
+    refit: bool,
     return_forecasts: bool = False,
 ) -> dict[str, float] | tuple[dict[str, float], pd.DataFrame, dict[str, pd.DataFrame]]:
     """Fit neural and naive models and compute MAE for each forecast."""
-    group_sizes = frame.groupby("unique_id")["ds"].transform("size")
-    positions = frame.groupby("unique_id").cumcount()
-    train_frame = frame[positions < (group_sizes - test_size)]
-    target = frame.groupby("unique_id").tail(test_size).rename(columns={"y": "y_true"})
-
-    last_values = (
-        train_frame.groupby("unique_id", as_index=False)
-        .tail(1)
-        .set_index("unique_id")["y"]
-    )
-    naive = build_naive_forecast(target, last_values)
-
+    del val_size
     bounded_search_steps = max(1, min(10, max_steps))
     models = [
         DLinear(h=h, input_size=input_size, max_steps=max_steps, learning_rate=1e-2),
@@ -132,66 +155,88 @@ def evaluate_models(
         ),
     ]
     nf = NeuralForecast(models=models, freq="D")
-    nf.fit(train_frame, val_size=val_size)
-    forecast = nf.predict()
+    forecast = nf.cross_validation(
+        df=frame,
+        n_windows=None,
+        val_size=h,
+        test_size=test_size,
+        step_size=1,
+        refit=refit,
+    )
     if "unique_id" not in forecast.columns:
         forecast = forecast.reset_index()
-
-    merged = target.merge(forecast, on=["unique_id", "ds"], how="inner")
+    forecast = average_prediction_columns(
+        forecast,
+        ["DLinear", "AutoTimeBase", "AutoTimeBaseTrend"],
+    )
+    target = forecast[["unique_id", "ds", "y"]].rename(columns={"y": "y_true"}).copy()
     results = {
-        "naive": float(np.mean(np.abs(target["y_true"] - naive))),
-        "dlinear": float(np.mean(np.abs(merged["y_true"] - merged["DLinear"]))),
-        "timebase": float(np.mean(np.abs(merged["y_true"] - merged["AutoTimeBase"]))),
+        "dlinear": float(np.mean(np.abs(target["y_true"] - forecast["DLinear"]))),
+        "timebase": float(np.mean(np.abs(target["y_true"] - forecast["AutoTimeBase"]))),
         "timebase_trend": float(
-            np.mean(np.abs(merged["y_true"] - merged["AutoTimeBaseTrend"]))
+            np.mean(np.abs(target["y_true"] - forecast["AutoTimeBaseTrend"]))
         ),
     }
     if not return_forecasts:
         return results
     forecast_frames = {
-        "Naive": target[["unique_id", "ds"]].assign(Naive=naive.to_numpy()),
         "DLinear": forecast[["unique_id", "ds", "DLinear"]].copy(),
         "AutoTimeBase": forecast[["unique_id", "ds", "AutoTimeBase"]].copy(),
         "AutoTimeBaseTrend": forecast[["unique_id", "ds", "AutoTimeBaseTrend"]].copy(),
     }
-    return results, target[["unique_id", "ds", "y_true"]].copy(), forecast_frames
+    return results, target, forecast_frames
 
 
-def evaluate_mfles(
+def evaluate_statsforecast_models(
     frame: pd.DataFrame,
     h: int,
     test_size: int,
+    refit: bool,
     season_length: int = 24,
     return_forecasts: bool = False,
-) -> dict[str, float] | tuple[dict[str, float], pd.DataFrame]:
-    """Fit MFLES model and compute MAE for each series."""
-    group_sizes = frame.groupby("unique_id")["ds"].transform("size")
-    positions = frame.groupby("unique_id").cumcount()
-    train_frame = frame[positions < (group_sizes - test_size)]
-    target = frame.groupby("unique_id").tail(test_size).rename(columns={"y": "y_true"})
-
-    all_errors: list[float] = []
-    forecast_parts: list[pd.DataFrame] = []
-    for series_id in train_frame["unique_id"].unique():
-        series_train = train_frame[train_frame["unique_id"] == series_id].copy()
-        series_target = target[target["unique_id"] == series_id].copy()
-
-        mfles_model = AutoMFLES(test_size=test_size, season_length=season_length)
-        sf = StatsForecast(models=[mfles_model], freq="D", verbose=False)
-        sf.fit(series_train)
-        mfles_forecast = sf.predict(h=h)
-
-        merged = series_target.merge(
-            mfles_forecast, on=["unique_id", "ds"], how="inner"
+) -> dict[str, float] | tuple[dict[str, float], dict[str, pd.DataFrame]]:
+    """Fit the StatsForecast baselines jointly and compute MAE."""
+    sf = StatsForecast(
+        models=[Naive(), AutoMFLES(test_size=h, season_length=season_length)],
+        freq="D",
+        verbose=False,
+    )
+    if not refit and test_size == h:
+        target = frame.groupby("unique_id", group_keys=False).tail(test_size).copy()
+        train = frame.drop(index=target.index).reset_index(drop=True)
+        target = target.reset_index(drop=True)
+        forecast = sf.forecast(df=train, h=h)
+        if "unique_id" not in forecast.columns:
+            forecast = forecast.reset_index()
+        averaged = target[["unique_id", "ds", "y"]].merge(
+            forecast[["unique_id", "ds", "Naive", "AutoMFLES"]],
+            on=["unique_id", "ds"],
+            how="inner",
         )
-        errors = np.abs(merged["y_true"] - merged["AutoMFLES"])
-        all_errors.extend(errors.tolist())
-        forecast_parts.append(merged[["unique_id", "ds", "AutoMFLES"]].copy())
-
-    result = {"mfles": float(np.mean(all_errors))}
+    else:
+        forecast = sf.cross_validation(
+            df=frame,
+            h=h,
+            n_windows=None,
+            test_size=test_size,
+            step_size=1,
+            refit=refit,
+        )
+        if "unique_id" not in forecast.columns:
+            forecast = forecast.reset_index()
+        averaged = average_prediction_columns(forecast, ["Naive", "AutoMFLES"])
+    result = {
+        "naive": float(np.mean(np.abs(averaged["y"] - averaged["Naive"]))),
+        "mfles": float(np.mean(np.abs(averaged["y"] - averaged["AutoMFLES"]))),
+    }
     if not return_forecasts:
         return result
-    return result, pd.concat(forecast_parts, ignore_index=True)
+    return result, {
+        "Naive": averaged[["unique_id", "ds", "Naive"]].copy(),
+        "MFLES": averaged[["unique_id", "ds", "AutoMFLES"]].rename(
+            columns={"AutoMFLES": "MFLES"}
+        ),
+    }
 
 
 def run_synthetic_benchmark(
@@ -201,6 +246,7 @@ def run_synthetic_benchmark(
     val_size: int,
     test_size: int,
     max_steps: int,
+    refit: bool,
     return_artifacts: bool = False,
 ) -> (
     pd.DataFrame
@@ -237,19 +283,21 @@ def run_synthetic_benchmark(
                 val_size,
                 test_size,
                 max_steps,
+                refit,
                 return_forecasts=True,
             )
-            mfles_results, mfles_forecast = evaluate_mfles(
+            stats_results, stats_forecasts = evaluate_statsforecast_models(
                 frame,
                 h,
                 test_size,
+                refit,
                 return_forecasts=True,
             )
             observed_parts.append(frame.assign(scenario=name))
             target_parts.append(target_frame.assign(scenario=name))
             for model_name, forecast_frame in {
                 **model_forecasts,
-                "MFLES": mfles_forecast.rename(columns={"AutoMFLES": "MFLES"}),
+                **stats_forecasts,
             }.items():
                 forecast_parts.setdefault(model_name, []).append(
                     forecast_frame.assign(scenario=name)
@@ -262,10 +310,11 @@ def run_synthetic_benchmark(
                 val_size,
                 test_size,
                 max_steps,
+                refit,
             )
-            mfles_results = evaluate_mfles(frame, h, test_size)
+            stats_results = evaluate_statsforecast_models(frame, h, test_size, refit)
 
-        model_results.update(mfles_results)
+        model_results.update(stats_results)
         rows.extend(
             {
                 "scenario": name,
@@ -302,15 +351,17 @@ def run_synthetic_mae_checks(
     val_size: int,
     test_size: int,
     max_steps: int = 200,
+    refit: bool = True,
 ) -> pd.DataFrame:
     """Run the synthetic scenarios and return a long-format result table."""
     return run_synthetic_benchmark(
-        length,
-        h,
-        input_size,
-        val_size,
-        test_size,
-        max_steps,
+        length=length,
+        h=h,
+        input_size=input_size,
+        val_size=val_size,
+        test_size=test_size,
+        max_steps=max_steps,
+        refit=refit,
         return_artifacts=False,
     )
 
@@ -417,6 +468,11 @@ def run_command(
     val_size: int = typer.Option(24, help="Validation window size."),
     test_size: int = typer.Option(24, help="Test window size."),
     max_steps: int = typer.Option(200, help="Hard cap on neural training steps."),
+    refit: bool = typer.Option(
+        False,
+        "--refit/--no-refit",
+        help="Whether to refit models at each cross-validation window.",
+    ),
     output_csv: Path | None = typer.Option(
         None,
         help="Optional CSV output path for benchmark results.",
@@ -440,6 +496,7 @@ def run_command(
                 val_size,
                 test_size,
                 max_steps,
+                refit,
                 return_artifacts=True,
             )
         )
@@ -458,6 +515,7 @@ def run_command(
             val_size,
             test_size,
             max_steps,
+            refit,
         )
 
     render_results_table(results_frame)

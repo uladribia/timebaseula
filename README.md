@@ -174,7 +174,6 @@ uv run --frozen python scripts/benchmark_long_horizon.py run \
   --n-series 5 \
   --horizon 7 \
   --max-steps 10 \
-  --skip-arima \
   --output logs/benchmark_results_smoke.csv
 ```
 

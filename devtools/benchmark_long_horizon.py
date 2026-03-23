@@ -23,7 +23,7 @@ from neuralforecast.models import DLinear, NLinear
 from rich.console import Console
 from rich.table import Table
 from statsforecast import StatsForecast
-from statsforecast.models import AutoARIMA, AutoMFLES
+from statsforecast.models import AutoMFLES, SeasonalNaive
 
 from devtools.reporting import (
     build_html_benchmark_report,
@@ -260,6 +260,16 @@ def prepare_train_test(
     return train, test
 
 
+def build_evaluation_target(test: pd.DataFrame, horizon: int) -> pd.DataFrame:
+    """Return the full per-series holdout used for rolling evaluation.
+
+    The benchmark evaluates the entire holdout window when it is longer than the
+    forecast horizon. Short holdouts remain valid as-is.
+    """
+    del horizon
+    return test.sort_values(["unique_id", "ds"]).reset_index(drop=True)
+
+
 def count_params(model: torch.nn.Module) -> int:
     """Count trainable parameters for a PyTorch model."""
     return sum(
@@ -291,156 +301,187 @@ def infer_period_len(freq: str, input_size: int) -> int:
     return max(2, min(target, input_size))
 
 
-def run_neural_benchmark(
-    train: pd.DataFrame,
-    test: pd.DataFrame,
-    freq: str,
-    model_class: type,
-    model_kwargs: dict[str, Any],
+def average_cross_validation_predictions(
+    forecast_frame: pd.DataFrame,
+    prediction_column: str,
+) -> pd.DataFrame:
+    """Average overlapping cross-validation predictions per timestamp."""
+    return (
+        forecast_frame.groupby(["unique_id", "ds"], as_index=False)
+        .agg(y=("y", "first"), **{prediction_column: (prediction_column, "mean")})
+        .sort_values(["unique_id", "ds"])
+        .reset_index(drop=True)
+    )
+
+
+def average_prediction_columns(
+    forecast_frame: pd.DataFrame,
+    prediction_columns: list[str],
+) -> pd.DataFrame:
+    """Average several prediction columns from one CV run."""
+    averaged_frames = [
+        average_cross_validation_predictions(
+            forecast_frame[["unique_id", "ds", "y", prediction_column]].copy(),
+            prediction_column,
+        )
+        for prediction_column in prediction_columns
+    ]
+    merged = averaged_frames[0]
+    for frame in averaged_frames[1:]:
+        prediction_column = next(
+            column for column in frame.columns if column not in {"unique_id", "ds", "y"}
+        )
+        merged = merged.merge(
+            frame[["unique_id", "ds", prediction_column]],
+            on=["unique_id", "ds"],
+        )
+    return merged
+
+
+def build_benchmark_result(
+    forecast: pd.DataFrame,
+    prediction_column: str,
     model_name: str,
     dataset: str,
-    horizon: int,
-    return_forecast: bool = False,
-) -> BenchmarkResult | tuple[BenchmarkResult, pd.DataFrame]:
-    """Fit a NeuralForecast model and compute metrics on the held-out horizon."""
-    model = model_class(h=horizon, **model_kwargs)
-    nf = NeuralForecast(models=[model], freq=freq)
-
-    start_train = time.perf_counter()
-    nf.fit(train, val_size=horizon)
-    train_time = time.perf_counter() - start_train
-
-    start_inference = time.perf_counter()
-    forecast = nf.predict()
-    inference_time = time.perf_counter() - start_inference
-
-    merged = test.merge(forecast, on=["unique_id", "ds"], how="inner")
+    freq: str,
+    params: int,
+    train_time: float,
+) -> BenchmarkResult:
+    """Build a benchmark result from an averaged forecast frame."""
     mae, rmse = compute_error_metrics(
-        merged["y"].to_numpy(),
-        merged[model_name].to_numpy(),
+        forecast["y"].to_numpy(), forecast[prediction_column].to_numpy()
     )
-    result = BenchmarkResult(
+    return BenchmarkResult(
         model_name=model_name,
         dataset=resolve_dataset_group(dataset),
         frequency=freq,
         mae=mae,
         rmse=rmse,
-        params=count_params(model),
+        params=params,
         train_time=train_time,
-        inference_time=inference_time,
+        inference_time=0.0,
     )
-    if return_forecast:
-        return result, forecast[["unique_id", "ds", model_name]].copy()
-    return result
 
 
-def run_naive_benchmark(
+def run_neural_benchmark(
     train: pd.DataFrame,
     test: pd.DataFrame,
     freq: str,
+    models: list[torch.nn.Module],
     dataset: str,
     horizon: int,
+    refit: bool,
     return_forecast: bool = False,
-) -> BenchmarkResult | tuple[BenchmarkResult, pd.DataFrame]:
-    """Seasonal naive benchmark using the last observed season."""
-    season_length = infer_season_length(freq)
-    predictions: list[float] = []
-    truths: list[float] = []
-    forecast_parts: list[pd.DataFrame] = []
-
-    for unique_id in test["unique_id"].drop_duplicates():
-        train_series = train[train["unique_id"] == unique_id].sort_values("ds")
-        test_series = test[test["unique_id"] == unique_id].sort_values("ds")
-        tail_values = train_series["y"].tail(season_length).to_numpy()
-        repetitions = int(np.ceil(horizon / len(tail_values)))
-        forecast = np.tile(tail_values, repetitions)[:horizon]
-        predictions.extend(forecast.tolist())
-        truths.extend(test_series["y"].head(horizon).tolist())
-        forecast_parts.append(
-            test_series[["unique_id", "ds"]]
-            .head(horizon)
-            .assign(SeasonalNaive=forecast)
-        )
-
-    mae, rmse = compute_error_metrics(np.array(truths), np.array(predictions))
-    result = BenchmarkResult(
-        model_name="SeasonalNaive",
-        dataset=resolve_dataset_group(dataset),
-        frequency=freq,
-        mae=mae,
-        rmse=rmse,
-        params=0,
-        train_time=0.0,
-        inference_time=0.0,
+) -> list[BenchmarkResult] | tuple[list[BenchmarkResult], dict[str, pd.DataFrame]]:
+    """Run one joint NeuralForecast cross-validation pass for all neural models."""
+    full_frame = pd.concat([train, test], ignore_index=True).sort_values(
+        ["unique_id", "ds"]
     )
+    holdout_size = int(test.groupby("unique_id").size().min())
+    nf = NeuralForecast(models=models, freq=freq)
+
+    start_cv = time.perf_counter()
+    forecast = nf.cross_validation(
+        df=full_frame,
+        n_windows=None,
+        val_size=horizon,
+        test_size=holdout_size,
+        step_size=1,
+        refit=refit,
+    )
+    total_time = time.perf_counter() - start_cv
+    if "unique_id" not in forecast.columns:
+        forecast = forecast.reset_index()
+
+    model_names = [repr(model) for model in models]
+    averaged = average_prediction_columns(forecast, model_names)
+    results: list[BenchmarkResult] = []
+    forecast_frames: dict[str, pd.DataFrame] = {}
+    for model in models:
+        model_name = repr(model)
+        results.append(
+            build_benchmark_result(
+                averaged,
+                prediction_column=model_name,
+                model_name=model_name,
+                dataset=dataset,
+                freq=freq,
+                params=count_params(model),
+                train_time=total_time,
+            )
+        )
+        if return_forecast:
+            forecast_frames[model_name] = averaged[
+                ["unique_id", "ds", model_name]
+            ].copy()
     if return_forecast:
-        return result, pd.concat(forecast_parts, ignore_index=True)
-    return result
+        return results, forecast_frames
+    return results
 
 
 def run_statsforecast_benchmark(
     train: pd.DataFrame,
     test: pd.DataFrame,
     freq: str,
-    model_class: type,
-    model_kwargs: dict[str, Any],
-    model_name: str,
+    models: list[Any],
     dataset: str,
     horizon: int,
+    refit: bool,
     return_forecast: bool = False,
-) -> BenchmarkResult | tuple[BenchmarkResult, pd.DataFrame]:
-    """Fit a StatsForecast model series by series and compute aggregate metrics."""
-    predictions: list[float] = []
-    truths: list[float] = []
-    forecast_parts: list[pd.DataFrame] = []
-    total_train_time = 0.0
-    total_inference_time = 0.0
+) -> list[BenchmarkResult] | tuple[list[BenchmarkResult], dict[str, pd.DataFrame]]:
+    """Run one joint StatsForecast benchmark pass for all statistical models."""
+    holdout_size = int(test.groupby("unique_id").size().min())
+    statsforecast = StatsForecast(models=models, freq=freq, verbose=False)
+    model_names = [repr(model) for model in models]
 
-    for unique_id in train["unique_id"].drop_duplicates():
-        train_series = train[train["unique_id"] == unique_id].sort_values("ds")
-        test_series = test[test["unique_id"] == unique_id].sort_values("ds")
-        if len(train_series) <= horizon:
-            continue
-
-        if model_class is AutoMFLES:
-            model = model_class(test_size=horizon, **model_kwargs)
-        else:
-            model = model_class(**model_kwargs)
-        statsforecast = StatsForecast(models=[model], freq=freq, verbose=False)
-
-        start_train = time.perf_counter()
-        statsforecast.fit(train_series)
-        total_train_time += time.perf_counter() - start_train
-
-        start_inference = time.perf_counter()
-        forecast = statsforecast.predict(h=horizon)
-        total_inference_time += time.perf_counter() - start_inference
-
-        column_name = (
-            model_name if model_name in forecast.columns else type(model).__name__
+    start_cv = time.perf_counter()
+    if not refit:
+        forecast = statsforecast.forecast(df=train, h=holdout_size)
+        if "unique_id" not in forecast.columns:
+            forecast = forecast.reset_index()
+        averaged = test[["unique_id", "ds", "y"]].merge(
+            forecast[["unique_id", "ds", *model_names]],
+            on=["unique_id", "ds"],
+            how="inner",
         )
-        predictions.extend(forecast[column_name].to_numpy().tolist())
-        truths.extend(test_series["y"].head(horizon).to_numpy().tolist())
-        forecast_parts.append(
-            forecast[["unique_id", "ds", column_name]].rename(
-                columns={column_name: model_name}
+    else:
+        full_frame = pd.concat([train, test], ignore_index=True).sort_values(
+            ["unique_id", "ds"]
+        )
+        forecast = statsforecast.cross_validation(
+            df=full_frame,
+            h=horizon,
+            test_size=holdout_size,
+            step_size=1,
+            n_windows=None,
+            refit=refit,
+        )
+        if "unique_id" not in forecast.columns:
+            forecast = forecast.reset_index()
+        averaged = average_prediction_columns(forecast, model_names)
+    total_time = time.perf_counter() - start_cv
+
+    results: list[BenchmarkResult] = []
+    forecast_frames: dict[str, pd.DataFrame] = {}
+    for model_name in model_names:
+        results.append(
+            build_benchmark_result(
+                averaged,
+                prediction_column=model_name,
+                model_name=model_name,
+                dataset=dataset,
+                freq=freq,
+                params=0,
+                train_time=0.0 if model_name == "SeasonalNaive" else total_time,
             )
         )
-
-    mae, rmse = compute_error_metrics(np.array(truths), np.array(predictions))
-    result = BenchmarkResult(
-        model_name=model_name,
-        dataset=resolve_dataset_group(dataset),
-        frequency=freq,
-        mae=mae,
-        rmse=rmse,
-        params=0,
-        train_time=total_train_time,
-        inference_time=total_inference_time,
-    )
+        if return_forecast:
+            forecast_frames[model_name] = averaged[
+                ["unique_id", "ds", model_name]
+            ].copy()
     if return_forecast:
-        return result, pd.concat(forecast_parts, ignore_index=True)
-    return result
+        return results, forecast_frames
+    return results
 
 
 def benchmark_configuration(
@@ -497,19 +538,14 @@ def benchmark_configuration(
     ]
 
 
-def should_include_arima(skip_arima: bool) -> bool:
-    """Return whether AutoARIMA should be run."""
-    return not skip_arima
-
-
 def run_benchmark_for_dataset(
     dataset: str,
     freq: str,
     horizon: int,
     n_series: int | None,
     max_steps: int,
-    skip_arima: bool,
     test_fraction: float = 0.2,
+    refit: bool = True,
     return_forecasts: bool = False,
 ) -> (
     list[BenchmarkResult]
@@ -555,77 +591,56 @@ def run_benchmark_for_dataset(
     )
     forecast_frames: dict[str, pd.DataFrame] = {}
 
-    naive_output = run_naive_benchmark(
-        train, test, normalized_freq, dataset, horizon, return_forecast=return_forecasts
-    )
-    if return_forecasts:
-        naive_result, naive_forecast = naive_output
-        results = [naive_result]
-        forecast_frames["SeasonalNaive"] = naive_forecast
-    else:
-        results = [naive_output]
+    evaluation_target = build_evaluation_target(test, horizon)
+    results: list[BenchmarkResult] = []
 
-    neural_specs = [
-        (DLinear, configs[0][2], "DLinear"),
-        (NLinear, configs[1][2], "NLinear"),
-        (AutoTimeBase, configs[2][2], "AutoTimeBase"),
-        (AutoTimeBaseTrend, configs[3][2], "AutoTimeBaseTrend"),
+    neural_models = [
+        DLinear(h=horizon, **configs[0][2]),
+        NLinear(h=horizon, **configs[1][2]),
+        AutoTimeBase(h=horizon, **configs[2][2]),
+        AutoTimeBaseTrend(h=horizon, **configs[3][2]),
     ]
-    for model_class, model_kwargs, model_name in neural_specs:
-        output = run_neural_benchmark(
-            train,
-            test,
-            normalized_freq,
-            model_class,
-            model_kwargs,
-            model_name,
-            dataset,
-            horizon,
-            return_forecast=return_forecasts,
-        )
-        if return_forecasts:
-            result, forecast_frame = output
-            results.append(result)
-            forecast_frames[model_name] = forecast_frame
-        else:
-            results.append(output)
-
-    mfles_output = run_statsforecast_benchmark(
+    neural_output = run_neural_benchmark(
         train,
-        test,
+        evaluation_target,
         normalized_freq,
-        AutoMFLES,
-        {"season_length": infer_season_length(normalized_freq)},
-        "AutoMFLES",
+        neural_models,
         dataset,
         horizon,
+        refit=refit,
         return_forecast=return_forecasts,
     )
     if return_forecasts:
-        mfles_result, mfles_forecast = mfles_output
-        results.append(mfles_result)
-        forecast_frames["AutoMFLES"] = mfles_forecast
+        neural_results, neural_forecasts = neural_output
+        results.extend(neural_results)
+        forecast_frames.update(neural_forecasts)
     else:
-        results.append(mfles_output)
+        results.extend(neural_output)
 
-    if should_include_arima(skip_arima):
-        arima_output = run_statsforecast_benchmark(
-            train,
-            test,
-            normalized_freq,
-            AutoARIMA,
-            {"season_length": infer_season_length(normalized_freq)},
-            "AutoARIMA",
-            dataset,
-            horizon,
-            return_forecast=return_forecasts,
-        )
-        if return_forecasts:
-            arima_result, arima_forecast = arima_output
-            results.append(arima_result)
-            forecast_frames["AutoARIMA"] = arima_forecast
-        else:
-            results.append(arima_output)
+    stats_models: list[Any] = [
+        SeasonalNaive(season_length=infer_season_length(normalized_freq)),
+        AutoMFLES(
+            test_size=horizon,
+            season_length=infer_season_length(normalized_freq),
+        ),
+    ]
+
+    stats_output = run_statsforecast_benchmark(
+        train,
+        evaluation_target,
+        normalized_freq,
+        stats_models,
+        dataset,
+        horizon,
+        refit=refit,
+        return_forecast=return_forecasts,
+    )
+    if return_forecasts:
+        stats_results, stats_forecasts = stats_output
+        results.extend(stats_results)
+        forecast_frames.update(stats_forecasts)
+    else:
+        results.extend(stats_output)
     if return_forecasts:
         return results, train, test.rename(columns={"y": "y_true"}), forecast_frames
     return results
@@ -685,7 +700,6 @@ def format_markdown_report(results_frame: pd.DataFrame, source_csv: str) -> str:
         "## TL;DR",
         "- The table below captures the full benchmark result set.",
         "- The summary table lists the best MAE per dataset/frequency slice.",
-        "- AutoARIMA can be skipped for faster exploratory runs.",
         "",
     ]
 
@@ -997,11 +1011,13 @@ def run_command(
         False, "--json", help="Emit JSON instead of only a Rich table."
     ),
     quiet: bool = typer.Option(False, "--quiet", help="Suppress progress messages."),
-    skip_arima: bool = typer.Option(
-        False, "--skip-arima", help="Skip AutoARIMA to speed up the benchmark."
-    ),
     force_download: bool = typer.Option(
         False, "--force-download", help="Recreate cached aggregated datasets."
+    ),
+    refit: bool = typer.Option(
+        False,
+        "--refit/--no-refit",
+        help="Whether to refit models at each cross-validation window.",
     ),
 ) -> None:
     """Run the benchmark on aggregated ECL and Traffic datasets for one frequency."""
@@ -1078,8 +1094,8 @@ def run_command(
                 horizon=resolved_horizon,
                 n_series=n_series,
                 max_steps=resolved_max_steps,
-                skip_arima=skip_arima,
                 test_fraction=resolved_test_fraction,
+                refit=refit,
                 return_forecasts=persist_report_data_enabled,
             )
             if persist_report_data_enabled:

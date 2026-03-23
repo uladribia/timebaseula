@@ -88,7 +88,6 @@ uv run --frozen python scripts/benchmark_long_horizon.py run \
   --n-series 5 \
   --horizon 7 \
   --max-steps 10 \
-  --skip-arima \
   --output logs/benchmark_results_smoke.csv
 ```
 
@@ -103,7 +102,7 @@ uv run --frozen python scripts/benchmark_long_horizon.py run \
   --html-report-output logs/benchmark_long_horizon_monthly.html
 ```
 
-Longer daily run without ARIMA:
+Longer daily run:
 
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py run \
@@ -111,8 +110,7 @@ uv run --frozen python scripts/benchmark_long_horizon.py run \
   --n-series 300 \
   --horizon 28 \
   --max-steps 200 \
-  --skip-arima \
-  --output logs/benchmark_results_300_daily_h28_no_arima.csv
+  --output logs/benchmark_results_300_daily_h28.csv
 ```
 
 Generate reports from a persisted benchmark CSV. Daily and monthly runs should always use separate CSV, report-data, and HTML paths. The run stores report inputs in a sibling `*_report_data/` directory by default, so report-only changes do not require another full benchmark run.

@@ -9,7 +9,6 @@ from devtools.benchmark_long_horizon import (
     format_markdown_report,
     infer_report_title,
     resolve_html_report_output,
-    should_include_arima,
 )
 from devtools.reporting import (
     build_best_by_slice_summary,
@@ -19,12 +18,7 @@ from devtools.reporting import (
 
 
 class TestBenchmarkReporting:
-    """Validate benchmark reporting and ARIMA selection helpers."""
-
-    def test_should_include_arima(self) -> None:
-        """ARIMA inclusion should invert the skip flag."""
-        assert should_include_arima(skip_arima=False) is True
-        assert should_include_arima(skip_arima=True) is False
+    """Validate benchmark reporting helpers."""
 
     def test_build_benchmark_summary(self) -> None:
         """Summary should pick the best MAE row per dataset/frequency slice."""

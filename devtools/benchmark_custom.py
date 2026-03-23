@@ -24,7 +24,7 @@ from pytorch_lightning.loggers import CSVLogger
 from rich.console import Console
 from rich.table import Table
 from statsforecast import StatsForecast
-from statsforecast.models import AutoMFLES
+from statsforecast.models import AutoMFLES, SeasonalNaive
 
 from devtools.reporting import (
     choose_representative_series as choose_report_representative_series,
@@ -230,6 +230,188 @@ def evaluate_prediction_frame(
         "inference_time": inference_time,
     }
     return aggregate, per_series
+
+
+def average_cross_validation_predictions(
+    forecast_frame: pd.DataFrame,
+    prediction_column: str,
+) -> pd.DataFrame:
+    """Average overlapping cross-validation predictions per timestamp."""
+    return (
+        forecast_frame.groupby(["unique_id", "ds"], as_index=False)
+        .agg(y=("y", "first"), **{prediction_column: (prediction_column, "mean")})
+        .sort_values(["unique_id", "ds"])
+        .reset_index(drop=True)
+    )
+
+
+def average_prediction_columns(
+    forecast_frame: pd.DataFrame,
+    prediction_columns: list[str],
+) -> pd.DataFrame:
+    """Average several prediction columns from a single CV run."""
+    averaged_frames = [
+        average_cross_validation_predictions(
+            forecast_frame[["unique_id", "ds", "y", prediction_column]].copy(),
+            prediction_column,
+        )
+        for prediction_column in prediction_columns
+    ]
+    merged = averaged_frames[0]
+    for frame in averaged_frames[1:]:
+        prediction_column = next(
+            column for column in frame.columns if column not in {"unique_id", "ds", "y"}
+        )
+        merged = merged.merge(
+            frame[["unique_id", "ds", prediction_column]],
+            on=["unique_id", "ds"],
+        )
+    return merged
+
+
+def run_joint_neural_benchmark(
+    train_frame: pd.DataFrame,
+    target_frame: pd.DataFrame,
+    freq: str,
+    models: list[torch.nn.Module],
+    refit: bool,
+) -> tuple[
+    list[dict[str, float | int | str]],
+    list[pd.DataFrame],
+    dict[str, pd.DataFrame],
+    pd.DataFrame,
+]:
+    """Run one joint NeuralForecast pass for all neural models."""
+    nf = NeuralForecast(models=models, freq=freq)
+    start_cv = time.perf_counter()
+    if not refit:
+        nf.fit(df=train_frame, val_size=models[0].h)
+        forecast = nf.predict()
+        if "unique_id" not in forecast.columns:
+            forecast = forecast.reset_index()
+        averaged = (
+            target_frame[["unique_id", "ds", "y_true"]]
+            .merge(
+                forecast,
+                on=["unique_id", "ds"],
+                how="inner",
+            )
+            .rename(columns={"y_true": "y"})
+        )
+    else:
+        full_frame = pd.concat(
+            [train_frame, target_frame.rename(columns={"y_true": "y"})],
+            ignore_index=True,
+        ).sort_values(["unique_id", "ds"])
+        forecast = nf.cross_validation(
+            df=full_frame,
+            n_windows=1,
+            step_size=1,
+            val_size=models[0].h,
+            refit=refit,
+        )
+        if "unique_id" not in forecast.columns:
+            forecast = forecast.reset_index()
+        averaged = average_prediction_columns(
+            forecast,
+            [repr(model) for model in models],
+        )
+    total_time = time.perf_counter() - start_cv
+
+    aggregate_rows: list[dict[str, float | int | str]] = []
+    per_series_parts: list[pd.DataFrame] = []
+    forecast_frames: dict[str, pd.DataFrame] = {}
+    for model in models:
+        model_name = repr(model)
+        aggregate, per_series = evaluate_prediction_frame(
+            target_frame=target_frame,
+            forecast_frame=averaged[["unique_id", "ds", model_name]],
+            prediction_column=model_name,
+            model_name=model_name,
+            train_time=total_time,
+            inference_time=0.0,
+            params=count_params(model),
+        )
+        aggregate_rows.append(aggregate)
+        per_series_parts.append(per_series)
+        forecast_frames[model_name] = averaged[["unique_id", "ds", model_name]].copy()
+    return aggregate_rows, per_series_parts, forecast_frames, pd.DataFrame()
+
+
+def run_joint_statsforecast_benchmark(
+    train_frame: pd.DataFrame,
+    target_frame: pd.DataFrame,
+    freq: str,
+    horizon: int,
+    refit: bool,
+) -> tuple[
+    list[dict[str, float | int | str]],
+    list[pd.DataFrame],
+    dict[str, pd.DataFrame],
+]:
+    """Run one joint StatsForecast pass for native baselines."""
+    models = [
+        SeasonalNaive(season_length=12),
+        AutoMFLES(test_size=horizon, season_length=12),
+    ]
+    sf = StatsForecast(models=models, freq=freq, verbose=False)
+    start_cv = time.perf_counter()
+    if not refit:
+        forecast = sf.forecast(df=train_frame, h=horizon)
+        if "unique_id" not in forecast.columns:
+            forecast = forecast.reset_index()
+        averaged = (
+            target_frame[["unique_id", "ds", "y_true"]]
+            .merge(
+                forecast[["unique_id", "ds", "SeasonalNaive", "AutoMFLES"]],
+                on=["unique_id", "ds"],
+                how="inner",
+            )
+            .rename(columns={"y_true": "y"})
+        )
+    else:
+        full_frame = pd.concat(
+            [train_frame, target_frame.rename(columns={"y_true": "y"})],
+            ignore_index=True,
+        ).sort_values(["unique_id", "ds"])
+        forecast = sf.cross_validation(
+            df=full_frame,
+            h=horizon,
+            n_windows=1,
+            test_size=horizon,
+            step_size=1,
+            refit=refit,
+        )
+        if "unique_id" not in forecast.columns:
+            forecast = forecast.reset_index()
+        averaged = average_prediction_columns(
+            forecast,
+            ["SeasonalNaive", "AutoMFLES"],
+        )
+    total_time = time.perf_counter() - start_cv
+
+    internal_columns = [repr(model) for model in models]
+    display_names = {"SeasonalNaive": "SeasonalNaive", "AutoMFLES": "MFLES"}
+    aggregate_rows: list[dict[str, float | int | str]] = []
+    per_series_parts: list[pd.DataFrame] = []
+    forecast_frames: dict[str, pd.DataFrame] = {}
+    for internal_name in internal_columns:
+        display_name = display_names[internal_name]
+        aggregate, per_series = evaluate_prediction_frame(
+            target_frame=target_frame,
+            forecast_frame=averaged[["unique_id", "ds", internal_name]],
+            prediction_column=internal_name,
+            model_name=display_name,
+            train_time=0.0 if display_name == "SeasonalNaive" else total_time,
+            inference_time=0.0,
+            params=0,
+        )
+        aggregate_rows.append(aggregate)
+        per_series_parts.append(per_series)
+        forecast_frames[display_name] = averaged[
+            ["unique_id", "ds", internal_name]
+        ].rename(columns={internal_name: display_name})
+    return aggregate_rows, per_series_parts, forecast_frames
 
 
 def build_seasonal_naive_forecast(
@@ -1177,13 +1359,18 @@ def main(
     representative_series_count: int = typer.Option(
         5, min=1, help="Number of representative series plots to include."
     ),
+    refit: bool = typer.Option(
+        False,
+        "--refit/--no-refit",
+        help="Whether to refit models at each cross-validation window.",
+    ),
     quiet: bool = typer.Option(False, help="Suppress Rich progress output."),
     json_output: bool = typer.Option(
         False, "--json", help="Print a JSON summary to stdout."
     ),
 ) -> None:
     """Run the custom dataset benchmark and save a self-contained HTML report."""
-    logger = configure_logging()
+    configure_logging()
     frame = load_custom_dataset(dataset_path)
     validate_series_lengths(frame, horizon=horizon)
     dataset_summary = summarise_dataset(frame, freq="MS", horizon=horizon)
@@ -1204,70 +1391,46 @@ def main(
     aggregate_rows: list[dict[str, float | int | str]] = []
     per_series_parts: list[pd.DataFrame] = []
     forecast_frames: dict[str, pd.DataFrame] = {}
-    training_curve_parts: list[pd.DataFrame] = []
 
-    seasonal_naive_aggregate, seasonal_naive_per_series, seasonal_naive_forecast = (
-        run_seasonal_naive_model(
+    stats_aggregate_rows, stats_per_series_parts, stats_forecast_frames = (
+        run_joint_statsforecast_benchmark(
             train_frame=train_frame,
             target_frame=target_frame,
+            freq="MS",
             horizon=horizon,
-            logger=logger,
+            refit=refit,
         )
     )
-    aggregate_rows.append(seasonal_naive_aggregate)
-    per_series_parts.append(seasonal_naive_per_series)
-    forecast_frames["SeasonalNaive"] = seasonal_naive_forecast
+    aggregate_rows.extend(stats_aggregate_rows)
+    per_series_parts.extend(stats_per_series_parts)
+    forecast_frames.update(stats_forecast_frames)
 
-    mfles_aggregate, mfles_per_series, mfles_forecast = run_mfles_model(
-        train_frame=train_frame,
-        target_frame=target_frame,
-        freq="MS",
-        horizon=horizon,
-        logger=logger,
-    )
-    aggregate_rows.append(mfles_aggregate)
-    per_series_parts.append(mfles_per_series)
-    forecast_frames["MFLES"] = mfles_forecast[["unique_id", "ds", "MFLES"]]
-
+    auto_kwargs = {
+        **common_kwargs,
+        "freq": "MS",
+        "search_max_steps": max(1, min(10, max_steps)),
+    }
     neural_models = [
         DLinear(h=horizon, **common_kwargs),
         NLinear(h=horizon, **common_kwargs),
-        AutoTimeBase(
-            h=horizon,
-            freq="MS",
-            max_steps=max_steps,
-            search_max_steps=max(1, min(10, max_steps)),
-        ),
-        AutoTimeBaseTrend(
-            h=horizon,
-            freq="MS",
-            max_steps=max_steps,
-            search_max_steps=max(1, min(10, max_steps)),
-        ),
+        AutoTimeBase(h=horizon, **auto_kwargs),
+        AutoTimeBaseTrend(h=horizon, **auto_kwargs),
     ]
-    prediction_columns = [
-        "DLinear",
-        "NLinear",
-        "AutoTimeBase",
-        "AutoTimeBaseTrend",
-    ]
-
-    for model, prediction_column in zip(neural_models, prediction_columns, strict=True):
-        aggregate, per_series, forecast_frame, training_curve = run_neural_model(
-            train_frame=train_frame,
-            target_frame=target_frame,
-            freq="MS",
-            model=model,
-            prediction_column=prediction_column,
-            logger=logger,
-            output_dir=output_dir,
-        )
-        aggregate_rows.append(aggregate)
-        per_series_parts.append(per_series)
-        forecast_frames[prediction_column] = forecast_frame[
-            ["unique_id", "ds", prediction_column]
-        ]
-        training_curve_parts.append(training_curve)
+    (
+        neural_aggregate_rows,
+        neural_per_series_parts,
+        neural_forecast_frames,
+        training_curves,
+    ) = run_joint_neural_benchmark(
+        train_frame=train_frame,
+        target_frame=target_frame,
+        freq="MS",
+        models=neural_models,
+        refit=refit,
+    )
+    aggregate_rows.extend(neural_aggregate_rows)
+    per_series_parts.extend(neural_per_series_parts)
+    forecast_frames.update(neural_forecast_frames)
 
     aggregate_results = pd.DataFrame(aggregate_rows)
     per_series_results = pd.concat(per_series_parts, ignore_index=True)
@@ -1300,11 +1463,6 @@ def main(
             on=["unique_id", "ds"],
             how="left",
         )
-    training_curves = (
-        pd.concat(training_curve_parts, ignore_index=True)
-        if training_curve_parts
-        else pd.DataFrame()
-    )
     mae_distribution_section = build_mae_distribution_section(per_series_results)
     model_comparison_section = build_model_comparison_section(
         aggregate_results, combined_forecasts

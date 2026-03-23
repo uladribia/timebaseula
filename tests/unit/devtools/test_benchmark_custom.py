@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
+import torch
+from pytest import MonkeyPatch
 
 from devtools.benchmark_custom import (
     add_average_ranks,
@@ -19,6 +23,8 @@ from devtools.benchmark_custom import (
     choose_representative_series,
     load_custom_dataset,
     prepare_train_test,
+    run_joint_neural_benchmark,
+    run_joint_statsforecast_benchmark,
 )
 
 
@@ -110,6 +116,116 @@ class TestCustomDatasetBenchmark:
             train_frame, target_frame, horizon=4, season_length=3
         )
         assert forecast["SeasonalNaive"].tolist() == [40.0, 50.0, 60.0, 40.0]
+
+    def test_run_joint_statsforecast_benchmark_passes_refit_flag(
+        self,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        """Custom benchmark should use native StatsForecast forecast for no-refit."""
+        calls: dict[str, object] = {}
+
+        class FakeStatsForecast:
+            def __init__(self, models: list[object], freq: str, verbose: bool) -> None:
+                del models, freq, verbose
+
+            def forecast(self, **kwargs: object) -> pd.DataFrame:
+                calls.update(kwargs)
+                return pd.DataFrame(
+                    {
+                        "unique_id": ["a", "a"],
+                        "ds": pd.to_datetime(["2024-05-01", "2024-06-01"]),
+                        "SeasonalNaive": [1.0, 2.0],
+                        "AutoMFLES": [1.0, 2.0],
+                    }
+                )
+
+        monkeypatch.setattr(
+            "devtools.benchmark_custom.StatsForecast", FakeStatsForecast
+        )
+        train_frame = pd.DataFrame(
+            {
+                "unique_id": ["a", "a", "a"],
+                "ds": pd.to_datetime(["2024-02-01", "2024-03-01", "2024-04-01"]),
+                "y": [1.0, 2.0, 3.0],
+            }
+        )
+        target_frame = pd.DataFrame(
+            {
+                "unique_id": ["a", "a"],
+                "ds": pd.to_datetime(["2024-05-01", "2024-06-01"]),
+                "y_true": [1.0, 2.0],
+            }
+        )
+
+        run_joint_statsforecast_benchmark(
+            train_frame=train_frame,
+            target_frame=target_frame,
+            freq="MS",
+            horizon=2,
+            refit=False,
+        )
+
+        assert calls["h"] == 2
+
+    def test_run_joint_neural_benchmark_uses_fit_predict_for_no_refit(
+        self,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        """Custom benchmark should use fit/predict for the no-refit case."""
+        calls: dict[str, Any] = {}
+
+        class FakeModel(torch.nn.Module):
+            h = 2
+
+            def __init__(self) -> None:
+                super().__init__()
+
+            def __repr__(self) -> str:
+                return "DLinear"
+
+        class FakeNeuralForecast:
+            def __init__(self, models: list[object], freq: str) -> None:
+                del models, freq
+
+            def fit(self, **kwargs: object) -> None:
+                calls["fit"] = kwargs
+
+            def predict(self) -> pd.DataFrame:
+                return pd.DataFrame(
+                    {
+                        "unique_id": ["a", "a"],
+                        "ds": pd.to_datetime(["2024-05-01", "2024-06-01"]),
+                        "DLinear": [1.0, 2.0],
+                    }
+                )
+
+        monkeypatch.setattr(
+            "devtools.benchmark_custom.NeuralForecast", FakeNeuralForecast
+        )
+        train_frame = pd.DataFrame(
+            {
+                "unique_id": ["a", "a", "a"],
+                "ds": pd.to_datetime(["2024-02-01", "2024-03-01", "2024-04-01"]),
+                "y": [1.0, 2.0, 3.0],
+            }
+        )
+        target_frame = pd.DataFrame(
+            {
+                "unique_id": ["a", "a"],
+                "ds": pd.to_datetime(["2024-05-01", "2024-06-01"]),
+                "y_true": [1.0, 2.0],
+            }
+        )
+
+        run_joint_neural_benchmark(
+            train_frame=train_frame,
+            target_frame=target_frame,
+            freq="MS",
+            models=[FakeModel()],
+            refit=False,
+        )
+
+        assert calls["fit"]["val_size"] == 2
 
     def test_choose_representative_series_prefers_long_var_trend_and_random(
         self,

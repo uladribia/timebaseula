@@ -7,10 +7,13 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
+from pytest import MonkeyPatch
 
 from devtools.benchmark_long_horizon import (
     aggregate_frame,
+    average_cross_validation_predictions,
     benchmark_configuration,
+    build_evaluation_target,
     choose_series_count,
     get_aggregated_dataset_path,
     infer_test_size,
@@ -18,6 +21,7 @@ from devtools.benchmark_long_horizon import (
     resolve_dataset_group,
     resolve_mode,
     resolve_mode_defaults,
+    run_statsforecast_benchmark,
 )
 from timebaseula.recommend import (
     profile_dataset,
@@ -95,6 +99,40 @@ class TestBenchmarkDatasetHelpers:
         assert len(train) == 16
         assert len(test) == 4
         assert test.groupby("unique_id").size().tolist() == [2, 2]
+
+    def test_build_evaluation_target_keeps_full_holdout_when_longer_than_horizon(
+        self,
+    ) -> None:
+        """Evaluation target should preserve the full holdout for rolling reports."""
+        frame = pd.DataFrame(
+            {
+                "unique_id": ["a"] * 10 + ["b"] * 10,
+                "ds": pd.date_range("2024-01-01", periods=10, freq="D").tolist() * 2,
+                "y": list(range(10)) + list(range(10)),
+            }
+        )
+
+        _, test = prepare_train_test(frame, horizon=2, test_fraction=0.4)
+        target = build_evaluation_target(test, horizon=2)
+
+        assert target.groupby("unique_id").size().tolist() == [4, 4]
+
+    def test_average_cross_validation_predictions_merges_overlapping_windows(
+        self,
+    ) -> None:
+        """Cross-validation predictions should be averaged per timestamp."""
+        forecast = pd.DataFrame(
+            {
+                "unique_id": ["a", "a", "a"],
+                "ds": pd.to_datetime(["2024-01-03", "2024-01-03", "2024-01-04"]),
+                "y": [3.0, 3.0, 4.0],
+                "DLinear": [2.0, 4.0, 5.0],
+            }
+        )
+
+        averaged = average_cross_validation_predictions(forecast, "DLinear")
+
+        assert averaged["DLinear"].tolist() == [3.0, 5.0]
 
     def test_profile_dataset_detects_short_monthly_regime(self) -> None:
         """Profiler should identify short-history monthly datasets."""
@@ -246,3 +284,59 @@ class TestBenchmarkDatasetHelpers:
 
         assert result.equals(cached)
         load_mock.assert_not_called()
+
+    def test_run_statsforecast_benchmark_uses_forecast_for_no_refit(
+        self,
+        monkeypatch: MonkeyPatch,
+    ) -> None:
+        """The benchmark should use native forecast for the no-refit path."""
+        calls: dict[str, object] = {}
+
+        class FakeModel:
+            def __repr__(self) -> str:
+                return "SeasonalNaive"
+
+        class FakeStatsForecast:
+            def __init__(self, models: list[object], freq: str, verbose: bool) -> None:
+                del models, freq, verbose
+
+            def forecast(self, **kwargs: object) -> pd.DataFrame:
+                calls.update(kwargs)
+                return pd.DataFrame(
+                    {
+                        "unique_id": ["a", "a"],
+                        "ds": pd.to_datetime(["2024-01-03", "2024-01-04"]),
+                        "SeasonalNaive": [3.0, 4.0],
+                    }
+                )
+
+        monkeypatch.setattr(
+            "devtools.benchmark_long_horizon.StatsForecast",
+            FakeStatsForecast,
+        )
+        train = pd.DataFrame(
+            {
+                "unique_id": ["a", "a"],
+                "ds": pd.to_datetime(["2024-01-01", "2024-01-02"]),
+                "y": [1.0, 2.0],
+            }
+        )
+        test = pd.DataFrame(
+            {
+                "unique_id": ["a", "a"],
+                "ds": pd.to_datetime(["2024-01-03", "2024-01-04"]),
+                "y": [3.0, 4.0],
+            }
+        )
+
+        run_statsforecast_benchmark(
+            train=train,
+            test=test,
+            freq="D",
+            models=[FakeModel()],
+            dataset="ECL",
+            horizon=2,
+            refit=False,
+        )
+
+        assert calls["h"] == 2
