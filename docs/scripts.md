@@ -50,6 +50,10 @@ This command writes:
 - an optional PDF export rendered with headless Chrome and embedded plot images
 
 The auto wrappers use their Ray Tune search spaces with CPU-safe benchmark overrides.
+Preset targets are:
+- `smoke`: `max_steps=1`, `auto_num_samples=1`
+- `normal`: `max_steps=10`, `auto_num_samples=2` (~2 CPU minutes)
+- `thorough`: `max_steps=20`, `auto_num_samples=4` (~5 CPU minutes)
 
 ## Benchmark the custom dataset
 

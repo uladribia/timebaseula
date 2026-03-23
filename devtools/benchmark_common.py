@@ -42,6 +42,11 @@ MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[(?P<alt>[^\]]*)\]\((?P<path>[^)]+)\)")
 DEFAULT_PDF_TITLE = "Benchmark report"
 CHROME_CANDIDATES = ("google-chrome", "chromium", "chromium-browser", "chrome")
 HTML_RENDER_EXTENSIONS = ("tables", "fenced_code", "sane_lists")
+AUTO_SEARCH_PRESETS: dict[str, dict[str, int]] = {
+    "smoke": {"max_steps": 1, "auto_num_samples": 1},
+    "normal": {"max_steps": 10, "auto_num_samples": 2},
+    "thorough": {"max_steps": 20, "auto_num_samples": 4},
+}
 
 
 @dataclass(frozen=True)
@@ -83,6 +88,17 @@ def count_params(model: torch.nn.Module | None) -> int:
     return sum(
         parameter.numel() for parameter in model.parameters() if parameter.requires_grad
     )
+
+
+def resolve_auto_preset(preset: str) -> dict[str, int]:
+    """Resolve a benchmark auto-search preset to concrete settings."""
+    normalized_preset = preset.lower()
+    try:
+        return AUTO_SEARCH_PRESETS[normalized_preset].copy()
+    except KeyError as error:
+        available = ", ".join(sorted(AUTO_SEARCH_PRESETS))
+        msg = f"Unsupported auto preset: {preset}. Expected one of: {available}"
+        raise ValueError(msg) from error
 
 
 def normalize_forecast_frame(forecast_frame: pd.DataFrame) -> pd.DataFrame:

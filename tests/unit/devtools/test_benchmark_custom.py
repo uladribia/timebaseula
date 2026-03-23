@@ -14,6 +14,7 @@ from devtools.benchmark_common import BenchmarkArtifacts, SavedPlot
 from devtools.benchmark_custom import (
     _build_neural_models,
     load_custom_dataset,
+    resolve_auto_preset,
     validate_series_lengths,
 )
 from timebaseula import AutoTimeBase, AutoTimeBaseTrend
@@ -43,6 +44,15 @@ class TestBenchmarkCustom:
         with pytest.raises(ValueError, match="too short"):
             validate_series_lengths(frame, horizon=2)
 
+    def test_resolve_auto_preset_returns_expected_values(self) -> None:
+        """Preset names should map to benchmark-friendly auto-search settings."""
+        assert resolve_auto_preset("smoke") == {"max_steps": 1, "auto_num_samples": 1}
+        assert resolve_auto_preset("normal") == {"max_steps": 10, "auto_num_samples": 2}
+        assert resolve_auto_preset("thorough") == {
+            "max_steps": 20,
+            "auto_num_samples": 4,
+        }
+
     def test_build_neural_models_uses_auto_wrappers(self) -> None:
         """The benchmark should use searched auto wrappers instead of raw models."""
         models = _build_neural_models(horizon=2, max_steps=1, auto_num_samples=3)
@@ -66,6 +76,47 @@ class TestBenchmarkCustom:
         assert not isinstance(auto_timebase.config["input_size"], int)
         assert not isinstance(auto_timebase.config["period_len"], int)
         assert not isinstance(auto_timebase_trend.config["moving_avg_window"], int)
+
+    def test_main_uses_normal_auto_preset_by_default(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The CLI should default to the normal auto-search preset."""
+        runner = CliRunner()
+        benchmark_mock = Mock(
+            return_value=BenchmarkArtifacts(
+                results_frame=pd.DataFrame(
+                    {
+                        "model_name": ["AutoTimeBase"],
+                        "mae": [0.1],
+                        "rmse": [0.2],
+                        "rmae": [0.5],
+                        "params": [31],
+                        "execution_time": [1.0],
+                    }
+                ),
+                forecast_frames={},
+                source_frame=pd.DataFrame(
+                    {
+                        "unique_id": ["a"],
+                        "ds": pd.to_datetime(["2024-01-01"]),
+                        "y": [1.0],
+                    }
+                ),
+            )
+        )
+        monkeypatch.setattr(benchmark_custom, "run_custom_benchmark", benchmark_mock)
+        monkeypatch.setattr(
+            benchmark_custom,
+            "save_representative_forecast_plots",
+            lambda *args, **kwargs: [],
+        )
+
+        result = runner.invoke(benchmark_custom.app, ["--quiet"])
+
+        assert result.exit_code == 0
+        assert benchmark_mock.call_args.kwargs["max_steps"] == 10
+        assert benchmark_mock.call_args.kwargs["auto_num_samples"] == 2
 
     def test_main_writes_csv_markdown_plots_and_pdf(
         self,
@@ -102,10 +153,7 @@ class TestBenchmarkCustom:
             benchmark_mock,
         )
 
-        def fake_save_plots(
-            *args: object,
-            **kwargs: object,
-        ) -> list[SavedPlot]:
+        def fake_save_plots(*args: object, **kwargs: object) -> list[SavedPlot]:
             del args, kwargs
             plot_path = tmp_path / "custom" / "plots" / "series-a.png"
             plot_path.parent.mkdir(parents=True, exist_ok=True)
@@ -132,6 +180,8 @@ class TestBenchmarkCustom:
                 str(output_dir),
                 "--output-pdf",
                 str(output_pdf),
+                "--auto-preset",
+                "thorough",
                 "--auto-num-samples",
                 "2",
             ],
@@ -145,6 +195,7 @@ class TestBenchmarkCustom:
             encoding="utf-8"
         )
         benchmark_mock.assert_called_once()
+        assert benchmark_mock.call_args.kwargs["max_steps"] == 20
         assert benchmark_mock.call_args.kwargs["auto_num_samples"] == 2
 
     def test_main_rejects_removed_refit_option(self) -> None:

@@ -30,6 +30,7 @@ from devtools.benchmark_common import (
     evaluate_cv_results,
     merge_baseline_forecast,
     normalize_forecast_frame,
+    resolve_auto_preset,
     save_markdown_pdf,
     save_representative_forecast_plots,
 )
@@ -387,24 +388,40 @@ def main(
         min=1,
         help="Forecast horizon.",
     ),
-    max_steps: int = typer.Option(
-        30,
-        min=1,
-        help="Maximum neural training steps.",
+    auto_preset: str = typer.Option(
+        "normal",
+        help=(
+            "Auto-search preset: smoke (~seconds), normal (~2 min CPU), "
+            "or thorough (~5 min CPU)."
+        ),
     ),
-    auto_num_samples: int = typer.Option(
-        1,
+    max_steps: int | None = typer.Option(
+        None,
         min=1,
-        help="Number of Ray Tune samples for AutoTimeBase wrappers.",
+        help="Maximum neural training steps override.",
+    ),
+    auto_num_samples: int | None = typer.Option(
+        None,
+        min=1,
+        help="Ray Tune sample-count override for AutoTimeBase wrappers.",
     ),
     quiet: bool = typer.Option(False, help="Suppress Rich progress output."),
 ) -> None:
     """Run the custom dataset benchmark and save CSV, markdown, and plots."""
+    preset_settings = resolve_auto_preset(auto_preset)
+    resolved_max_steps = int(
+        preset_settings["max_steps"] if max_steps is None else max_steps
+    )
+    resolved_auto_num_samples = int(
+        preset_settings["auto_num_samples"]
+        if auto_num_samples is None
+        else auto_num_samples
+    )
     artifacts = run_custom_benchmark(
         dataset_path=dataset_path,
         horizon=horizon,
-        max_steps=max_steps,
-        auto_num_samples=auto_num_samples,
+        max_steps=resolved_max_steps,
+        auto_num_samples=resolved_auto_num_samples,
     )
     results_frame = artifacts.results_frame
 

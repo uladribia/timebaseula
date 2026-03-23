@@ -121,8 +121,8 @@ make test-integration
 
 ```bash
 uv run --frozen python scripts/generate_datasets.py main
-uv run --frozen python scripts/benchmark_long_horizon.py run --mode daily --auto-num-samples 1 --output-pdf logs/benchmark_long_horizon_daily.pdf
-uv run --frozen python scripts/benchmark_custom.py --auto-num-samples 1 --output-pdf logs/custom_dataset_benchmark/report.pdf
+uv run --frozen python scripts/benchmark_long_horizon.py run --mode daily --auto-preset smoke --output-pdf logs/benchmark_long_horizon_daily.pdf
+uv run --frozen python scripts/benchmark_custom.py --auto-preset smoke --output-pdf logs/custom_dataset_benchmark/report.pdf
 ```
 
 Both benchmark entrypoints now write:
@@ -133,6 +133,13 @@ Both benchmark entrypoints now write:
 
 Benchmark neural comparisons now use `DLinear`, `NLinear`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
 The auto wrappers now run a real Ray Tune search space constrained to CPU-safe benchmark settings, and `--auto-num-samples` controls how many auto trials are sampled.
+Benchmark cross-validation always runs with `refit=True`; the CLIs no longer expose a refit toggle.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+- `thorough`: `max_steps=20`, `auto_num_samples=4`, tuned to stay around ~5 CPU minutes
+You can still override `--max-steps` and `--auto-num-samples` explicitly.
 Benchmark cross-validation always runs with `refit=True`; the CLIs no longer expose a refit toggle.
 
 ## License

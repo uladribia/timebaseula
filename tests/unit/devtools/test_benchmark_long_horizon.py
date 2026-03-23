@@ -16,6 +16,7 @@ from devtools.benchmark_long_horizon import (
     aggregate_frame,
     ensure_aggregated_datasets,
     get_aggregated_dataset_path,
+    resolve_auto_preset,
     resolve_dataset_group,
     resolve_mode_defaults,
 )
@@ -126,6 +127,15 @@ class TestBenchmarkLongHorizon:
         assert download_calls.count("ECL") == 1
         assert download_calls.count("TrafficL") == 1
 
+    def test_resolve_auto_preset_returns_expected_values(self) -> None:
+        """Preset names should map to benchmark-friendly auto-search settings."""
+        assert resolve_auto_preset("smoke") == {"max_steps": 1, "auto_num_samples": 1}
+        assert resolve_auto_preset("normal") == {"max_steps": 10, "auto_num_samples": 2}
+        assert resolve_auto_preset("thorough") == {
+            "max_steps": 20,
+            "auto_num_samples": 4,
+        }
+
     def test_build_neural_models_uses_auto_wrappers(self) -> None:
         """The benchmark should use searched auto wrappers instead of raw models."""
         models = _build_neural_models(
@@ -154,6 +164,58 @@ class TestBenchmarkLongHorizon:
         assert not isinstance(auto_timebase.config["input_size"], int)
         assert not isinstance(auto_timebase.config["period_len"], int)
         assert not isinstance(auto_timebase_trend.config["moving_avg_window"], int)
+
+    def test_run_command_uses_normal_auto_preset_by_default(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The CLI should default to the normal auto-search preset."""
+        runner = CliRunner()
+        benchmark_mock = Mock(
+            return_value=BenchmarkArtifacts(
+                results_frame=pd.DataFrame(
+                    {
+                        "dataset": ["ECL"],
+                        "frequency": ["D"],
+                        "model_name": ["AutoTimeBase"],
+                        "mae": [0.1],
+                        "rmse": [0.2],
+                        "rmae": [0.5],
+                        "params": [31],
+                        "execution_time": [1.0],
+                    }
+                ),
+                forecast_frames={},
+                source_frame=pd.DataFrame(
+                    {
+                        "unique_id": ["a"],
+                        "ds": pd.to_datetime(["2024-01-01"]),
+                        "y": [1.0],
+                    }
+                ),
+            )
+        )
+        monkeypatch.setattr(
+            benchmark_long_horizon,
+            "ensure_aggregated_datasets",
+            Mock(return_value=[]),
+        )
+        monkeypatch.setattr(
+            benchmark_long_horizon,
+            "run_benchmark_block",
+            benchmark_mock,
+        )
+        monkeypatch.setattr(
+            benchmark_long_horizon,
+            "save_representative_forecast_plots",
+            lambda *args, **kwargs: [],
+        )
+
+        result = runner.invoke(benchmark_long_horizon.app, ["run", "--quiet"])
+
+        assert result.exit_code == 0
+        assert benchmark_mock.call_args.kwargs["max_steps"] == 10
+        assert benchmark_mock.call_args.kwargs["auto_num_samples"] == 2
 
     def test_run_command_writes_csv_markdown_and_plots(
         self,
@@ -197,10 +259,7 @@ class TestBenchmarkLongHorizon:
             benchmark_mock,
         )
 
-        def fake_save_plots(
-            *args: object,
-            **kwargs: object,
-        ) -> list[SavedPlot]:
+        def fake_save_plots(*args: object, **kwargs: object) -> list[SavedPlot]:
             del args, kwargs
             plot_path = tmp_path / "plots" / "series-a.png"
             plot_path.parent.mkdir(parents=True, exist_ok=True)
@@ -236,6 +295,8 @@ class TestBenchmarkLongHorizon:
                 str(output_md),
                 "--output-pdf",
                 str(output_pdf),
+                "--auto-preset",
+                "thorough",
                 "--auto-num-samples",
                 "2",
             ],
@@ -247,6 +308,7 @@ class TestBenchmarkLongHorizon:
         assert output_pdf.exists()
         assert "Representative forecast plots" in output_md.read_text(encoding="utf-8")
         benchmark_mock.assert_called_once()
+        assert benchmark_mock.call_args.kwargs["max_steps"] == 20
         assert benchmark_mock.call_args.kwargs["auto_num_samples"] == 2
 
     def test_run_command_rejects_removed_refit_option(self) -> None:

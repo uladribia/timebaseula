@@ -32,6 +32,7 @@ from devtools.benchmark_common import (
     evaluate_cv_results,
     merge_baseline_forecast,
     normalize_forecast_frame,
+    resolve_auto_preset,
     save_markdown_pdf,
     save_representative_forecast_plots,
 )
@@ -608,14 +609,21 @@ def run_command(
         None,
         help="Series count override. Default uses up to 300 series.",
     ),
+    auto_preset: str = typer.Option(
+        "normal",
+        help=(
+            "Auto-search preset: smoke (~seconds), normal (~2 min CPU), "
+            "or thorough (~5 min CPU)."
+        ),
+    ),
     max_steps: int | None = typer.Option(
         None,
         help="Max training steps override for neural models.",
     ),
-    auto_num_samples: int = typer.Option(
-        1,
+    auto_num_samples: int | None = typer.Option(
+        None,
         min=1,
-        help="Number of Ray Tune samples for AutoTimeBase wrappers.",
+        help="Ray Tune sample-count override for AutoTimeBase wrappers.",
     ),
     output: Path | None = typer.Option(None, help="Optional CSV output path."),
     output_md: Path | None = typer.Option(None, help="Optional markdown report path."),
@@ -632,9 +640,16 @@ def run_command(
     datasets = (
         ["ECL", "TrafficL"] if dataset == "all" else [resolve_dataset_group(dataset)]
     )
+    preset_settings = resolve_auto_preset(auto_preset)
     resolved_freq = normalize_frequency(defaults["freq"] if freq is None else freq)
     resolved_horizon = int(defaults["horizon"] if horizon is None else horizon)
-    resolved_max_steps = int(defaults["max_steps"] if max_steps is None else max_steps)
+    default_max_steps = min(int(defaults["max_steps"]), preset_settings["max_steps"])
+    resolved_max_steps = int(default_max_steps if max_steps is None else max_steps)
+    resolved_auto_num_samples = int(
+        preset_settings["auto_num_samples"]
+        if auto_num_samples is None
+        else auto_num_samples
+    )
     report_name = str(defaults["report_name"])
 
     if output is None:
@@ -657,7 +672,7 @@ def run_command(
             horizon=resolved_horizon,
             n_series=n_series,
             max_steps=resolved_max_steps,
-            auto_num_samples=auto_num_samples,
+            auto_num_samples=resolved_auto_num_samples,
         )
         benchmark_artifacts.append(artifacts)
         summary_frames.append(

@@ -15,7 +15,7 @@ description: Placeholder benchmark page for the documentation site.
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py run \
   --mode daily \
-  --auto-num-samples 1 \
+  --auto-preset smoke \
   --output logs/benchmark_long_horizon_daily.csv \
   --output-md docs/benchmark.md \
   --output-pdf docs/benchmark.pdf
