@@ -152,17 +152,36 @@ def load_or_create_aggregated_dataset(
 
 def ensure_aggregated_datasets(force_download: bool = False) -> list[Path]:
     """Create the daily and monthly parquet files required for benchmarking."""
+    logger = get_logger()
     generated_paths: list[Path] = []
     for dataset in ("ECL", "TrafficL"):
-        for freq in ("D", "ME"):
-            load_or_create_aggregated_dataset(
-                dataset=dataset,
-                freq=freq,
-                force_download=force_download,
-            )
-            generated_paths.append(
-                get_aggregated_dataset_path(DATASETS_DIR, dataset, freq)
-            )
+        dataset_paths = {
+            freq: get_aggregated_dataset_path(DATASETS_DIR, dataset, freq)
+            for freq in ("D", "ME")
+        }
+        missing_frequencies = [
+            freq
+            for freq, output_path in dataset_paths.items()
+            if force_download or not output_path.exists()
+        ]
+        if not missing_frequencies:
+            generated_paths.extend(dataset_paths.values())
+            continue
+
+        logger.info(
+            "Creating aggregated dataset family",
+            extra={
+                "dataset": dataset,
+                "frequencies": ",".join(missing_frequencies),
+            },
+        )
+        raw_frame = download_raw_dataset(dataset)
+        for freq, output_path in dataset_paths.items():
+            if freq in missing_frequencies:
+                aggregated = aggregate_frame(raw_frame, freq)
+                output_path.parent.mkdir(parents=True, exist_ok=True)
+                aggregated.to_parquet(output_path, index=False)
+            generated_paths.append(output_path)
     return generated_paths
 
 

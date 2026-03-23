@@ -12,6 +12,7 @@ from typer.testing import CliRunner
 from devtools import benchmark_long_horizon
 from devtools.benchmark_long_horizon import (
     aggregate_frame,
+    ensure_aggregated_datasets,
     get_aggregated_dataset_path,
     resolve_dataset_group,
     resolve_mode_defaults,
@@ -90,6 +91,37 @@ class TestBenchmarkLongHorizon:
 
         assert len(result) == 2
         assert result["y"].tolist() == [2.0, 10.0]
+
+    def test_ensure_aggregated_datasets_downloads_each_raw_dataset_once(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Dataset preparation should reuse one raw download per dataset."""
+        download_calls: list[str] = []
+
+        def fake_download(dataset: str) -> pd.DataFrame:
+            download_calls.append(dataset)
+            return pd.DataFrame(
+                {
+                    "unique_id": ["a", "a"],
+                    "ds": pd.to_datetime(["2024-01-01", "2024-01-02"]),
+                    "y": [1.0, 2.0],
+                }
+            )
+
+        monkeypatch.setattr(benchmark_long_horizon, "DATASETS_DIR", tmp_path)
+        monkeypatch.setattr(
+            benchmark_long_horizon,
+            "download_raw_dataset",
+            fake_download,
+        )
+
+        generated = ensure_aggregated_datasets(force_download=False)
+
+        assert len(generated) == 4
+        assert download_calls.count("ECL") == 1
+        assert download_calls.count("TrafficL") == 1
 
     def test_run_command_writes_csv_and_markdown(
         self,
