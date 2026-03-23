@@ -13,7 +13,7 @@ description: Contribution guide for TimeBaseUla development, testing, and docume
 ## Development setup
 
 ```bash
-git clone https://github.com/dribia/timebaseula.git
+git clone https://github.com/uladribia/timebaseula.git
 cd timebaseula
 uv sync
 ```

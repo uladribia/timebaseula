@@ -3,8 +3,8 @@ site_url: https://dribia.github.io/timebaseula/
 site_description: Compact TimeBase-style forecasting models for NeuralForecast
 strict: true
 
-repo_name: dribia/timebaseula
-repo_url: https://github.com/dribia/timebaseula
+repo_name: uladribia/timebaseula
+repo_url: https://github.com/uladribia/timebaseula
 edit_uri: ''
 
 theme:

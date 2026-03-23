@@ -19,7 +19,7 @@ pip install timebaseula
 ## Source install
 
 ```bash
-git clone https://github.com/dribia/timebaseula.git
+git clone https://github.com/uladribia/timebaseula.git
 cd timebaseula
 uv sync
 ```
