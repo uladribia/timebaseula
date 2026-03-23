@@ -2,17 +2,23 @@
 
 from __future__ import annotations
 
+import base64
+import html as html_lib
 import logging
+import mimetypes
 import numbers
 import os
 import re
-import textwrap
+import shutil
+import subprocess
+import tempfile
 from dataclasses import dataclass
 from functools import partial
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Any
 
+import markdown
 import matplotlib
 import pandas as pd
 import torch
@@ -21,7 +27,6 @@ from utilsforecast.losses import mae, rmae, rmse
 
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt
-from matplotlib.backends.backend_pdf import PdfPages
 
 BASELINE_MODEL_NAME = "SeasonalNaive"
 FORECAST_JOIN_KEYS = ["unique_id", "ds", "cutoff", "y"]
@@ -34,9 +39,9 @@ REPRESENTATIVE_SERIES_RULES = (
     ("min_value", True),
 )
 MARKDOWN_IMAGE_PATTERN = re.compile(r"!\[(?P<alt>[^\]]*)\]\((?P<path>[^)]+)\)")
-PDF_PAGE_SIZE = (8.27, 11.69)
-PDF_TEXT_WIDTH = 92
-PDF_LINES_PER_PAGE = 48
+DEFAULT_PDF_TITLE = "Benchmark report"
+CHROME_CANDIDATES = ("google-chrome", "chromium", "chromium-browser", "chrome")
+HTML_RENDER_EXTENSIONS = ("tables", "fenced_code", "sane_lists")
 
 
 @dataclass(frozen=True)
@@ -444,86 +449,252 @@ def build_plot_markdown(saved_plots: list[SavedPlot], report_path: Path) -> str:
     return "\n".join(lines)
 
 
-def _wrap_markdown_lines(markdown_text: str) -> list[str]:
-    """Wrap markdown text into fixed-width lines suitable for PDF pages."""
-    wrapped_lines: list[str] = []
+def _resolve_markdown_image_path(image_path: str, base_dir: Path) -> Path:
+    """Resolve one markdown image path against a base directory."""
+    resolved_path = Path(image_path.strip())
+    if not resolved_path.is_absolute():
+        resolved_path = base_dir / resolved_path
+    return resolved_path.resolve()
+
+
+def _encode_image_as_data_uri(image_path: Path) -> str:
+    """Encode one local image as a data URI for reliable HTML rendering."""
+    mime_type, _ = mimetypes.guess_type(image_path.name)
+    resolved_mime_type = mime_type or "application/octet-stream"
+    payload = base64.b64encode(image_path.read_bytes()).decode("ascii")
+    return f"data:{resolved_mime_type};base64,{payload}"
+
+
+def _embed_markdown_images(markdown_text: str, base_dir: Path) -> str:
+    """Replace local markdown image references with embedded data URIs."""
+
+    def replace(match: re.Match[str]) -> str:
+        image_path = _resolve_markdown_image_path(match.group("path"), base_dir)
+        if not image_path.exists():
+            return match.group(0)
+        return f"![{match.group('alt')}]({_encode_image_as_data_uri(image_path)})"
+
+    return MARKDOWN_IMAGE_PATTERN.sub(replace, markdown_text)
+
+
+def _extract_report_title(markdown_text: str) -> str:
+    """Extract the first top-level markdown heading as the report title."""
     for raw_line in markdown_text.splitlines():
         stripped_line = raw_line.strip()
-        if MARKDOWN_IMAGE_PATTERN.search(stripped_line):
-            continue
-        if not stripped_line:
-            wrapped_lines.append("")
-            continue
-        wrapped_lines.extend(
-            textwrap.wrap(
-                raw_line,
-                width=PDF_TEXT_WIDTH,
-                break_long_words=False,
-                break_on_hyphens=False,
-            )
-            or [""]
-        )
-    return wrapped_lines
+        if stripped_line.startswith("# "):
+            return stripped_line.removeprefix("# ").strip()
+    return DEFAULT_PDF_TITLE
 
 
-def _extract_markdown_images(
-    markdown_text: str, base_dir: Path
-) -> list[tuple[str, Path]]:
-    """Extract markdown image references resolved against one base directory."""
-    images: list[tuple[str, Path]] = []
-    for match in MARKDOWN_IMAGE_PATTERN.finditer(markdown_text):
-        title = match.group("alt") or Path(match.group("path")).stem
-        resolved_path = Path(match.group("path"))
-        if not resolved_path.is_absolute():
-            resolved_path = base_dir / resolved_path
-        images.append((title, resolved_path.resolve()))
-    return images
+def _build_report_html(title: str, body_html: str) -> str:
+    """Wrap rendered markdown HTML in a print-friendly document shell."""
+    escaped_title = html_lib.escape(title)
+    return f"""<!doctype html>
+<html lang=\"en\">
+  <head>
+    <meta charset=\"utf-8\" />
+    <title>{escaped_title}</title>
+    <style>
+      @page {{
+        size: A4;
+        margin: 16mm 14mm;
+      }}
+
+      :root {{
+        color-scheme: light;
+      }}
+
+      body {{
+        margin: 0;
+        color: #111827;
+        font-family: Inter, Arial, Helvetica, sans-serif;
+        font-size: 11pt;
+        line-height: 1.55;
+        background: #ffffff;
+      }}
+
+      main {{
+        width: 100%;
+      }}
+
+      h1, h2, h3, h4 {{
+        margin: 1.2rem 0 0.5rem;
+        color: #0f172a;
+        line-height: 1.2;
+        page-break-after: avoid;
+      }}
+
+      h1 {{
+        margin-top: 0;
+        padding-bottom: 0.35rem;
+        border-bottom: 2px solid #cbd5e1;
+        font-size: 22pt;
+      }}
+
+      h2 {{
+        font-size: 16pt;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 0.2rem;
+      }}
+
+      h3 {{
+        font-size: 13pt;
+      }}
+
+      p, ul, ol {{
+        margin: 0.45rem 0 0.8rem;
+      }}
+
+      code {{
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.92em;
+        background: #f1f5f9;
+        padding: 0.1rem 0.25rem;
+        border-radius: 4px;
+      }}
+
+      pre {{
+        overflow-wrap: anywhere;
+        white-space: pre-wrap;
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 0.8rem;
+        border-radius: 8px;
+      }}
+
+      pre code {{
+        background: transparent;
+        color: inherit;
+        padding: 0;
+      }}
+
+      table {{
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0.75rem 0 1rem;
+        font-size: 9.5pt;
+        page-break-inside: avoid;
+      }}
+
+      thead {{
+        display: table-header-group;
+      }}
+
+      tr {{
+        page-break-inside: avoid;
+      }}
+
+      th, td {{
+        border: 1px solid #cbd5e1;
+        padding: 0.38rem 0.45rem;
+        vertical-align: top;
+        text-align: left;
+        overflow-wrap: anywhere;
+      }}
+
+      th {{
+        background: #e2e8f0;
+        font-weight: 700;
+      }}
+
+      tbody tr:nth-child(even) {{
+        background: #f8fafc;
+      }}
+
+      img {{
+        display: block;
+        max-width: 100%;
+        max-height: 245mm;
+        width: auto;
+        height: auto;
+        margin: 0.8rem auto 1rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+        page-break-inside: avoid;
+      }}
+
+      a {{
+        color: #2563eb;
+      }}
+    </style>
+  </head>
+  <body>
+    <main>
+      {body_html}
+    </main>
+  </body>
+</html>
+"""
 
 
-def _save_pdf_text_pages(markdown_text: str, pdf_pages: PdfPages) -> None:
-    """Save the markdown text as one or more PDF pages."""
-    wrapped_lines = _wrap_markdown_lines(markdown_text)
-    if not wrapped_lines:
-        wrapped_lines = ["No report content available."]
-
-    for start in range(0, len(wrapped_lines), PDF_LINES_PER_PAGE):
-        page_lines = wrapped_lines[start : start + PDF_LINES_PER_PAGE]
-        figure = plt.figure(figsize=PDF_PAGE_SIZE)
-        figure.text(
-            0.05,
-            0.97,
-            "\n".join(page_lines),
-            va="top",
-            ha="left",
-            family="monospace",
-            fontsize=9,
-        )
-        plt.axis("off")
-        pdf_pages.savefig(figure, bbox_inches="tight")
-        plt.close(figure)
-
-
-def _save_pdf_image_pages(
+def render_markdown_html(
     markdown_text: str,
-    pdf_pages: PdfPages,
     base_dir: Path,
+    title: str | None = None,
+) -> str:
+    """Render markdown to styled HTML with local images embedded."""
+    report_title = _extract_report_title(markdown_text) if title is None else title
+    embedded_markdown = _embed_markdown_images(markdown_text, base_dir)
+    body_html = markdown.markdown(
+        embedded_markdown,
+        extensions=list(HTML_RENDER_EXTENSIONS),
+    )
+    return _build_report_html(report_title, body_html)
+
+
+def _resolve_chrome_binary() -> str:
+    """Resolve a Chrome-compatible binary for headless PDF rendering."""
+    for candidate in CHROME_CANDIDATES:
+        resolved_binary = shutil.which(candidate)
+        if resolved_binary is not None:
+            return resolved_binary
+    msg = "No Chrome-compatible binary found. Tried: " + ", ".join(CHROME_CANDIDATES)
+    raise RuntimeError(msg)
+
+
+def save_markdown_pdf(
+    markdown_text: str,
+    output_pdf: Path,
+    base_dir: Path,
+    title: str | None = None,
 ) -> None:
-    """Append markdown-linked images as dedicated PDF pages."""
-    for title, image_path in _extract_markdown_images(markdown_text, base_dir):
-        if not image_path.exists():
-            continue
-        figure, axis = plt.subplots(figsize=PDF_PAGE_SIZE)
-        axis.imshow(plt.imread(image_path))
-        axis.set_title(title)
-        axis.axis("off")
-        figure.tight_layout()
-        pdf_pages.savefig(figure, bbox_inches="tight")
-        plt.close(figure)
-
-
-def save_markdown_pdf(markdown_text: str, output_pdf: Path, base_dir: Path) -> None:
-    """Render a markdown report and its linked images into a PDF file."""
+    """Render a markdown report to PDF using headless Chrome."""
+    html_text = render_markdown_html(markdown_text, base_dir=base_dir, title=title)
+    chrome_binary = _resolve_chrome_binary()
     output_pdf.parent.mkdir(parents=True, exist_ok=True)
-    with PdfPages(output_pdf) as pdf_pages:
-        _save_pdf_text_pages(markdown_text, pdf_pages)
-        _save_pdf_image_pages(markdown_text, pdf_pages, base_dir)
+
+    with tempfile.TemporaryDirectory(prefix="timebaseula-benchmark-pdf-") as temp_dir:
+        html_path = Path(temp_dir) / "report.html"
+        html_path.write_text(html_text, encoding="utf-8")
+        command = [
+            chrome_binary,
+            "--headless=new",
+            "--disable-gpu",
+            "--no-sandbox",
+            "--hide-scrollbars",
+            "--allow-file-access-from-files",
+            f"--print-to-pdf={output_pdf.resolve()}",
+            html_path.resolve().as_uri(),
+        ]
+        try:
+            subprocess.run(
+                command,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except subprocess.CalledProcessError as error:
+            fallback_command = command.copy()
+            fallback_command[1] = "--headless"
+            try:
+                subprocess.run(
+                    fallback_command,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+            except subprocess.CalledProcessError as fallback_error:
+                stderr = fallback_error.stderr or error.stderr or ""
+                msg = f"Chrome PDF rendering failed: {stderr.strip()}"
+                raise RuntimeError(msg) from fallback_error

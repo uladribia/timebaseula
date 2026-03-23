@@ -10,6 +10,7 @@ from matplotlib import pyplot as plt
 from devtools.benchmark_common import (
     build_markdown_report,
     evaluate_cv_results,
+    render_markdown_html,
     save_markdown_pdf,
     save_representative_forecast_plots,
     select_representative_series_ids,
@@ -204,6 +205,30 @@ class TestBenchmarkCommon:
         for saved_plot in saved_plots:
             assert saved_plot.path.exists()
             assert saved_plot.path.suffix == ".png"
+
+    def test_render_markdown_html_converts_tables_and_embeds_images(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Markdown HTML rendering should preserve tables and embed local images."""
+        image_path = tmp_path / "plot.png"
+        figure, axis = plt.subplots()
+        axis.plot([0, 1], [0, 1])
+        figure.savefig(image_path)
+        plt.close(figure)
+
+        markdown_text = (
+            "# Report\n\n"
+            "| model | mae |\n"
+            "| --- | --- |\n"
+            "| A | 0.1 |\n\n"
+            "![Plot](plot.png)\n"
+        )
+        html_text = render_markdown_html(markdown_text=markdown_text, base_dir=tmp_path)
+
+        assert "<h1>Report</h1>" in html_text
+        assert "<table>" in html_text
+        assert "data:image/png;base64," in html_text
 
     def test_save_markdown_pdf_writes_pdf(self, tmp_path: Path) -> None:
         """Markdown reports should be exportable as PDF files."""

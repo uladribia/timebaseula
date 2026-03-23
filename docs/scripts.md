@@ -44,6 +44,7 @@ This command writes:
 - a CSV leaderboard with `mae`, `rmse`, `rmae`, `params`, and `execution_time`
 - a markdown report with metric notes, a data summary, and representative forecast plots
 - a sibling plot directory next to the markdown report
+- an optional PDF export when `--output-pdf` is provided, rendered with headless Chrome and embedded plot images
 
 ## Benchmark the custom dataset
 

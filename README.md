@@ -129,7 +129,7 @@ Both benchmark entrypoints now write:
 - a CSV leaderboard with `mae`, `rmse`, `rmae`, `params`, and per-model `execution_time`
 - a markdown report with metric notes, a data summary, and representative forecast plots
 - a plot directory with train/test/prediction comparisons for selected series
-- an optional PDF export of the markdown report via `--output-pdf`
+- an optional PDF export of the markdown report via `--output-pdf` rendered with headless Chrome and embedded plot images
 
 Benchmark cross-validation always runs with `refit=True`; the CLIs no longer expose a refit toggle.
 
