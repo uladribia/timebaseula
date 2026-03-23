@@ -26,11 +26,11 @@ description: Benchmark report for TimeBaseUla on the AirPassengersPanel dataset.
 
 | model | mae | rmse | rmae | parameters | runtime_seconds |
 | --- | --- | --- | --- | --- | --- |
-| NLinear | 12.3282 | 18.0104 | 0.1622 | 444 | 0.381 |
-| TimeBase | 17.0719 | 19.5337 | 0.2246 | 37 | 0.1094 |
-| TimeBaseTrend | 17.2453 | 20.5927 | 0.2269 | 656 | 0.4717 |
-| AutoMFLES | 18.331 | 23.8342 | 0.2412 | 0 | 3.9106 |
-| DLinear | 18.5919 | 23.2916 | 0.2446 | 312 | 0.2672 |
+| NLinear | 12.3282 | 18.0104 | 0.1622 | 444 | 0.3264 |
+| TimeBase | 17.0719 | 19.5337 | 0.2246 | 37 | 0.1598 |
+| TimeBaseTrend | 17.2453 | 20.5927 | 0.2269 | 656 | 0.431 |
+| AutoMFLES | 18.331 | 23.8342 | 0.2412 | 0 | 3.8348 |
+| DLinear | 18.5919 | 23.2916 | 0.2446 | 312 | 0.3698 |
 | Naive | 76.0 | 102.9765 | 1.0 | 0 | 0.0015 |
 
 ## Reproducible model settings
@@ -73,11 +73,3 @@ MODEL_SETTINGS = {
 ## Forecast plot
 
 ![AirPassengers benchmark](img/airpassengers-benchmark.png)
-
-## TimeBaseTrend conformal intervals
-
-The following example uses the same AirPassengers benchmark split and fits only
-`TimeBaseTrend` with NeuralForecast's `PredictionIntervals` using the
-`conformal_error` method.
-
-![TimeBaseTrend conformal intervals](img/airpassengers-timebasetrend-conformal.png)

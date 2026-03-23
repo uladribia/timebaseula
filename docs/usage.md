@@ -104,6 +104,13 @@ Output columns include:
 You can also set `method="conformal_error"` to use the alternative conformal
 calibration path implemented by NeuralForecast.
 
+### Example on the AirPassengers benchmark split
+
+The image below shows `TimeBaseTrend` on the same `AirPassengersPanel` split used
+by the benchmark, with `conformal_error` bands at 80% and 95% levels.
+
+![TimeBaseTrend conformal intervals](img/airpassengers-timebasetrend-conformal.png)
+
 ## Multi-series training and subset prediction
 
 ```python

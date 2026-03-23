@@ -9,7 +9,7 @@ description: Script reference for the AirPassengers benchmark workflow.
 - It benchmarks `TimeBase`, `TimeBaseTrend`, `NLinear`, `DLinear`, `AutoMFLES`, and `Naive`.
 - It uses small model-specific neural settings tuned for `AirPassengersPanel`.
 - It writes a docs-ready markdown report and Matplotlib plots.
-- It includes a `TimeBaseTrend` conformal interval example on the benchmark split.
+- It also generates a `TimeBaseTrend` conformal interval example image for the usage docs.
 - It uses Typer, Rich, and rotating logs.
 
 ## Install script dependencies

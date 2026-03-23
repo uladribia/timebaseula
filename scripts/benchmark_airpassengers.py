@@ -116,7 +116,6 @@ def render_markdown_report(
     metrics: pd.DataFrame,
     horizon: int,
     plot_path: str,
-    conformal_plot_path: str,
     model_settings: dict[str, dict[str, int | float]],
 ) -> str:
     """Render the benchmark report as markdown suitable for the docs site."""
@@ -156,14 +155,6 @@ description: Benchmark report for TimeBaseUla on the AirPassengersPanel dataset.
 ## Forecast plot
 
 ![AirPassengers benchmark]({plot_path})
-
-## TimeBaseTrend conformal intervals
-
-The following example uses the same AirPassengers benchmark split and fits only
-`TimeBaseTrend` with NeuralForecast's `PredictionIntervals` using the
-`conformal_error` method.
-
-![TimeBaseTrend conformal intervals]({conformal_plot_path})
 """
 
 
@@ -622,9 +613,6 @@ def benchmark_airpassengers(
         metrics=metrics,
         horizon=horizon,
         plot_path=output_plot.relative_to(output_markdown.parent).as_posix(),
-        conformal_plot_path=output_conformal_plot.relative_to(
-            output_markdown.parent
-        ).as_posix(),
         model_settings=get_reproducible_model_settings(
             horizon=horizon,
             input_size=input_size,
