@@ -34,6 +34,8 @@ nav:
   - Install: install.md
   - Usage: usage.md
   - Models: models.md
+  - Benchmark: benchmark.md
+  - Scripts: scripts.md
   - Release notes: release-notes.md
   - Paper for agents: paper-for-agents.md
   - References: references.md

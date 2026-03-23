@@ -6,11 +6,20 @@ description: Project changelog for TimeBaseUla releases.
 
 ## Unreleased
 
+## 0.2.5 - 2026-03-23
+
+### Added
+- added `scripts/benchmark_airpassengers.py` to benchmark `AirPassengersPanel` and write a docs-ready markdown report
+- added the generated benchmark page and plot to the documentation site
+- added unit coverage for the AirPassengers benchmark helpers
+
 ### Changed
 - simplified the public API to `TimeBase` and `TimeBaseTrend`
 - removed the auto-wrapper layer to keep the package smaller and easier to read
 - refactored the shared NeuralForecast wrapper logic to reduce overlap between the explicit models
 - refreshed the README and docs to match the simplified library surface
+- documented parameter effects more explicitly, including `moving_avg_window`
+- tuned benchmark neural-model settings and published the exact reproducible configuration in the docs
 
 ### Removed
 - removed `AutoTimeBase` from the public package

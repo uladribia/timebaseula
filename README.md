@@ -10,7 +10,7 @@ description: TimeBaseUla README with installation, public API, defaults, and pac
 - `timebaseula` is a small Python forecasting library.
 - Public API: `TimeBase` and `TimeBaseTrend`.
 - The package is CPU-first and integrates with `NeuralForecast`.
-- The implementation is intentionally explicit and readable.
+- The repository also includes a benchmark script for `AirPassengersPanel`.
 
 ## Installation
 
@@ -27,6 +27,14 @@ git clone https://github.com/dribia/timebaseula.git
 cd timebaseula
 uv sync
 ```
+
+### Benchmark dependencies
+
+```bash
+uv sync --group benchmark
+```
+
+The benchmark tooling is intended for Python 3.12+ on non-Windows environments.
 
 ## What this package provides
 
@@ -103,11 +111,30 @@ The expected data format is the standard `NeuralForecast` long format:
 
 For full parameter guidance, see `docs/models.md` and `docs/usage.md`.
 
+## Benchmark script
+
+Generate a docs-ready benchmark report on `AirPassengersPanel` with:
+
+```bash
+uv run --group benchmark python scripts/benchmark_airpassengers.py run \
+  --output-markdown docs/benchmark.md \
+  --output-plot docs/img/airpassengers-benchmark.png
+```
+
+The report compares:
+- `TimeBase`
+- `TimeBaseTrend`
+- `NLinear`
+- `DLinear`
+- `AutoMFLES`
+- `Naive`
+
 ## Repository layout
 
 | Path | Role |
 |---|---|
 | `timebaseula/` | publishable library code |
+| `scripts/` | benchmark and reporting scripts |
 | `docs/` | MkDocs documentation |
 | `tests/` | repository test suite |
 | `pyproject.toml` | package metadata and dependencies |
@@ -119,6 +146,7 @@ The documentation site covers:
 - `docs/install.md`
 - `docs/usage.md`
 - `docs/models.md`
+- `docs/benchmark.md`
 - `docs/release-notes.md`
 - `docs/paper-for-agents.md`
 - `docs/references.md`

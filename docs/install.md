@@ -1,5 +1,5 @@
 ---
-description: Installation guide for TimeBaseUla with runtime and source setup instructions.
+description: Installation guide for TimeBaseUla with runtime, source, and benchmark setup instructions.
 ---
 
 # Install TimeBaseUla
@@ -7,6 +7,7 @@ description: Installation guide for TimeBaseUla with runtime and source setup in
 ## TL;DR
 - Use `pip install timebaseula` to consume the package.
 - Use `uv sync` to work from a local checkout.
+- Use `uv sync --group benchmark` when you want to run the AirPassengers benchmark script.
 - Python requirement: `>=3.10,<3.15`.
 
 ## Runtime install
@@ -23,6 +24,14 @@ cd timebaseula
 uv sync
 ```
 
+## Benchmark script setup
+
+```bash
+uv sync --group benchmark
+```
+
+The benchmark group is intended for Python 3.12+ on non-Windows environments.
+
 ## Main runtime dependencies
 
 | Package | Why it is used |
@@ -30,6 +39,15 @@ uv sync
 | `neuralforecast` | training and forecasting interface |
 | `torch` | model implementation |
 | `pandas` / `numpy` | tabular and numerical processing |
+
+## Benchmark-only dependencies
+
+| Package | Why it is used |
+|---|---|
+| `statsforecast` | statistical baselines |
+| `scikit-learn` | `AutoMFLES` requirement |
+| `matplotlib` | benchmark plot generation |
+| `typer` / `rich` | CLI and terminal rendering |
 
 ## Verify the install
 
