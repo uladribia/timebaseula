@@ -8,7 +8,8 @@ description: Script reference for the AirPassengers benchmark workflow.
 - The repository includes one benchmark script: `scripts/benchmark_airpassengers.py`.
 - It benchmarks `TimeBase`, `TimeBaseTrend`, `NLinear`, `DLinear`, `AutoMFLES`, and `Naive`.
 - It uses small model-specific neural settings tuned for `AirPassengersPanel`.
-- It writes a docs-ready markdown report and a Matplotlib plot.
+- It writes a docs-ready markdown report and Matplotlib plots.
+- It includes a `TimeBaseTrend` conformal interval example on the benchmark split.
 - It uses Typer, Rich, and rotating logs.
 
 ## Install script dependencies
@@ -24,15 +25,17 @@ The benchmark group is intended for Python 3.12+ on non-Windows environments.
 ```bash
 uv run --group benchmark python scripts/benchmark_airpassengers.py run \
   --output-markdown docs/benchmark.md \
-  --output-plot docs/img/airpassengers-benchmark.png
+  --output-plot docs/img/airpassengers-benchmark.png \
+  --output-conformal-plot docs/img/airpassengers-timebasetrend-conformal.png
 ```
 
 ## Outputs
 
 | Path | Purpose |
 |---|---|
-| `docs/benchmark.md` | markdown report with metrics and embedded image |
+| `docs/benchmark.md` | markdown report with metrics and embedded images |
 | `docs/img/airpassengers-benchmark.png` | forecast plot for both series |
+| `docs/img/airpassengers-timebasetrend-conformal.png` | `TimeBaseTrend` forecast with conformal error bands |
 | `logs/benchmark_airpassengers.log` | rotating execution log |
 
 ## Metrics in the report

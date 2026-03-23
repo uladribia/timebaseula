@@ -17,12 +17,17 @@ DEFAULT_INPUT_SIZE = 24
 DEFAULT_MAX_STEPS = 30
 DEFAULT_OUTPUT_MARKDOWN = Path("docs/benchmark.md")
 DEFAULT_OUTPUT_PLOT = Path("docs/img/airpassengers-benchmark.png")
+DEFAULT_OUTPUT_CONFORMAL_PLOT = Path(
+    "docs/img/airpassengers-timebasetrend-conformal.png"
+)
 DEFAULT_LOG_PATH = Path("logs/benchmark_airpassengers.log")
 DEFAULT_FREQ = "ME"
 BASELINE_MODEL_NAME = "Naive"
 
 
-def split_train_test(frame: pd.DataFrame, horizon: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+def split_train_test(
+    frame: pd.DataFrame, horizon: int
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Split a long-format panel into train and test partitions per series."""
     sorted_frame = frame.sort_values(["unique_id", "ds"]).reset_index(drop=True)
     train = sorted_frame.groupby("unique_id", group_keys=False).head(-horizon)
@@ -34,7 +39,13 @@ def count_trainable_parameters(model: Any) -> int:
     """Count trainable parameters for torch-style models."""
     if not hasattr(model, "parameters"):
         return 0
-    return int(sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad))
+    return int(
+        sum(
+            parameter.numel()
+            for parameter in model.parameters()
+            if parameter.requires_grad
+        )
+    )
 
 
 def build_metrics_table(
@@ -48,7 +59,9 @@ def build_metrics_table(
     naive_mae: float | None = None
 
     for model_name, forecast in forecasts.items():
-        merged = actual.merge(forecast, on=["unique_id", "ds"], how="inner", validate="one_to_one")
+        merged = actual.merge(
+            forecast, on=["unique_id", "ds"], how="inner", validate="one_to_one"
+        )
         errors = merged["y"] - merged["y_hat"]
         mae = float(np.abs(errors).mean())
         rmse = float(np.sqrt(np.square(errors).mean()))
@@ -71,7 +84,9 @@ def build_metrics_table(
     metrics = pd.DataFrame(metrics_rows)
     metrics["rmae"] = metrics["mae"] / naive_mae
     metrics = metrics[["model", "mae", "rmse", "rmae", "parameters", "runtime_seconds"]]
-    metrics = metrics.sort_values(["mae", "runtime_seconds", "model"]).reset_index(drop=True)
+    metrics = metrics.sort_values(["mae", "runtime_seconds", "model"]).reset_index(
+        drop=True
+    )
     numeric_columns = ["mae", "rmse", "rmae", "runtime_seconds"]
     metrics[numeric_columns] = metrics[numeric_columns].round(4)
     return metrics
@@ -92,13 +107,16 @@ def render_markdown_table(frame: pd.DataFrame) -> str:
 
 def render_settings_snippet(model_settings: dict[str, dict[str, int | float]]) -> str:
     """Render model settings as a formatted JSON code block."""
-    return "```python\nMODEL_SETTINGS = " + json.dumps(model_settings, indent=2) + "\n```"
+    return (
+        "```python\nMODEL_SETTINGS = " + json.dumps(model_settings, indent=2) + "\n```"
+    )
 
 
 def render_markdown_report(
     metrics: pd.DataFrame,
     horizon: int,
     plot_path: str,
+    conformal_plot_path: str,
     model_settings: dict[str, dict[str, int | float]],
 ) -> str:
     """Render the benchmark report as markdown suitable for the docs site."""
@@ -138,6 +156,14 @@ description: Benchmark report for TimeBaseUla on the AirPassengersPanel dataset.
 ## Forecast plot
 
 ![AirPassengers benchmark]({plot_path})
+
+## TimeBaseTrend conformal intervals
+
+The following example uses the same AirPassengers benchmark split and fits only
+`TimeBaseTrend` with NeuralForecast's `PredictionIntervals` using the
+`conformal_error` method.
+
+![TimeBaseTrend conformal intervals]({conformal_plot_path})
 """
 
 
@@ -149,9 +175,7 @@ def configure_logging(log_path: Path) -> logging.Logger:
     logger.handlers.clear()
 
     handler = RotatingFileHandler(log_path, maxBytes=5 * 1024 * 1024, backupCount=1)
-    handler.setFormatter(
-        logging.Formatter("%(asctime)s | %(levelname)s | %(message)s")
-    )
+    handler.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(message)s"))
     logger.addHandler(handler)
     logger.propagate = False
     return logger
@@ -175,7 +199,9 @@ def _trainer_overrides(max_steps: int, learning_rate: float) -> dict[str, Any]:
     }
 
 
-def get_neural_model_configs(input_size: int, max_steps: int) -> dict[str, dict[str, int | float]]:
+def get_neural_model_configs(
+    input_size: int, max_steps: int
+) -> dict[str, dict[str, int | float]]:
     """Return tuned per-model settings for the AirPassengers benchmark.
 
     The input arguments act as fallbacks for ad-hoc runs, while the defaults
@@ -215,7 +241,9 @@ def get_neural_model_configs(input_size: int, max_steps: int) -> dict[str, dict[
 def _normalize_forecast_frame(forecast: pd.DataFrame, model_name: str) -> pd.DataFrame:
     """Normalize model forecasts to a common three-column schema."""
     normalized = forecast.reset_index()
-    return normalized[["unique_id", "ds", model_name]].rename(columns={model_name: "y_hat"})
+    return normalized[["unique_id", "ds", model_name]].rename(
+        columns={model_name: "y_hat"}
+    )
 
 
 def run_neuralforecast_models(
@@ -302,7 +330,9 @@ def get_reproducible_model_settings(
     max_steps: int,
 ) -> dict[str, dict[str, int | float]]:
     """Return the exact model settings published in the benchmark report."""
-    settings = get_neural_model_configs(input_size=input_size, max_steps=max_steps).copy()
+    settings = get_neural_model_configs(
+        input_size=input_size, max_steps=max_steps
+    ).copy()
     settings["AutoMFLES"] = {
         "test_size": horizon,
         "season_length": 12,
@@ -336,7 +366,9 @@ def run_statsforecast_models(
         sf = StatsForecast(models=[model], freq=DEFAULT_FREQ, n_jobs=1)
         prediction = sf.forecast(df=train_df, h=horizon)
         runtimes[model_name] = perf_counter() - start_time
-        forecasts[model_name] = prediction[["unique_id", "ds", model_name]].rename(columns={model_name: "y_hat"})
+        forecasts[model_name] = prediction[["unique_id", "ds", model_name]].rename(
+            columns={model_name: "y_hat"}
+        )
 
     return forecasts, runtimes, parameter_counts
 
@@ -369,7 +401,13 @@ def save_forecast_plot(
         series_train = train_df.loc[train_df["unique_id"] == series_id]
         series_test = test_df.loc[test_df["unique_id"] == series_id]
 
-        axis.plot(series_train["ds"], series_train["y"], color="black", linewidth=1.5, label="train")
+        axis.plot(
+            series_train["ds"],
+            series_train["y"],
+            color="black",
+            linewidth=1.5,
+            label="train",
+        )
         axis.plot(
             series_test["ds"],
             series_test["y"],
@@ -402,12 +440,131 @@ def save_forecast_plot(
     plt.close(figure)
 
 
+def run_timebasetrend_conformal_example(
+    train_df: pd.DataFrame,
+    horizon: int,
+    logger: logging.Logger,
+) -> pd.DataFrame:
+    """Fit TimeBaseTrend with conformal intervals on the benchmark split."""
+    import warnings
+
+    from neuralforecast import NeuralForecast
+    from neuralforecast.utils import PredictionIntervals
+
+    from timebaseula import TimeBaseTrend
+
+    model_configs = get_neural_model_configs(
+        input_size=DEFAULT_INPUT_SIZE,
+        max_steps=DEFAULT_MAX_STEPS,
+    )
+    logger.info("Running TimeBaseTrend conformal interval example")
+    model = TimeBaseTrend(
+        h=horizon,
+        freq=DEFAULT_FREQ,
+        input_size=int(model_configs["TimeBaseTrend"]["input_size"]),
+        basis_num=int(model_configs["TimeBaseTrend"]["basis_num"]),
+        period_len=int(model_configs["TimeBaseTrend"]["period_len"]),
+        moving_avg_window=int(model_configs["TimeBaseTrend"]["moving_avg_window"]),
+        **_trainer_overrides(
+            max_steps=int(model_configs["TimeBaseTrend"]["max_steps"]),
+            learning_rate=float(model_configs["TimeBaseTrend"]["learning_rate"]),
+        ),
+    )
+    nf = NeuralForecast(models=[model], freq=DEFAULT_FREQ)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=Warning)
+        nf.fit(
+            train_df,
+            val_size=horizon,
+            prediction_intervals=PredictionIntervals(
+                n_windows=2,
+                method="conformal_error",
+            ),
+        )
+        prediction = nf.predict(level=[80, 95])
+    return prediction.reset_index()
+
+
+def save_conformal_interval_plot(
+    train_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+    conformal_forecast: pd.DataFrame,
+    output_path: Path,
+) -> None:
+    """Save a plot of TimeBaseTrend forecasts with conformal error bands."""
+    import matplotlib.pyplot as plt
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    series_ids = sorted(test_df["unique_id"].unique())
+    figure, axes = plt.subplots(len(series_ids), 1, figsize=(12, 8), sharex=True)
+    if len(series_ids) == 1:
+        axes = [axes]
+
+    for axis, series_id in zip(axes, series_ids, strict=True):
+        series_train = train_df.loc[train_df["unique_id"] == series_id]
+        series_test = test_df.loc[test_df["unique_id"] == series_id]
+        series_forecast = conformal_forecast.loc[
+            conformal_forecast["unique_id"] == series_id
+        ]
+
+        axis.plot(
+            series_train["ds"],
+            series_train["y"],
+            color="black",
+            linewidth=1.5,
+            label="train",
+        )
+        axis.plot(
+            series_test["ds"],
+            series_test["y"],
+            color="black",
+            linestyle="--",
+            linewidth=2.0,
+            marker="o",
+            label="test",
+        )
+        axis.plot(
+            series_forecast["ds"],
+            series_forecast["TimeBaseTrend"],
+            color="#ff7f0e",
+            linewidth=2.0,
+            marker="o",
+            label="TimeBaseTrend",
+        )
+        axis.fill_between(
+            series_forecast["ds"],
+            series_forecast["TimeBaseTrend-lo-95"],
+            series_forecast["TimeBaseTrend-hi-95"],
+            color="#ff7f0e",
+            alpha=0.15,
+            label="95% conformal band",
+        )
+        axis.fill_between(
+            series_forecast["ds"],
+            series_forecast["TimeBaseTrend-lo-80"],
+            series_forecast["TimeBaseTrend-hi-80"],
+            color="#ff7f0e",
+            alpha=0.30,
+            label="80% conformal band",
+        )
+        axis.set_title(series_id)
+        axis.set_ylabel("Passengers")
+        axis.grid(alpha=0.3)
+
+    handles, labels = axes[0].get_legend_handles_labels()
+    figure.legend(handles, labels, loc="lower center", ncol=3, frameon=False)
+    figure.tight_layout(rect=(0, 0.08, 1, 1))
+    figure.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close(figure)
+
+
 def benchmark_airpassengers(
     horizon: int,
     input_size: int,
     max_steps: int,
     output_markdown: Path,
     output_plot: Path,
+    output_conformal_plot: Path,
     log_path: Path,
 ) -> pd.DataFrame:
     """Run the full AirPassengers benchmark and persist the report artifacts."""
@@ -449,11 +606,25 @@ def benchmark_airpassengers(
         forecasts=forecasts,
         output_path=output_plot,
     )
+    conformal_forecast = run_timebasetrend_conformal_example(
+        train_df=train_df,
+        horizon=horizon,
+        logger=logger,
+    )
+    save_conformal_interval_plot(
+        train_df=train_df,
+        test_df=test_df,
+        conformal_forecast=conformal_forecast,
+        output_path=output_conformal_plot,
+    )
 
     report = render_markdown_report(
         metrics=metrics,
         horizon=horizon,
         plot_path=output_plot.relative_to(output_markdown.parent).as_posix(),
+        conformal_plot_path=output_conformal_plot.relative_to(
+            output_markdown.parent
+        ).as_posix(),
         model_settings=get_reproducible_model_settings(
             horizon=horizon,
             input_size=input_size,
@@ -481,14 +652,32 @@ def build_app() -> Any:
 
     @app.command("run")
     def run(
-        horizon: int = typer.Option(DEFAULT_HORIZON, help="Forecast horizon per series."),
-        input_size: int = typer.Option(DEFAULT_INPUT_SIZE, help="Input window size for neural models."),
-        max_steps: int = typer.Option(DEFAULT_MAX_STEPS, help="Maximum training steps for neural models."),
-        output_markdown: Path = typer.Option(DEFAULT_OUTPUT_MARKDOWN, help="Markdown report output path."),
-        output_plot: Path = typer.Option(DEFAULT_OUTPUT_PLOT, help="Forecast plot output path."),
+        horizon: int = typer.Option(
+            DEFAULT_HORIZON, help="Forecast horizon per series."
+        ),
+        input_size: int = typer.Option(
+            DEFAULT_INPUT_SIZE, help="Input window size for neural models."
+        ),
+        max_steps: int = typer.Option(
+            DEFAULT_MAX_STEPS, help="Maximum training steps for neural models."
+        ),
+        output_markdown: Path = typer.Option(
+            DEFAULT_OUTPUT_MARKDOWN, help="Markdown report output path."
+        ),
+        output_plot: Path = typer.Option(
+            DEFAULT_OUTPUT_PLOT, help="Forecast plot output path."
+        ),
+        output_conformal_plot: Path = typer.Option(
+            DEFAULT_OUTPUT_CONFORMAL_PLOT,
+            help="TimeBaseTrend conformal interval plot output path.",
+        ),
         log_path: Path = typer.Option(DEFAULT_LOG_PATH, help="Log file output path."),
-        json_output: bool = typer.Option(False, "--json", help="Emit the metrics table as JSON."),
-        quiet: bool = typer.Option(False, "--quiet", help="Suppress human-readable console output."),
+        json_output: bool = typer.Option(
+            False, "--json", help="Emit the metrics table as JSON."
+        ),
+        quiet: bool = typer.Option(
+            False, "--quiet", help="Suppress human-readable console output."
+        ),
     ) -> None:
         """Run the AirPassengers benchmark and write the docs-ready markdown report."""
         console = Console(stderr=False, quiet=quiet or json_output)
@@ -498,6 +687,7 @@ def build_app() -> Any:
             max_steps=max_steps,
             output_markdown=output_markdown,
             output_plot=output_plot,
+            output_conformal_plot=output_conformal_plot,
             log_path=log_path,
         )
 
@@ -516,6 +706,7 @@ def build_app() -> Any:
         console.print(table)
         console.print(f"Report written to {output_markdown}")
         console.print(f"Plot written to {output_plot}")
+        console.print(f"Conformal plot written to {output_conformal_plot}")
 
     return app
 

@@ -78,7 +78,7 @@ def test_build_metrics_table_computes_error_metrics_and_rmae() -> None:
 
 
 def test_render_markdown_report_embeds_plot_metrics_and_settings() -> None:
-    """The report renderer should include the plot, metrics, and settings snippet."""
+    """The report renderer should include both plots, metrics, and settings."""
     metrics = pd.DataFrame(
         {
             "model": ["Naive", "TimeBase"],
@@ -94,11 +94,18 @@ def test_render_markdown_report_embeds_plot_metrics_and_settings() -> None:
         metrics=metrics,
         horizon=12,
         plot_path="img/airpassengers-benchmark.png",
+        conformal_plot_path="img/airpassengers-timebasetrend-conformal.png",
         model_settings={"TimeBase": {"input_size": 48}},
     )
 
     assert "# AirPassengers benchmark" in markdown
     assert "![AirPassengers benchmark](img/airpassengers-benchmark.png)" in markdown
+    assert (
+        "![TimeBaseTrend conformal intervals](img/airpassengers-timebasetrend-conformal.png)"
+        in markdown
+    )
+    assert "## TimeBaseTrend conformal intervals" in markdown
+    assert "conformal_error" in markdown
     assert "| model | mae | rmse | rmae | parameters | runtime_seconds |" in markdown
     assert "## Reproducible model settings" in markdown
     assert '"TimeBase": {' in markdown
@@ -106,7 +113,9 @@ def test_render_markdown_report_embeds_plot_metrics_and_settings() -> None:
 
 def test_get_neural_model_configs_returns_tuned_model_specific_settings() -> None:
     """The benchmark should use per-model settings tuned for this dataset."""
-    configs = get_neural_model_configs(input_size=DEFAULT_INPUT_SIZE, max_steps=DEFAULT_MAX_STEPS)
+    configs = get_neural_model_configs(
+        input_size=DEFAULT_INPUT_SIZE, max_steps=DEFAULT_MAX_STEPS
+    )
 
     assert configs["TimeBase"] == {
         "input_size": 48,
