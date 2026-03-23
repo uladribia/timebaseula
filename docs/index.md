@@ -72,8 +72,9 @@ flowchart TD
 2. [Follow the usage guide](usage.md)
 3. [Review the model notes](models.md)
 4. [Explore the scripts](scripts.md)
-5. [Read the agent-friendly paper digest](paper-for-agents.md)
-6. [Check the references](references.md)
+5. [Read the release notes](release-notes.md)
+6. [Read the agent-friendly paper digest](paper-for-agents.md)
+7. [Check the references](references.md)
 
 ## Important caveats
 

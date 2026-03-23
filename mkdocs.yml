@@ -35,6 +35,7 @@ nav:
   - Usage: usage.md
   - Models: models.md
   - Scripts: scripts.md
+  - Release notes: release-notes.md
   - Benchmark report: benchmark.md
   - Paper for agents: paper-for-agents.md
   - References: references.md

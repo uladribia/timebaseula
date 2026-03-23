@@ -232,6 +232,7 @@ The HTML reports now share the same tabbed structure used by the custom-dataset 
 - `docs/usage.md`: NeuralForecast usage patterns, validation tracking, and convergence troubleshooting
 - `docs/models.md`: model structure, assumptions, and tuning notes
 - `docs/scripts.md`: script reference and logging behavior
+- `docs/release-notes.md`: release-style summary of the latest benchmark and packaging changes
 - `docs/paper-for-agents.md`: expanded markdown paper digest for LLMs and human readers
 - `docs/references.md`: original PDF and bibliographic reference
 
