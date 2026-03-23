@@ -1,6 +1,6 @@
 [project]
 name = "timebaseula"
-version = "0.2.1"
+version = "0.2.2"
 description = "Port of TimeBase to pythonic and Dribia standards to be used with Nixtla's NeuralForecast"
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
