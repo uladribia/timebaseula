@@ -1,6 +1,0 @@
-"""Backward-compatible alias for the DLinear-only synthetic benchmark CLI."""
-
-from devtools.benchmark_synthetic_dlinear import app
-
-if __name__ == "__main__":
-    app()

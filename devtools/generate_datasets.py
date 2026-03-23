@@ -2,33 +2,17 @@
 
 from __future__ import annotations
 
-import logging
-from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import typer
 from rich.console import Console
 
+from devtools.benchmark_common import configure_logging
 from devtools.benchmark_long_horizon import ensure_aggregated_datasets
 
 app = typer.Typer(help="Prepare the cached benchmark datasets.")
 console = Console()
 LOG_PATH = Path("logs") / "generate_datasets.log"
-
-
-def configure_logging() -> logging.Logger:
-    """Configure structured rotating logs for dataset generation."""
-    LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    logger = logging.getLogger("generate_datasets")
-    if logger.handlers:
-        return logger
-
-    logger.setLevel(logging.INFO)
-    handler = RotatingFileHandler(LOG_PATH, maxBytes=5 * 1024 * 1024, backupCount=1)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    return logger
 
 
 @app.command()
@@ -40,7 +24,7 @@ def main(
     ),
 ) -> None:
     """Prepare the aggregated benchmark datasets and log the generated paths."""
-    logger = configure_logging()
+    logger = configure_logging("generate_datasets", LOG_PATH)
     paths = ensure_aggregated_datasets(force_download=force_download)
     logger.info(
         "Prepared aggregated benchmark datasets",

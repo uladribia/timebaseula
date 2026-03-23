@@ -1,34 +1,21 @@
 ---
-description: Reference for repository scripts used for datasets, synthetic plots, evaluation, and benchmarks.
+description: Reference for the internal benchmark and dataset-preparation scripts.
 ---
 
 # Scripts
 
-**TL;DR**
-- Operational scripts are thin **Typer** wrappers over internal `devtools/` modules.
-- Benchmark scripts now use a consistent `benchmark_*` naming convention.
-- Logs are written under `logs/`.
-- Benchmarking and synthetic evaluation are intentionally kept outside the default fast test suite.
+## TL;DR
+- Operational scripts are thin Typer wrappers over internal `devtools/` modules.
+- Only the dataset-preparation and benchmark entrypoints remain.
+- Benchmarks now write simple CSV and markdown outputs.
 
 ## Available scripts
 
 | Script | Purpose |
 |---|---|
-| `scripts/generate_datasets.py` | prepare cached benchmark datasets via `devtools.generate_datasets` |
-| `scripts/generate_synthetic_plot.py` | generate standalone HTML visualizations with embedded Matplotlib figures and optional forecast overlays |
-| `scripts/benchmark_synthetic_dlinear.py` | get DLinear MAE on synthetic scenarios |
-| `scripts/benchmark_synthetic.py` | compare naive, DLinear, AutoTimeBase, AutoTimeBaseTrend, MFLES and emit a reusable synthetic HTML report |
-| `scripts/benchmark_long_horizon.py` | benchmark models on ECL and Traffic for one frequency regime per run and emit markdown or HTML reports |
-| `scripts/benchmark_custom.py` | benchmark the custom monthly dataset and render the custom HTML report |
-
-Canonical benchmark entrypoints use the `benchmark_*` prefix:
-- `benchmark_synthetic.py`
-- `benchmark_synthetic_dlinear.py`
-- `benchmark_long_horizon.py`
-- `benchmark_custom.py`
-
-Backward-compatible aliases remain available for older names such as
-`check_forecast_mae.py`, `eval_dlinear_mae.py`, and `benchmark_custom_dataset.py`.
+| `scripts/generate_datasets.py` | prepare cached long-horizon datasets |
+| `scripts/benchmark_long_horizon.py` | benchmark ECL and TrafficL and write CSV/markdown outputs |
+| `scripts/benchmark_custom.py` | benchmark the custom monthly dataset and write CSV/markdown outputs |
 
 ## Prepare cached benchmark datasets
 
@@ -42,133 +29,31 @@ Force refresh:
 uv run --frozen python scripts/generate_datasets.py main --force-download
 ```
 
-## Generate synthetic plots
-
-```bash
-uv run --frozen python scripts/generate_synthetic_plot.py --help
-```
-
-This script now emits a standalone **HTML** visualization backed by **Matplotlib**.
-Useful options include:
-- `--output`
-- `--title`
-- `--forecast-horizon`
-- `--include-reference`
-- `--include-timebase`
-- `--include-timebase-trend`
-- `--include-mfles`
-
-## Compare MAE on synthetic scenarios
-
-Run the benchmark once and persist the result table plus report inputs:
-
-```bash
-uv run --frozen python scripts/benchmark_synthetic.py run \
-  --max-steps 20 \
-  --output-csv logs/synthetic_benchmark_results.csv
-```
-
-For a fuller comparison where the neural models have enough optimization budget to settle, use:
-
-```bash
-uv run --frozen python scripts/benchmark_synthetic.py run \
-  --max-steps 200 \
-  --output-csv logs/synthetic_benchmark_full.csv
-```
-
-Regenerate the HTML report later without rerunning the models:
-
-```bash
-uv run --frozen python scripts/benchmark_synthetic.py report-html \
-  --input-csv logs/synthetic_benchmark_results.csv \
-  --output-html logs/synthetic_benchmark_report.html
-```
-
 ## Benchmark long-horizon datasets
 
-Daily and monthly long-horizon runs are intentionally kept separate. A single run must stay within one frequency regime so train/test splitting, holdout sizing, persisted report data, and HTML reporting remain consistent.
-
-Quick daily smoke test:
-
 ```bash
 uv run --frozen python scripts/benchmark_long_horizon.py run \
   --mode daily \
-  --n-series 5 \
-  --horizon 7 \
-  --max-steps 10 \
-  --output logs/benchmark_results_smoke.csv
-```
-
-Monthly runs should use a separate output/report pair, for example:
-
-```bash
-uv run --frozen python scripts/benchmark_long_horizon.py run \
-  --mode monthly \
   --n-series 50 \
-  --output logs/benchmark_long_horizon_monthly.csv \
-  --html-report \
-  --html-report-output logs/benchmark_long_horizon_monthly.html
-```
-
-Full-budget daily and monthly runs:
-
-```bash
-uv run --frozen python scripts/benchmark_long_horizon.py run \
-  --mode daily \
-  --max-steps 200 \
-  --output logs/benchmark_long_horizon_daily_full.csv \
-  --html-report \
-  --html-report-output logs/benchmark_long_horizon_daily_full.html
-
-uv run --frozen python scripts/benchmark_long_horizon.py run \
-  --mode monthly \
-  --max-steps 200 \
-  --output logs/benchmark_long_horizon_monthly_full.csv \
-  --html-report \
-  --html-report-output logs/benchmark_long_horizon_monthly_full.html
-```
-
-Generate reports from a persisted benchmark CSV. Daily and monthly runs should always use separate CSV, report-data, and HTML paths. The run stores report inputs in a sibling `*_report_data/` directory by default, so report-only changes do not require another full benchmark run.
-
-The benchmark scripts keep search budgets explicit and do not use the current iteration auto-suggestion helper. Synthetic and custom benchmark runs now honor the user-provided step cap directly instead of expanding it through recommendation helpers. The long-horizon CLI treats `--n-series` as an exact subset size, so omitting the flag uses the configured default slice while `--n-series 0` selects zero series and is only useful for failure testing. The HTML reports now follow the same tabbed layout as the custom benchmark report. When observed series are available at report-generation time, the representative-series tab uses a consistent selection policy:
-
-- longest history
-- highest variance
-- strongest absolute linear trend
-- two additional random series when the slice has at least five series
-
-```bash
-uv run --frozen python scripts/benchmark_long_horizon.py report \
-  --input-csv logs/benchmark_results_smoke.csv \
-  --output-md docs/benchmark.md
-
-uv run --frozen python scripts/benchmark_long_horizon.py report-html \
-  --input-csv logs/benchmark_results_smoke.csv \
-  --output-html logs/benchmark_results_smoke.html
+  --output logs/benchmark_long_horizon_daily.csv \
+  --output-md logs/benchmark_long_horizon_daily.md
 ```
 
 ## Benchmark the custom dataset
 
-Quick run:
-
 ```bash
-uv run --frozen python scripts/benchmark_custom.py --max-steps 10
+uv run --frozen python scripts/benchmark_custom.py \
+  --max-steps 30 \
+  --output-dir logs/custom_dataset_benchmark
 ```
 
-Full-budget run:
-
-```bash
-uv run --frozen python scripts/benchmark_custom.py --max-steps 200
-```
-
-The command writes `leaderboard.csv`, `per_series.csv`, `forecasts.csv`, `summary.json`, and `report.html` under `logs/custom_dataset_benchmark/`.
+This command writes:
+- `leaderboard.csv`
+- `report.md`
 
 ## Logging
 
 These scripts use rotating log files with a 5 MB limit:
-
 - `logs/generate_datasets.log`
-- `logs/synthetic_plot.log`
-- `logs/benchmark_synthetic_dlinear.log`
-- `logs/benchmark_synthetic.log`
-- `logs/benchmark.log`
+- `logs/benchmark_long_horizon.log`
+- `logs/benchmark_custom.log`

@@ -1,6 +1,0 @@
-"""Backward-compatible alias for the synthetic benchmark CLI."""
-
-from devtools.benchmark_synthetic import app
-
-if __name__ == "__main__":
-    app()

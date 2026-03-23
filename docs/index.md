@@ -1,83 +1,53 @@
 ---
-description: Overview page for TimeBaseUla with package scope, API, and documentation map.
+description: Overview of the TimeBaseUla package and its public API.
 ---
 
-# TimeBaseUla
+# Overview
 
-**TL;DR**
-- `timebaseula` provides `TimeBase`, `TimeBaseTrend`, and `make_synthetic_series`.
-- The models plug into **NeuralForecast**.
-- Benchmark and reporting helpers are kept in internal `devtools/` modules, not in the published package.
-- Multi-series training plus single-series prediction is handled directly by NeuralForecast.
-- Start with [install](install.md), then [usage](usage.md), [models](models.md), and [paper-for-agents](paper-for-agents.md).
+## TL;DR
+- `timebaseula` exports `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
+- Explicit models now have simple deterministic defaults.
+- Auto models follow Nixtla's native `BaseAuto` pattern.
+- Benchmark tooling stays in `devtools/` and is not part of the published package.
 
-<p align="center">
-  <img src="img/logo_dribia_blau_cropped.png" alt="TimeBaseUla logo" width="320">
-</p>
+## Package purpose
 
-## Why this project exists
+TimeBaseUla provides compact TimeBase-style forecasting models that plug into `NeuralForecast`.
 
-TimeBaseUla is a Python adaptation of the **TimeBase** forecasting idea with a repository style that emphasizes:
+## Public API
 
-- CPU-first execution
-- small PyTorch modules
-- compatibility with Nixtla's `NeuralForecast`
-- fast unit tests and explicit heavier checks
-- scannable MkDocs documentation
+| Object | Purpose |
+|---|---|
+| `TimeBase` | Explicit TimeBase model |
+| `TimeBaseTrend` | Explicit TimeBase model with trend decomposition |
+| `AutoTimeBase` | Auto-tuned wrapper for `TimeBase` |
+| `AutoTimeBaseTrend` | Auto-tuned wrapper for `TimeBaseTrend` |
 
-## Package surface
+## Quick example
 
 ```python
-from timebaseula import TimeBase, TimeBaseTrend, make_synthetic_series
+import pandas as pd
+from neuralforecast import NeuralForecast
+from timebaseula import TimeBase
+
+frame = pd.DataFrame(
+    {
+        "unique_id": ["series_1"] * 120,
+        "ds": pd.date_range("2024-01-01", periods=120, freq="D"),
+        "y": range(120),
+    }
+)
+
+model = TimeBase(h=12, freq="D")
+nf = NeuralForecast(models=[model], freq="D")
+nf.fit(frame, val_size=12)
+forecast = nf.predict()
 ```
 
-## What you get
+## Internal tooling
 
-| Feature | Notes |
+| Path | Role |
 |---|---|
-| `TimeBase` | Segment + basis forecasting with two linear layers |
-| `TimeBaseTrend` | Adds moving-average decomposition and a linear trend head |
-| `make_synthetic_series` | Deterministic synthetic generator reused by tests, scripts, and docs |
-| benchmark scripts | CPU-oriented experiments on ECL and Traffic |
-| recommendation helpers | Lightweight defaults based on dataset profiling |
-
-## Architecture at a glance
-
-```mermaid
-flowchart TD
-    A[Historical window] --> B[Split into segments of length period_len]
-    B --> C[Normalization]
-    C --> D[Basis extraction linear layer]
-    D --> E[Segment forecast linear layer]
-    E --> F[Flatten back to h steps]
-```
-
-`TimeBaseTrend` adds a decomposition block before the forecast:
-
-```mermaid
-flowchart TD
-    A[Historical window] --> B[SeriesDecomp]
-    B --> C[Seasonal component]
-    B --> D[Trend component]
-    C --> E[TimeBaseCore]
-    D --> F[Linear trend head]
-    E --> G[Add]
-    F --> G
-    G --> H[Forecast]
-```
-
-## How to read the docs
-
-1. [Install the library](install.md)
-2. [Follow the usage guide](usage.md)
-3. [Review the model notes](models.md)
-4. [Explore the scripts](scripts.md)
-5. [Read the release notes](release-notes.md)
-6. [Read the agent-friendly paper digest](paper-for-agents.md)
-7. [Check the references](references.md)
-
-## Important caveats
-
-- This package is intentionally small and focused.
-- The entire package has been **vibecoded** and then reviewed; keep that in mind when extending it.
-- Fast tests avoid full benchmark runs by design; heavy training checks are separated from the default suite.
+| `devtools/` | internal benchmark helpers |
+| `scripts/` | thin Typer wrappers over `devtools/` |
+| `tests/` | unit and integration coverage |

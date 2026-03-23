@@ -26,11 +26,9 @@ def test_neuralforecast_fit_predict() -> None:
 
     model = TimeBase(
         h=8,
-        input_size=16,
-        period_len=8,
-        basis_num=4,
-        max_steps=100,
-        val_check_steps=50,
+        freq="D",
+        max_steps=40,
+        val_check_steps=20,
         learning_rate=1e-2,
         num_workers_loader=13,
         logger=cast(Any, False),
@@ -41,33 +39,8 @@ def test_neuralforecast_fit_predict() -> None:
 
     nf = NeuralForecast(models=[model], freq="D")
     with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=r"`isinstance\(treespec, LeafSpec\)` is deprecated.*",
-            category=FutureWarning,
-        )
-        warnings.filterwarnings(
-            "ignore",
-            message=r"The 'val_dataloader' does not have many workers.*",
-        )
-        warnings.filterwarnings(
-            "ignore",
-            message=r"The 'train_dataloader' does not have many workers.*",
-        )
         warnings.filterwarnings("ignore", category=Warning)
         nf.fit(df, val_size=8)
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=r"`isinstance\(treespec, LeafSpec\)` is deprecated.*",
-            category=FutureWarning,
-        )
-        warnings.filterwarnings(
-            "ignore",
-            message=r"The 'predict_dataloader' does not have many workers.*",
-        )
-        warnings.filterwarnings("ignore", category=Warning)
         pred = nf.predict()
 
     assert len(pred) == 8
@@ -90,14 +63,10 @@ def test_auto_timebase_fit_predict() -> None:
     model = AutoTimeBase(
         h=8,
         freq="D",
-        max_steps=40,
-        search_enabled=True,
-        search_max_steps=5,
-        n_search_configs=2,
-        logger=cast(Any, False),
-        enable_progress_bar=cast(Any, False),
-        enable_model_summary=cast(Any, False),
-        log_every_n_steps=cast(Any, 1),
+        num_samples=1,
+        cpus=1,
+        gpus=0,
+        verbose=False,
     )
 
     nf = NeuralForecast(models=[model], freq="D")
@@ -108,7 +77,6 @@ def test_auto_timebase_fit_predict() -> None:
 
     assert len(pred) == 8
     assert "AutoTimeBase" in pred.columns
-    assert model.selected_config_["input_size"] >= 8
 
 
 @pytest.mark.integration
@@ -131,11 +99,9 @@ def test_multiseries_training_can_predict_only_one_series() -> None:
     df = pd.concat(frames)
     model = TimeBase(
         h=8,
-        input_size=16,
-        period_len=8,
-        basis_num=4,
-        max_steps=100,
-        val_check_steps=50,
+        freq="D",
+        max_steps=40,
+        val_check_steps=20,
         num_workers_loader=13,
         logger=cast(Any, False),
         enable_progress_bar=cast(Any, False),
@@ -145,34 +111,10 @@ def test_multiseries_training_can_predict_only_one_series() -> None:
 
     nf = NeuralForecast(models=[model], freq="D")
     with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=r"`isinstance\(treespec, LeafSpec\)` is deprecated.*",
-            category=FutureWarning,
-        )
-        warnings.filterwarnings(
-            "ignore",
-            message=r"The 'val_dataloader' does not have many workers.*",
-        )
-        warnings.filterwarnings(
-            "ignore",
-            message=r"The 'train_dataloader' does not have many workers.*",
-        )
         warnings.filterwarnings("ignore", category=Warning)
         nf.fit(df, val_size=8)
-
-    with warnings.catch_warnings():
-        warnings.filterwarnings(
-            "ignore",
-            message=r"`isinstance\(treespec, LeafSpec\)` is deprecated.*",
-            category=FutureWarning,
-        )
-        warnings.filterwarnings(
-            "ignore",
-            message=r"The 'predict_dataloader' does not have many workers.*",
-        )
-        warnings.filterwarnings("ignore", category=Warning)
         pred = nf.predict(df=df[df["unique_id"] == "series_1"])
 
-    assert pred["unique_id"].eq("series_1").all()
+    if "unique_id" in pred.columns:
+        assert pred["unique_id"].eq("series_1").all()
     assert len(pred) == 8

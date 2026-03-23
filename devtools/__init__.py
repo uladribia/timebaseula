@@ -1,1 +1,1 @@
-"""Development-only benchmark and reporting tools for repository workflows."""
+"""Development-only benchmark tools for repository workflows."""

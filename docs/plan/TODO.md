@@ -1,18 +1,15 @@
 # TODO
 
-## Completed maintenance pass
-- [x] removed the custom `predict_single_series` helper from the public API
-- [x] moved the synthetic generator into `timebaseula/synthetic.py`
-- [x] updated scripts to import package utilities instead of `tests/`
-- [x] unified shared training logic for `TimeBase` and `TimeBaseTrend`
-- [x] standardized `scripts/generate_datasets.py` with Typer, Rich, and rotating logs
-- [x] added an agent-friendly markdown digest for the TimeBase paper
-- [x] aligned README and MkDocs pages with the shipped behavior
-- [x] documented that the package has been vibecoded
-- [x] kept the fast unit suite separate from heavier integration and benchmark suites
-- [x] added coverage for the NeuralForecast single-series-after-multi-series workflow
-- [x] regenerated the synthetic scenario images
+## Completed simplification pass
+- [x] reduced the public API to the four model classes
+- [x] removed the package-level synthetic helper
+- [x] removed the package-level recommendation helpers
+- [x] rebuilt `AutoTimeBase` and `AutoTimeBaseTrend` on top of Nixtla's native auto pattern
+- [x] deleted compatibility script aliases
+- [x] removed synthetic benchmark and plotting tooling
+- [x] simplified benchmark outputs to CSV and markdown
+- [x] updated unit and integration tests around the new contracts
 
 ## Follow-up ideas
-- [ ] add benchmark-marked tests only when a stable, mockable benchmark contract is needed
-- [ ] consider factoring shared logging helpers for scripts if more scripts are added
+- [ ] keep the auto search spaces compact and predictable
+- [ ] revisit dependency weight if a lighter auto backend becomes practical later

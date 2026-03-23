@@ -11,6 +11,7 @@ dependencies = [
 	"neuralforecast>=1.7.4,<2",
 	"numpy>=2.2.0,<3",
 	"pandas>=2.2.0,<3",
+	"ray[tune]>=2.49.2,<3",
 	"torch>=2.0.0,<3",
 ]
 
@@ -25,13 +26,10 @@ dev = [
 ]
 bench = [
 	"datasetsforecast>=1.0.0,<2",
-	"matplotlib>=3.10.0,<4",
-	"nixtla>=0.7.0,<1",
-	"pytorch-lightning>=2.5.0,<3",
 	"rich>=14.1.0,<15",
-	"scikit-learn>=1.5.0,<2",
 	"statsforecast>=1.7.0,<2",
 	"typer>=0.12.4,<0.22",
+	"utilsforecast>=0.2.12,<1",
 ]
 ci = [
 	"setuptools>=80.10.1,<81",

@@ -1,4 +1,4 @@
-"""Test the module initialization and version information."""
+"""Test the public package surface."""
 
 import sys
 from importlib import reload
@@ -10,14 +10,9 @@ from pytest_mock import MockFixture
 EXPECTED_EXPORTS = {
     "AutoTimeBase",
     "AutoTimeBaseTrend",
-    "DatasetProfile",
     "TimeBase",
     "TimeBaseTrend",
     "__version__",
-    "make_synthetic_series",
-    "profile_dataset",
-    "recommend_timebase_kwargs",
-    "recommend_timebase_trend_kwargs",
 }
 
 
@@ -27,6 +22,7 @@ class TestInit:
     @patch("importlib.metadata.version", side_effect=PackageNotFoundError)
     def test_version_not_found(self, mock_version: MockFixture) -> None:
         """Test `__version__` when the package is not found."""
+        del mock_version
         if "timebaseula" in sys.modules:
             del sys.modules["timebaseula"]
 
@@ -55,4 +51,6 @@ class TestInit:
         import timebaseula
 
         assert set(timebaseula.__all__) == EXPECTED_EXPORTS
-        assert not hasattr(timebaseula, "predict_single_series")
+        assert not hasattr(timebaseula, "make_synthetic_series")
+        assert not hasattr(timebaseula, "profile_dataset")
+        assert not hasattr(timebaseula, "recommend_timebase_kwargs")

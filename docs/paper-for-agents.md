@@ -25,8 +25,8 @@ If you need the exact original language, equations, or figures, use:
 If you need to understand what is actually implemented here, prefer:
 
 - `timebaseula/models/timebase.py`
-- `timebaseula/recommend.py`
 - `docs/models.md`
+- `docs/usage.md`
 
 ## How to use this page as an agent or LLM
 
@@ -188,10 +188,10 @@ This is especially useful when the repeated temporal block bias is still helpful
 | Concept | Repository location |
 |---|---|
 | exported wrappers | `timebaseula/models/timebase.py` |
-| dataset-aware defaults | `timebaseula/recommend.py` |
-| synthetic benchmarking | `scripts/benchmark_synthetic.py` |
+| explicit model defaults | `timebaseula/models/timebase.py` |
+| Nixtla-style auto wrappers | `timebaseula/models/timebase.py` |
 | long-horizon real-data benchmarking | `scripts/benchmark_long_horizon.py` |
-| custom HTML benchmark reporting | `devtools/reporting.py` and `devtools/benchmark_custom.py` |
+| custom benchmark reporting | `scripts/benchmark_custom.py` |
 
 ## What is implemented here
 
@@ -201,7 +201,7 @@ This is especially useful when the repeated temporal block bias is still helpful
 | TimeBaseTrend decomposition extension | implemented |
 | orthogonal penalty option | implemented |
 | NeuralForecast compatibility | implemented |
-| recommendation helpers | implemented |
+| deterministic explicit defaults | implemented |
 | benchmark scripts and reports | implemented |
 | ad hoc single-series helper API | intentionally not exported |
 
@@ -228,7 +228,7 @@ A good reading order is:
 1. this page
 2. `docs/models.md`
 3. `timebaseula/models/timebase.py`
-4. `timebaseula/recommend.py`
+4. `docs/usage.md`
 5. the original PDF if you want the full formal presentation
 
 That order helps because:
