@@ -39,6 +39,11 @@ uv run --frozen python scripts/benchmark_long_horizon.py run \
   --output-md logs/benchmark_long_horizon_daily.md
 ```
 
+This command writes:
+- a CSV leaderboard with `mae`, `rmse`, `rmae`, `params`, and `execution_time`
+- a markdown report with metric notes, a data summary, and representative forecast plots
+- a sibling plot directory next to the markdown report
+
 ## Benchmark the custom dataset
 
 ```bash
@@ -50,6 +55,9 @@ uv run --frozen python scripts/benchmark_custom.py \
 This command writes:
 - `leaderboard.csv`
 - `report.md`
+- `plots/*.png`
+
+Both benchmark CLIs always run cross-validation with `refit=True`.
 
 ## Logging
 

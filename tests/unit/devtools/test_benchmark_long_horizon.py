@@ -10,6 +10,7 @@ import pytest
 from typer.testing import CliRunner
 
 from devtools import benchmark_long_horizon
+from devtools.benchmark_common import BenchmarkArtifacts, SavedPlot
 from devtools.benchmark_long_horizon import (
     aggregate_frame,
     ensure_aggregated_datasets,
@@ -123,24 +124,35 @@ class TestBenchmarkLongHorizon:
         assert download_calls.count("ECL") == 1
         assert download_calls.count("TrafficL") == 1
 
-    def test_run_command_writes_csv_and_markdown(
+    def test_run_command_writes_csv_markdown_and_plots(
         self,
         tmp_path: Path,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The CLI should persist the simplified CSV and markdown outputs."""
+        """The CLI should persist CSV, markdown, and representative plots."""
         runner = CliRunner()
         benchmark_mock = Mock(
-            return_value=pd.DataFrame(
-                {
-                    "dataset": ["ECL"],
-                    "frequency": ["D"],
-                    "model_name": ["TimeBase"],
-                    "mae": [0.1],
-                    "rmse": [0.2],
-                    "params": [31],
-                    "train_time": [1.0],
-                }
+            return_value=BenchmarkArtifacts(
+                results_frame=pd.DataFrame(
+                    {
+                        "dataset": ["ECL", "ECL"],
+                        "frequency": ["D", "D"],
+                        "model_name": ["TimeBase", "SeasonalNaive"],
+                        "mae": [0.1, 0.2],
+                        "rmse": [0.2, 0.3],
+                        "rmae": [0.5, 1.0],
+                        "params": [31, 0],
+                        "execution_time": [1.0, 0.1],
+                    }
+                ),
+                forecast_frames={},
+                source_frame=pd.DataFrame(
+                    {
+                        "unique_id": ["a"],
+                        "ds": pd.to_datetime(["2024-01-01"]),
+                        "y": [1.0],
+                    }
+                ),
             )
         )
         monkeypatch.setattr(
@@ -150,8 +162,24 @@ class TestBenchmarkLongHorizon:
         )
         monkeypatch.setattr(
             benchmark_long_horizon,
-            "benchmark_dataset",
+            "run_benchmark_block",
             benchmark_mock,
+        )
+
+        def fake_save_plots(
+            *args: object,
+            **kwargs: object,
+        ) -> list[SavedPlot]:
+            del args, kwargs
+            plot_path = tmp_path / "plots" / "series-a.png"
+            plot_path.parent.mkdir(parents=True, exist_ok=True)
+            plot_path.write_text("placeholder", encoding="utf-8")
+            return [SavedPlot(title="Series a", path=plot_path)]
+
+        monkeypatch.setattr(
+            benchmark_long_horizon,
+            "save_representative_forecast_plots",
+            fake_save_plots,
         )
 
         output_csv = tmp_path / "benchmark.csv"
@@ -174,4 +202,14 @@ class TestBenchmarkLongHorizon:
         assert result.exit_code == 0
         assert output_csv.exists()
         assert output_md.exists()
+        assert "Representative forecast plots" in output_md.read_text(encoding="utf-8")
         benchmark_mock.assert_called_once()
+
+    def test_run_command_rejects_removed_refit_option(self) -> None:
+        """The CLI should not expose a refit toggle anymore."""
+        runner = CliRunner()
+
+        result = runner.invoke(benchmark_long_horizon.app, ["run", "--no-refit"])
+
+        assert result.exit_code == 2
+        assert "No such option" in result.output

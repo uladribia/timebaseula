@@ -1,4 +1,4 @@
-"""Benchmark long-horizon forecasting models with simple CSV and markdown output."""
+"""Benchmark long-horizon forecasting models with CSV, markdown, and plots."""
 
 from __future__ import annotations
 
@@ -20,10 +20,19 @@ from statsforecast import StatsForecast
 from statsforecast.models import AutoMFLES, SeasonalNaive
 
 from devtools.benchmark_common import (
+    BASELINE_MODEL_NAME,
+    BenchmarkArtifacts,
+    build_dataset_summary,
     build_markdown_report,
+    build_metrics_frame,
+    build_plot_markdown,
     configure_logging,
     count_params,
+    dataframe_to_markdown_table,
     evaluate_cv_results,
+    merge_baseline_forecast,
+    normalize_forecast_frame,
+    save_representative_forecast_plots,
 )
 from timebaseula import TimeBase, TimeBaseTrend
 
@@ -37,6 +46,7 @@ DATASETS_DIR = Path("datasets")
 LOG_PATH = Path("logs") / "benchmark_long_horizon.log"
 DEFAULT_MIN_SERIES = 200
 DEFAULT_MAX_SERIES = 300
+DEFAULT_PLOT_LIMIT = 5
 MODE_TO_FREQUENCY = {"daily": "D", "monthly": "ME"}
 DATASET_ALIASES = {
     "ECL": "ECL",
@@ -204,6 +214,11 @@ def select_series_subset(frame: pd.DataFrame, n_series: int | None) -> pd.DataFr
     return frame[frame["unique_id"].isin(selected_ids)].reset_index(drop=True)
 
 
+def _season_length(freq: str) -> int:
+    """Return the naive season length used by the benchmark baselines."""
+    return 7 if freq == "D" else 12
+
+
 def _common_neural_kwargs(horizon: int, max_steps: int) -> dict[str, Any]:
     """Return shared CPU-first kwargs for neural models."""
     return {
@@ -218,81 +233,145 @@ def _common_neural_kwargs(horizon: int, max_steps: int) -> dict[str, Any]:
     }
 
 
-def _run_neural_benchmark(
+def _build_result_row(
+    forecast_frame: pd.DataFrame,
+    model_name: str,
+    params: int,
+    execution_time: float,
+) -> pd.DataFrame:
+    """Build one result row from a forecast frame using utilsforecast metrics."""
+    model_names = (
+        [BASELINE_MODEL_NAME]
+        if model_name == BASELINE_MODEL_NAME
+        else [BASELINE_MODEL_NAME, model_name]
+    )
+    metrics = evaluate_cv_results(
+        forecast_frame=forecast_frame,
+        model_names=model_names,
+        baseline_model=BASELINE_MODEL_NAME,
+    )
+    result = metrics[metrics["model_name"] == model_name].reset_index(drop=True)
+    result["params"] = params
+    result["execution_time"] = execution_time
+    return result
+
+
+def _trim_forecast_frame(forecast_frame: pd.DataFrame, model_name: str) -> pd.DataFrame:
+    """Keep only the columns required for reporting and plotting."""
+    return forecast_frame[["unique_id", "ds", "cutoff", "y", model_name]].copy()
+
+
+def _run_baseline_benchmark(
     frame: pd.DataFrame,
     freq: str,
     horizon: int,
-    max_steps: int,
-    refit: bool,
-) -> pd.DataFrame:
-    """Run one native NeuralForecast cross-validation pass."""
-    common_kwargs = _common_neural_kwargs(horizon, max_steps)
-    models = [
-        DLinear(h=horizon, **common_kwargs),
-        NLinear(h=horizon, **common_kwargs),
-        TimeBase(h=horizon, freq=freq, max_steps=max_steps, logger=False),
-        TimeBaseTrend(h=horizon, freq=freq, max_steps=max_steps, logger=False),
-    ]
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Run the SeasonalNaive baseline once and keep its forecast frame."""
+    model = SeasonalNaive(season_length=_season_length(freq))
     start_time = time.perf_counter()
-    forecast = NeuralForecast(models=models, freq=freq).cross_validation(
+    forecast = StatsForecast(models=[model], freq=freq, verbose=False).cross_validation(
         df=frame,
+        h=horizon,
         n_windows=1,
-        val_size=horizon,
-        refit=refit,
+        refit=True,
     )
-    elapsed = time.perf_counter() - start_time
-    if "unique_id" not in forecast.columns:
-        forecast = forecast.reset_index()
-
-    model_names = [repr(model) for model in models]
-    metrics = evaluate_cv_results(forecast, model_names)
-    param_map = {repr(model): count_params(model) for model in models}
-    metrics["params"] = metrics["model_name"].map(param_map)
-    metrics["train_time"] = elapsed
-    return metrics
+    execution_time = time.perf_counter() - start_time
+    normalized_forecast = normalize_forecast_frame(forecast)
+    model_name = repr(model)
+    result = _build_result_row(
+        forecast_frame=normalized_forecast,
+        model_name=model_name,
+        params=0,
+        execution_time=execution_time,
+    )
+    return result, _trim_forecast_frame(normalized_forecast, model_name)
 
 
 def _run_stats_benchmark(
     frame: pd.DataFrame,
     freq: str,
     horizon: int,
-    refit: bool,
-) -> pd.DataFrame:
-    """Run one native StatsForecast cross-validation pass."""
-    models = [
-        SeasonalNaive(season_length=7 if freq == "D" else 12),
-        AutoMFLES(test_size=horizon, season_length=7 if freq == "D" else 12),
-    ]
+    baseline_forecast: pd.DataFrame,
+) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+    """Run the non-baseline StatsForecast models individually."""
+    model = AutoMFLES(test_size=horizon, season_length=_season_length(freq))
     start_time = time.perf_counter()
-    forecast = StatsForecast(models=models, freq=freq, verbose=False).cross_validation(
+    forecast = StatsForecast(models=[model], freq=freq, verbose=False).cross_validation(
         df=frame,
         h=horizon,
         n_windows=1,
-        refit=refit,
+        refit=True,
     )
-    elapsed = time.perf_counter() - start_time
-    if "unique_id" not in forecast.columns:
-        forecast = forecast.reset_index()
+    execution_time = time.perf_counter() - start_time
 
-    model_names = [repr(model) for model in models]
-    metrics = evaluate_cv_results(forecast, model_names)
-    metrics["model_name"] = metrics["model_name"].replace({"AutoMFLES": "MFLES"})
-    metrics["params"] = 0
-    metrics["train_time"] = metrics["model_name"].map(
-        {"SeasonalNaive": 0.0, "MFLES": elapsed}
+    model_name = "MFLES"
+    normalized_forecast = normalize_forecast_frame(forecast).rename(
+        columns={repr(model): model_name}
     )
-    return metrics
+    merged_forecast = merge_baseline_forecast(normalized_forecast, baseline_forecast)
+    result = _build_result_row(
+        forecast_frame=merged_forecast,
+        model_name=model_name,
+        params=0,
+        execution_time=execution_time,
+    )
+    return result, {model_name: _trim_forecast_frame(merged_forecast, model_name)}
 
 
-def benchmark_dataset(
+def _run_neural_benchmark(
+    frame: pd.DataFrame,
+    freq: str,
+    horizon: int,
+    max_steps: int,
+    baseline_forecast: pd.DataFrame,
+) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
+    """Run the neural models individually and retain their forecasts."""
+    common_kwargs = _common_neural_kwargs(horizon, max_steps)
+    model_specs = [
+        (DLinear, {"h": horizon, **common_kwargs}),
+        (NLinear, {"h": horizon, **common_kwargs}),
+        (TimeBase, {"h": horizon, "freq": freq, **common_kwargs}),
+        (TimeBaseTrend, {"h": horizon, "freq": freq, **common_kwargs}),
+    ]
+
+    results: list[pd.DataFrame] = []
+    forecasts: dict[str, pd.DataFrame] = {}
+    for model_class, model_kwargs in model_specs:
+        model = model_class(**model_kwargs)
+        model_name = repr(model)
+        start_time = time.perf_counter()
+        forecast = NeuralForecast(models=[model], freq=freq).cross_validation(
+            df=frame,
+            n_windows=1,
+            val_size=horizon,
+            refit=True,
+        )
+        execution_time = time.perf_counter() - start_time
+        normalized_forecast = normalize_forecast_frame(forecast)
+        merged_forecast = merge_baseline_forecast(
+            normalized_forecast, baseline_forecast
+        )
+        results.append(
+            _build_result_row(
+                forecast_frame=merged_forecast,
+                model_name=model_name,
+                params=count_params(model),
+                execution_time=execution_time,
+            )
+        )
+        forecasts[model_name] = _trim_forecast_frame(merged_forecast, model_name)
+
+    return pd.concat(results, ignore_index=True), forecasts
+
+
+def run_benchmark_block(
     dataset: str,
     freq: str,
     horizon: int,
     n_series: int | None,
     max_steps: int,
-    refit: bool,
-) -> pd.DataFrame:
-    """Benchmark one dataset/frequency block and return a result table."""
+) -> BenchmarkArtifacts:
+    """Benchmark one dataset block and return results plus plot artifacts."""
     logger = get_logger()
     normalized_freq = normalize_frequency(freq)
     frame = load_or_create_aggregated_dataset(dataset, normalized_freq)
@@ -307,25 +386,72 @@ def benchmark_dataset(
         },
     )
 
-    neural_results = _run_neural_benchmark(
+    baseline_result, baseline_forecast = _run_baseline_benchmark(
+        frame=frame,
+        freq=normalized_freq,
+        horizon=horizon,
+    )
+    neural_results, neural_forecasts = _run_neural_benchmark(
         frame=frame,
         freq=normalized_freq,
         horizon=horizon,
         max_steps=max_steps,
-        refit=refit,
+        baseline_forecast=baseline_forecast,
     )
-    stats_results = _run_stats_benchmark(
+    stats_results, stats_forecasts = _run_stats_benchmark(
         frame=frame,
         freq=normalized_freq,
         horizon=horizon,
-        refit=refit,
+        baseline_forecast=baseline_forecast,
     )
-    results = pd.concat([neural_results, stats_results], ignore_index=True)
+
+    results = (
+        pd.concat(
+            [baseline_result, neural_results, stats_results],
+            ignore_index=True,
+        )
+        .sort_values(["mae", "rmse"])
+        .reset_index(drop=True)
+    )
     results["dataset"] = resolve_dataset_group(dataset)
     results["frequency"] = normalized_freq
-    return results[
-        ["dataset", "frequency", "model_name", "mae", "rmse", "params", "train_time"]
+    ordered_columns = [
+        "dataset",
+        "frequency",
+        "model_name",
+        "mae",
+        "rmse",
+        "rmae",
+        "params",
+        "execution_time",
     ]
+    forecast_frames = {
+        BASELINE_MODEL_NAME: baseline_forecast,
+        **neural_forecasts,
+        **stats_forecasts,
+    }
+    return BenchmarkArtifacts(
+        results_frame=results[ordered_columns],
+        forecast_frames=forecast_frames,
+        source_frame=frame,
+    )
+
+
+def benchmark_dataset(
+    dataset: str,
+    freq: str,
+    horizon: int,
+    n_series: int | None,
+    max_steps: int,
+) -> pd.DataFrame:
+    """Benchmark one dataset/frequency block and return only the leaderboard."""
+    return run_benchmark_block(
+        dataset=dataset,
+        freq=freq,
+        horizon=horizon,
+        n_series=n_series,
+        max_steps=max_steps,
+    ).results_frame
 
 
 def render_results_table(results_frame: pd.DataFrame) -> None:
@@ -336,8 +462,9 @@ def render_results_table(results_frame: pd.DataFrame) -> None:
     table.add_column("Model", style="magenta")
     table.add_column("MAE", justify="right", style="green")
     table.add_column("RMSE", justify="right", style="yellow")
+    table.add_column("RMAE", justify="right")
     table.add_column("Params", justify="right")
-    table.add_column("Train(s)", justify="right")
+    table.add_column("Exec.(s)", justify="right")
 
     for row in results_frame.sort_values(
         ["dataset", "frequency", "mae", "rmse"]
@@ -348,8 +475,9 @@ def render_results_table(results_frame: pd.DataFrame) -> None:
             row.model_name,
             f"{row.mae:.4f}",
             f"{row.rmse:.4f}",
-            f"{int(row.params)}" if row.params else "-",
-            f"{row.train_time:.2f}" if row.train_time else "-",
+            f"{row.rmae:.4f}",
+            f"{int(row.params)}",
+            f"{row.execution_time:.2f}",
         )
 
     console.print(table)
@@ -388,6 +516,9 @@ def report(
             source_label=str(input_csv),
             results_frame=frame,
             slice_columns=["dataset", "frequency"],
+            extra_sections=[
+                ("Metrics", dataframe_to_markdown_table(build_metrics_frame()))
+            ],
         ),
         encoding="utf-8",
     )
@@ -419,11 +550,6 @@ def run_command(
         "--force-download",
         help="Recreate cached aggregated datasets.",
     ),
-    refit: bool = typer.Option(
-        False,
-        "--refit/--no-refit",
-        help="Whether to refit models during cross-validation.",
-    ),
 ) -> None:
     """Run the benchmark on aggregated ECL and Traffic datasets."""
     defaults = resolve_mode_defaults(mode)
@@ -435,34 +561,61 @@ def run_command(
     resolved_max_steps = int(defaults["max_steps"] if max_steps is None else max_steps)
     report_name = str(defaults["report_name"])
 
+    if output is None:
+        output = Path(f"logs/benchmark_long_horizon_{report_name}.csv")
+    if output_md is None:
+        output_md = Path(f"logs/benchmark_long_horizon_{report_name}.md")
+    plots_dir = output_md.parent / f"{output_md.stem}_plots"
+
     ensure_aggregated_datasets(force_download=force_download)
-    result_frames = []
+    benchmark_artifacts: list[BenchmarkArtifacts] = []
+    summary_frames: list[pd.DataFrame] = []
     for current_dataset in datasets:
         if not quiet:
             console.print(
                 f"[bold]Benchmarking[/bold] {current_dataset} at {resolved_freq} on CPU"
             )
-        result_frames.append(
-            benchmark_dataset(
-                dataset=current_dataset,
-                freq=resolved_freq,
+        artifacts = run_benchmark_block(
+            dataset=current_dataset,
+            freq=resolved_freq,
+            horizon=resolved_horizon,
+            n_series=n_series,
+            max_steps=resolved_max_steps,
+        )
+        benchmark_artifacts.append(artifacts)
+        summary_frames.append(
+            build_dataset_summary(
+                frame=artifacts.source_frame,
+                label=resolve_dataset_group(current_dataset),
                 horizon=resolved_horizon,
-                n_series=n_series,
-                max_steps=resolved_max_steps,
-                refit=refit,
+                frequency=resolved_freq,
             )
         )
 
-    results_frame = pd.concat(result_frames, ignore_index=True)
+    results_frame = pd.concat(
+        [artifact.results_frame for artifact in benchmark_artifacts],
+        ignore_index=True,
+    )
     render_results_table(results_frame)
-
-    if output is None:
-        output = Path(f"logs/benchmark_long_horizon_{report_name}.csv")
-    if output_md is None:
-        output_md = Path(f"logs/benchmark_long_horizon_{report_name}.md")
 
     output.parent.mkdir(parents=True, exist_ok=True)
     results_frame.to_csv(output, index=False)
+
+    saved_plots = []
+    for artifact in benchmark_artifacts:
+        dataset_label = str(artifact.results_frame["dataset"].iloc[0])
+        frequency_label = str(artifact.results_frame["frequency"].iloc[0])
+        saved_plots.extend(
+            save_representative_forecast_plots(
+                frame=artifact.source_frame,
+                forecast_frames=artifact.forecast_frames,
+                results_frame=artifact.results_frame,
+                output_dir=plots_dir,
+                title_prefix=f"{dataset_label} {frequency_label}",
+                limit=DEFAULT_PLOT_LIMIT,
+            )
+        )
+
     output_md.parent.mkdir(parents=True, exist_ok=True)
     output_md.write_text(
         build_markdown_report(
@@ -470,6 +623,26 @@ def run_command(
             source_label=str(output),
             results_frame=results_frame,
             slice_columns=["dataset", "frequency"],
+            extra_sections=[
+                ("Metrics", dataframe_to_markdown_table(build_metrics_frame())),
+                (
+                    "Data summary",
+                    dataframe_to_markdown_table(
+                        pd.concat(summary_frames, ignore_index=True)
+                    ),
+                ),
+                (
+                    "Representative forecast plots",
+                    "\n".join(
+                        [
+                            "Plots show train history, holdout targets, and model predictions.",
+                            "Legend entries include RMAE and parameter counts.",
+                            "",
+                            build_plot_markdown(saved_plots, output_md),
+                        ]
+                    ),
+                ),
+            ],
         ),
         encoding="utf-8",
     )
