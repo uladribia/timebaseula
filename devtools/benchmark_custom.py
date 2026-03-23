@@ -1,4 +1,4 @@
-"""Benchmark the custom monthly dataset with simple CSV, markdown, and plots."""
+"""Benchmark the custom monthly dataset with CSV, markdown, and plots."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import Any
 import pandas as pd
 import typer
 from neuralforecast import NeuralForecast
-from neuralforecast.auto import AutoDLinear, AutoNLinear
+from neuralforecast.models import DLinear, NLinear
 from rich.console import Console
 from rich.table import Table
 from statsforecast import StatsForecast
@@ -30,11 +30,10 @@ from devtools.benchmark_common import (
     evaluate_cv_results,
     merge_baseline_forecast,
     normalize_forecast_frame,
-    resolve_auto_preset,
     save_markdown_pdf,
     save_representative_forecast_plots,
 )
-from timebaseula import AutoTimeBase, AutoTimeBaseTrend
+from timebaseula import TimeBase, TimeBaseTrend
 
 app = typer.Typer(help="Benchmark the custom dataset and persist CSV/markdown outputs.")
 console = Console(stderr=True)
@@ -61,11 +60,7 @@ def load_custom_dataset(dataset_path: str | Path) -> pd.DataFrame:
         msg = f"Dataset is missing required columns: {missing_columns_text}"
         raise ValueError(msg)
     return (
-        frame[required_columns]
-        .sort_values(["unique_id", "ds"])
-        .reset_index(
-            drop=True,
-        )
+        frame[required_columns].sort_values(["unique_id", "ds"]).reset_index(drop=True)
     )
 
 
@@ -87,7 +82,6 @@ def _common_neural_kwargs(horizon: int, max_steps: int) -> dict[str, Any]:
     return {
         "input_size": max(2 * horizon, 8),
         "max_steps": max_steps,
-        "val_check_steps": max_steps,
         "learning_rate": 1e-3,
         "accelerator": "cpu",
         "devices": 1,
@@ -97,75 +91,21 @@ def _common_neural_kwargs(horizon: int, max_steps: int) -> dict[str, Any]:
     }
 
 
-def _auto_config(
-    auto_model_class: type[Any],
-    horizon: int,
-    max_steps: int,
-    freq: str | None = None,
-) -> dict[str, Any]:
-    """Return the benchmark search space used by the auto wrappers."""
-    get_default_config_kwargs: dict[str, Any] = {"h": horizon, "backend": "ray"}
-    if freq is not None:
-        get_default_config_kwargs["freq"] = freq
-    config = auto_model_class.get_default_config(**get_default_config_kwargs)
-    config["max_steps"] = max_steps
-    config["val_check_steps"] = max_steps
-    config["accelerator"] = "cpu"
-    config["devices"] = 1
-    config["enable_progress_bar"] = False
-    config["enable_model_summary"] = False
-    config["logger"] = False
-    return config
+def _build_neural_models(horizon: int, max_steps: int) -> list[Any]:
+    """Build the benchmark neural models with default parameters."""
+    common_kwargs = _common_neural_kwargs(horizon, max_steps)
+    return [
+        DLinear(h=horizon, **common_kwargs),
+        NLinear(h=horizon, **common_kwargs),
+        TimeBase(h=horizon, freq="MS", max_steps=max_steps, logger=False),
+        TimeBaseTrend(h=horizon, freq="MS", max_steps=max_steps, logger=False),
+    ]
 
 
 def _count_benchmark_model_params(model: Any) -> int:
     """Count parameters for one fitted benchmark model."""
     fitted_model = getattr(model, "model", model)
     return count_params(fitted_model)
-
-
-def _build_neural_models(
-    horizon: int,
-    max_steps: int,
-    auto_num_samples: int,
-) -> list[Any]:
-    """Build the benchmark neural models."""
-    return [
-        AutoDLinear(
-            h=horizon,
-            config=_auto_config(AutoDLinear, horizon, max_steps),
-            num_samples=auto_num_samples,
-            cpus=1,
-            gpus=0,
-            verbose=False,
-        ),
-        AutoNLinear(
-            h=horizon,
-            config=_auto_config(AutoNLinear, horizon, max_steps),
-            num_samples=auto_num_samples,
-            cpus=1,
-            gpus=0,
-            verbose=False,
-        ),
-        AutoTimeBase(
-            h=horizon,
-            freq="MS",
-            config=_auto_config(AutoTimeBase, horizon, max_steps, "MS"),
-            num_samples=auto_num_samples,
-            cpus=1,
-            gpus=0,
-            verbose=False,
-        ),
-        AutoTimeBaseTrend(
-            h=horizon,
-            freq="MS",
-            config=_auto_config(AutoTimeBaseTrend, horizon, max_steps, "MS"),
-            num_samples=auto_num_samples,
-            cpus=1,
-            gpus=0,
-            verbose=False,
-        ),
-    ]
 
 
 def _build_result_row(
@@ -256,14 +196,9 @@ def _run_neural_benchmark(
     horizon: int,
     max_steps: int,
     baseline_forecast: pd.DataFrame,
-    auto_num_samples: int,
 ) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
     """Run the neural models individually and retain their forecasts."""
-    models = _build_neural_models(
-        horizon=horizon,
-        max_steps=max_steps,
-        auto_num_samples=auto_num_samples,
-    )
+    models = _build_neural_models(horizon=horizon, max_steps=max_steps)
 
     results: list[pd.DataFrame] = []
     forecasts: dict[str, pd.DataFrame] = {}
@@ -299,7 +234,6 @@ def run_custom_benchmark(
     dataset_path: str | Path,
     horizon: int,
     max_steps: int,
-    auto_num_samples: int,
 ) -> BenchmarkArtifacts:
     """Run the custom benchmark and return results plus plot artifacts."""
     logger = get_logger()
@@ -320,7 +254,6 @@ def run_custom_benchmark(
         horizon=horizon,
         max_steps=max_steps,
         baseline_forecast=baseline_forecast,
-        auto_num_samples=auto_num_samples,
     )
     stats_results, stats_forecasts = _run_stats_benchmark(
         frame=frame,
@@ -354,14 +287,12 @@ def benchmark_custom_dataset(
     dataset_path: str | Path,
     horizon: int,
     max_steps: int,
-    auto_num_samples: int,
 ) -> pd.DataFrame:
     """Run the simplified custom benchmark and return only the leaderboard."""
     return run_custom_benchmark(
         dataset_path=dataset_path,
         horizon=horizon,
         max_steps=max_steps,
-        auto_num_samples=auto_num_samples,
     ).results_frame
 
 
@@ -403,40 +334,18 @@ def main(
         min=1,
         help="Forecast horizon.",
     ),
-    auto_preset: str = typer.Option(
-        "normal",
-        help=(
-            "Auto-search preset: smoke (~seconds), normal (~2 min CPU), "
-            "or thorough (~5 min CPU)."
-        ),
-    ),
-    max_steps: int | None = typer.Option(
-        None,
+    max_steps: int = typer.Option(
+        30,
         min=1,
-        help="Maximum neural training steps override.",
-    ),
-    auto_num_samples: int | None = typer.Option(
-        None,
-        min=1,
-        help="Ray Tune sample-count override for AutoTimeBase wrappers.",
+        help="Maximum neural training steps.",
     ),
     quiet: bool = typer.Option(False, help="Suppress Rich progress output."),
 ) -> None:
     """Run the custom dataset benchmark and save CSV, markdown, and plots."""
-    preset_settings = resolve_auto_preset(auto_preset)
-    resolved_max_steps = int(
-        preset_settings["max_steps"] if max_steps is None else max_steps
-    )
-    resolved_auto_num_samples = int(
-        preset_settings["auto_num_samples"]
-        if auto_num_samples is None
-        else auto_num_samples
-    )
     artifacts = run_custom_benchmark(
         dataset_path=dataset_path,
         horizon=horizon,
-        max_steps=resolved_max_steps,
-        auto_num_samples=resolved_auto_num_samples,
+        max_steps=max_steps,
     )
     results_frame = artifacts.results_frame
 

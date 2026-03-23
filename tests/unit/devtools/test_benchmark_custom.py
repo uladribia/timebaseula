@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
-from neuralforecast.auto import AutoDLinear, AutoNLinear
+from neuralforecast.models import DLinear, NLinear
 from typer.testing import CliRunner
 
 from devtools import benchmark_custom
@@ -15,10 +15,9 @@ from devtools.benchmark_common import BenchmarkArtifacts, SavedPlot
 from devtools.benchmark_custom import (
     _build_neural_models,
     load_custom_dataset,
-    resolve_auto_preset,
     validate_series_lengths,
 )
-from timebaseula import AutoTimeBase, AutoTimeBaseTrend
+from timebaseula import TimeBase, TimeBaseTrend
 
 
 class TestBenchmarkCustom:
@@ -45,61 +44,42 @@ class TestBenchmarkCustom:
         with pytest.raises(ValueError, match="too short"):
             validate_series_lengths(frame, horizon=2)
 
-    def test_resolve_auto_preset_returns_expected_values(self) -> None:
-        """Preset names should map to benchmark-friendly auto-search settings."""
-        assert resolve_auto_preset("smoke") == {"max_steps": 1, "auto_num_samples": 1}
-        assert resolve_auto_preset("normal") == {"max_steps": 10, "auto_num_samples": 2}
-        assert resolve_auto_preset("thorough") == {
-            "max_steps": 20,
-            "auto_num_samples": 4,
-        }
+    def test_build_neural_models_uses_default_models(self) -> None:
+        """The benchmark should use the default model classes directly."""
+        models = _build_neural_models(horizon=2, max_steps=7)
 
-    def test_build_neural_models_uses_auto_wrappers(self) -> None:
-        """The benchmark should use searched auto wrappers instead of raw models."""
-        models = _build_neural_models(horizon=2, max_steps=1, auto_num_samples=3)
+        assert any(isinstance(model, DLinear) for model in models)
+        assert any(isinstance(model, NLinear) for model in models)
+        assert any(isinstance(model, TimeBase) for model in models)
+        assert any(isinstance(model, TimeBaseTrend) for model in models)
 
-        assert any(isinstance(model, AutoDLinear) for model in models)
-        assert any(isinstance(model, AutoNLinear) for model in models)
-        assert any(isinstance(model, AutoTimeBase) for model in models)
-        assert any(isinstance(model, AutoTimeBaseTrend) for model in models)
-        assert not any(type(model).__name__ == "DLinear" for model in models)
-        assert not any(type(model).__name__ == "NLinear" for model in models)
-        assert not any(type(model).__name__ == "TimeBase" for model in models)
-        assert not any(type(model).__name__ == "TimeBaseTrend" for model in models)
-
-        auto_dlinear = next(model for model in models if isinstance(model, AutoDLinear))
-        auto_nlinear = next(model for model in models if isinstance(model, AutoNLinear))
-        auto_timebase = next(
-            model for model in models if isinstance(model, AutoTimeBase)
+        dlinear = next(model for model in models if isinstance(model, DLinear))
+        nlinear = next(model for model in models if isinstance(model, NLinear))
+        timebase = next(model for model in models if isinstance(model, TimeBase))
+        timebase_trend = next(
+            model for model in models if isinstance(model, TimeBaseTrend)
         )
-        auto_timebase_trend = next(
-            model for model in models if isinstance(model, AutoTimeBaseTrend)
-        )
-        assert auto_dlinear.num_samples == 3
-        assert auto_nlinear.num_samples == 3
-        assert auto_timebase.num_samples == 3
-        assert auto_timebase_trend.num_samples == 3
-        assert auto_dlinear.config["max_steps"] == 1
-        assert auto_nlinear.config["max_steps"] == 1
-        assert auto_dlinear.config["accelerator"] == "cpu"
-        assert auto_dlinear.config["devices"] == 1
-        assert not isinstance(auto_dlinear.config["input_size"], int)
-        assert not isinstance(auto_nlinear.config["input_size"], int)
-        assert not isinstance(auto_timebase.config["input_size"], int)
-        assert not isinstance(auto_timebase.config["period_len"], int)
-        assert not isinstance(auto_timebase_trend.config["moving_avg_window"], int)
 
-    def test_main_uses_normal_auto_preset_by_default(
+        assert dlinear.h == 2
+        assert nlinear.h == 2
+        assert timebase.h == 2
+        assert timebase_trend.h == 2
+        assert dlinear.max_steps == 7
+        assert nlinear.max_steps == 7
+        assert timebase.max_steps == 7
+        assert timebase_trend.max_steps == 7
+
+    def test_main_uses_default_max_steps(
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """The CLI should default to the normal auto-search preset."""
+        """The CLI should use the built-in benchmark defaults."""
         runner = CliRunner()
         benchmark_mock = Mock(
             return_value=BenchmarkArtifacts(
                 results_frame=pd.DataFrame(
                     {
-                        "model_name": ["AutoTimeBase"],
+                        "model_name": ["TimeBase"],
                         "mae": [0.1],
                         "rmse": [0.2],
                         "rmae": [0.5],
@@ -127,8 +107,7 @@ class TestBenchmarkCustom:
         result = runner.invoke(benchmark_custom.app, ["--quiet"])
 
         assert result.exit_code == 0
-        assert benchmark_mock.call_args.kwargs["max_steps"] == 10
-        assert benchmark_mock.call_args.kwargs["auto_num_samples"] == 2
+        assert benchmark_mock.call_args.kwargs["max_steps"] == 30
 
     def test_main_writes_csv_markdown_plots_and_pdf(
         self,
@@ -141,7 +120,7 @@ class TestBenchmarkCustom:
             return_value=BenchmarkArtifacts(
                 results_frame=pd.DataFrame(
                     {
-                        "model_name": ["AutoTimeBase", "SeasonalNaive"],
+                        "model_name": ["TimeBase", "SeasonalNaive"],
                         "mae": [0.1, 0.2],
                         "rmse": [0.2, 0.3],
                         "rmae": [0.5, 1.0],
@@ -192,10 +171,8 @@ class TestBenchmarkCustom:
                 str(output_dir),
                 "--output-pdf",
                 str(output_pdf),
-                "--auto-preset",
-                "thorough",
-                "--auto-num-samples",
-                "2",
+                "--max-steps",
+                "12",
             ],
         )
 
@@ -207,14 +184,13 @@ class TestBenchmarkCustom:
             encoding="utf-8"
         )
         benchmark_mock.assert_called_once()
-        assert benchmark_mock.call_args.kwargs["max_steps"] == 20
-        assert benchmark_mock.call_args.kwargs["auto_num_samples"] == 2
+        assert benchmark_mock.call_args.kwargs["max_steps"] == 12
 
-    def test_main_rejects_removed_refit_option(self) -> None:
-        """The CLI should not expose a refit toggle anymore."""
+    def test_main_rejects_removed_auto_options(self) -> None:
+        """The CLI should not expose auto-search tuning options anymore."""
         runner = CliRunner()
 
-        result = runner.invoke(benchmark_custom.app, ["--no-refit"])
+        result = runner.invoke(benchmark_custom.app, ["--auto-preset", "smoke"])
 
         assert result.exit_code == 2
         assert "No such option" in result.output

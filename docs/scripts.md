@@ -8,9 +8,8 @@ description: Reference for the internal benchmark and dataset-preparation script
 - Operational scripts are thin Typer wrappers over internal `devtools/` modules.
 - Only the dataset-preparation and benchmark entrypoints remain.
 - Benchmarks write CSV, markdown, plot, and optional PDF outputs.
-- Neural benchmark entries are `AutoDLinear`, `AutoNLinear`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
-- `--auto-preset smoke|normal|thorough` selects benchmark-friendly auto-search defaults for all neural auto wrappers.
-- `--auto-num-samples` controls how many Ray Tune trials the auto wrappers sample.
+- Neural benchmark entries are the default-parameter `DLinear`, `NLinear`, `TimeBase`, and `TimeBaseTrend` models.
+- Statistical benchmark entries remain `SeasonalNaive` and `MFLES`.
 
 ## Available scripts
 
@@ -38,7 +37,6 @@ uv run --frozen python scripts/generate_datasets.py main --force-download
 uv run --frozen python scripts/benchmark_long_horizon.py run \
   --mode daily \
   --n-series 50 \
-  --auto-preset smoke \
   --output logs/benchmark_long_horizon_daily.csv \
   --output-md logs/benchmark_long_horizon_daily.md \
   --output-pdf logs/benchmark_long_horizon_daily.pdf
@@ -50,18 +48,13 @@ This command writes:
 - a sibling plot directory next to the markdown report
 - an optional PDF export rendered with headless Chrome and embedded plot images
 
-The auto wrappers use their Ray Tune search spaces with CPU-safe benchmark overrides.
-Preset targets are:
-- `smoke`: `max_steps=1`, `auto_num_samples=1`
-- `normal`: `max_steps=10`, `auto_num_samples=2` (~2 CPU minutes)
-- `thorough`: `max_steps=20`, `auto_num_samples=4` (~5 CPU minutes)
+Both benchmark CLIs always run cross-validation with `refit=True`.
 
 ## Benchmark the custom dataset
 
 ```bash
 uv run --frozen python scripts/benchmark_custom.py \
   --max-steps 30 \
-  --auto-num-samples 1 \
   --output-dir logs/custom_dataset_benchmark \
   --output-pdf logs/custom_dataset_benchmark/report.pdf
 ```
@@ -71,8 +64,6 @@ This command writes:
 - `report.md`
 - `plots/*.png`
 - `report.pdf`
-
-Both benchmark CLIs always run cross-validation with `refit=True`.
 
 ## Logging
 
