@@ -33,7 +33,7 @@ from devtools.benchmark_common import (
     save_markdown_pdf,
     save_representative_forecast_plots,
 )
-from timebaseula import TimeBase, TimeBaseTrend
+from timebaseula import AutoTimeBase, AutoTimeBaseTrend
 
 app = typer.Typer(help="Benchmark the custom dataset and persist CSV/markdown outputs.")
 console = Console(stderr=True)
@@ -86,6 +86,7 @@ def _common_neural_kwargs(horizon: int, max_steps: int) -> dict[str, Any]:
     return {
         "input_size": max(2 * horizon, 8),
         "max_steps": max_steps,
+        "val_check_steps": max_steps,
         "learning_rate": 1e-3,
         "accelerator": "cpu",
         "devices": 1,
@@ -93,6 +94,73 @@ def _common_neural_kwargs(horizon: int, max_steps: int) -> dict[str, Any]:
         "enable_model_summary": False,
         "logger": False,
     }
+
+
+def _auto_config(horizon: int, max_steps: int) -> dict[str, Any]:
+    """Return a fixed config for the auto wrappers used in benchmarks."""
+    return {
+        **_common_neural_kwargs(horizon, max_steps),
+        "step_size": 1,
+        "random_seed": 1,
+    }
+
+
+def _count_auto_model_params(
+    model: AutoTimeBase | AutoTimeBaseTrend,
+) -> int:
+    """Count parameters for the wrapped base model selected by an auto model."""
+    base_kwargs = {
+        key: value
+        for key, value in model.config.items()
+        if key not in {"h", "loss", "valid_loss"}
+    }
+    base_model = model.cls_model(
+        h=model.h,
+        loss=model.loss,
+        valid_loss=model.valid_loss,
+        freq=model.freq,
+        **base_kwargs,
+    )
+    return count_params(base_model)
+
+
+def _build_neural_models(
+    horizon: int,
+    max_steps: int,
+) -> tuple[list[Any], dict[str, int]]:
+    """Build the benchmark neural models and their parameter counts."""
+    common_kwargs = _common_neural_kwargs(horizon, max_steps)
+    models = [
+        DLinear(h=horizon, **common_kwargs),
+        NLinear(h=horizon, **common_kwargs),
+        AutoTimeBase(
+            h=horizon,
+            freq="MS",
+            config=_auto_config(horizon, max_steps),
+            num_samples=1,
+            cpus=1,
+            gpus=0,
+            verbose=False,
+        ),
+        AutoTimeBaseTrend(
+            h=horizon,
+            freq="MS",
+            config=_auto_config(horizon, max_steps),
+            num_samples=1,
+            cpus=1,
+            gpus=0,
+            verbose=False,
+        ),
+    ]
+    param_map = {
+        repr(model): (
+            _count_auto_model_params(model)
+            if isinstance(model, AutoTimeBase | AutoTimeBaseTrend)
+            else count_params(model)
+        )
+        for model in models
+    }
+    return models, param_map
 
 
 def _build_result_row(
@@ -185,19 +253,12 @@ def _run_neural_benchmark(
     baseline_forecast: pd.DataFrame,
 ) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
     """Run the neural models individually and retain their forecasts."""
-    common_kwargs = _common_neural_kwargs(horizon, max_steps)
-    model_specs = [
-        (DLinear, {"h": horizon, **common_kwargs}),
-        (NLinear, {"h": horizon, **common_kwargs}),
-        (TimeBase, {"h": horizon, "freq": "MS", **common_kwargs}),
-        (TimeBaseTrend, {"h": horizon, "freq": "MS", **common_kwargs}),
-    ]
+    models, param_map = _build_neural_models(horizon=horizon, max_steps=max_steps)
 
     results: list[pd.DataFrame] = []
     forecasts: dict[str, pd.DataFrame] = {}
-    for model_class, model_kwargs in model_specs:
-        model = model_class(**model_kwargs)
-        raw_model_name = repr(model)
+    for model in models:
+        model_name = repr(model)
         start_time = time.perf_counter()
         forecast = NeuralForecast(models=[model], freq="MS").cross_validation(
             df=frame,
@@ -213,15 +274,12 @@ def _run_neural_benchmark(
         results.append(
             _build_result_row(
                 forecast_frame=merged_forecast,
-                model_name=raw_model_name,
-                params=count_params(model),
+                model_name=model_name,
+                params=param_map[model_name],
                 execution_time=execution_time,
             )
         )
-        forecasts[raw_model_name] = _trim_forecast_frame(
-            merged_forecast,
-            raw_model_name,
-        )
+        forecasts[model_name] = _trim_forecast_frame(merged_forecast, model_name)
 
     return pd.concat(results, ignore_index=True), forecasts
 

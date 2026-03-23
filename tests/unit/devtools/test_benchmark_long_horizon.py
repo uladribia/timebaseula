@@ -12,12 +12,14 @@ from typer.testing import CliRunner
 from devtools import benchmark_long_horizon
 from devtools.benchmark_common import BenchmarkArtifacts, SavedPlot
 from devtools.benchmark_long_horizon import (
+    _build_neural_models,
     aggregate_frame,
     ensure_aggregated_datasets,
     get_aggregated_dataset_path,
     resolve_dataset_group,
     resolve_mode_defaults,
 )
+from timebaseula import AutoTimeBase, AutoTimeBaseTrend
 
 
 class TestBenchmarkLongHorizon:
@@ -123,6 +125,17 @@ class TestBenchmarkLongHorizon:
         assert len(generated) == 4
         assert download_calls.count("ECL") == 1
         assert download_calls.count("TrafficL") == 1
+
+    def test_build_neural_models_uses_auto_wrappers(self) -> None:
+        """The benchmark should use the auto wrappers instead of raw TimeBase models."""
+        models, param_map = _build_neural_models(horizon=2, max_steps=1, freq="D")
+
+        assert any(isinstance(model, AutoTimeBase) for model in models)
+        assert any(isinstance(model, AutoTimeBaseTrend) for model in models)
+        assert not any(type(model).__name__ == "TimeBase" for model in models)
+        assert not any(type(model).__name__ == "TimeBaseTrend" for model in models)
+        assert param_map["AutoTimeBase"] > 0
+        assert param_map["AutoTimeBaseTrend"] > 0
 
     def test_run_command_writes_csv_markdown_and_plots(
         self,

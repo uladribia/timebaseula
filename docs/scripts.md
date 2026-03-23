@@ -46,6 +46,8 @@ This command writes:
 - a sibling plot directory next to the markdown report
 - an optional PDF export when `--output-pdf` is provided, rendered with headless Chrome and embedded plot images
 
+The neural benchmark entries are `DLinear`, `NLinear`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
+
 ## Benchmark the custom dataset
 
 ```bash
@@ -60,6 +62,7 @@ This command writes:
 - `plots/*.png`
 - `report.pdf` when `--output-pdf` is provided
 
+The neural benchmark entries are `DLinear`, `NLinear`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
 Both benchmark CLIs always run cross-validation with `refit=True`.
 
 ## Logging
@@ -68,5 +71,3 @@ These scripts use rotating log files with a 5 MB limit:
 - `logs/generate_datasets.log`
 - `logs/benchmark_long_horizon.log`
 - `logs/benchmark_custom.log`
-stom.log`
-g`

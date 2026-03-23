@@ -11,7 +11,12 @@ from typer.testing import CliRunner
 
 from devtools import benchmark_custom
 from devtools.benchmark_common import BenchmarkArtifacts, SavedPlot
-from devtools.benchmark_custom import load_custom_dataset, validate_series_lengths
+from devtools.benchmark_custom import (
+    _build_neural_models,
+    load_custom_dataset,
+    validate_series_lengths,
+)
+from timebaseula import AutoTimeBase, AutoTimeBaseTrend
 
 
 class TestBenchmarkCustom:
@@ -37,6 +42,17 @@ class TestBenchmarkCustom:
 
         with pytest.raises(ValueError, match="too short"):
             validate_series_lengths(frame, horizon=2)
+
+    def test_build_neural_models_uses_auto_wrappers(self) -> None:
+        """The benchmark should use the auto wrappers instead of raw TimeBase models."""
+        models, param_map = _build_neural_models(horizon=2, max_steps=1)
+
+        assert any(isinstance(model, AutoTimeBase) for model in models)
+        assert any(isinstance(model, AutoTimeBaseTrend) for model in models)
+        assert not any(type(model).__name__ == "TimeBase" for model in models)
+        assert not any(type(model).__name__ == "TimeBaseTrend" for model in models)
+        assert param_map["AutoTimeBase"] > 0
+        assert param_map["AutoTimeBaseTrend"] > 0
 
     def test_main_writes_csv_markdown_plots_and_pdf(
         self,
