@@ -1,62 +1,27 @@
 ---
-description: Extended markdown digest of the TimeBase paper, with plain-language explanations and implementation mapping.
+description: Agent-friendly summary of the TimeBase paper and how this repository maps it to code.
 ---
 
 # TimeBase paper for agents
 
 ## TL;DR
-- This page is the fastest way to understand the idea behind TimeBase without starting from the PDF.
-- TimeBase reshapes history into periods, learns a compact basis over those periods, forecasts future periods, and flattens them back to the horizon.
-- The repository implementation should be treated as the source of truth for exported behavior.
+- TimeBase models long-horizon forecasting by learning a compact basis over temporal segments.
+- The core idea is to capture repeated structure instead of relying on very large sequence models.
+- This repository implements `TimeBase` and `TimeBaseTrend` for `NeuralForecast`.
+- The code favors explicit defaults and readable model wrappers.
 
-## Who this page is for
+## Paper intuition
 
-This page is written for:
-- contributors trying to understand the model before editing code
-- AI agents that need a fast conceptual digest
-- readers who want the main paper ideas in plain English before reading the PDF
+TimeBase divides an input window into repeated temporal segments, compresses those segments into a basis representation, and reconstructs future segments from that basis.
 
-If you need the original source, use `docs/huang25az.pdf`.
-If you need the implemented behavior, prefer:
-- `timebaseula/models/timebase.py`
-- `docs/models.md`
-- `docs/usage.md`
+This makes the architecture a good fit for data with repeated structure across time.
 
-## Central idea in one sentence
+## Core idea in plain language
 
-TimeBase turns a long history into a sequence of periods, compresses those periods into a small basis, forecasts future periods from that basis, and then flattens the result into the final horizon.
-
-## The paper's intuition
-
-### 1. Segment the history
-
-Instead of one long vector, the model treats the input as aligned segments of length `P`.
-
-Examples:
-- daily data with weekly structure: `P = 7`
-- monthly data with yearly structure: `P = 12`
-
-### 2. Learn a compact basis
-
-The segmented history is projected into a small basis that summarizes recurring shapes.
-
-### 3. Forecast future segments in basis space
-
-The model predicts future segments from the compressed representation instead of forecasting every step independently from raw history.
-
-### 4. Flatten back to the target horizon
-
-The predicted future segments are flattened into the usual forecast vector of length `h`.
-
-## Paper concepts in plain English
-
-| Paper concept | Plain-language meaning |
-|---|---|
-| `Segment[N, P](X)` | reshape history into `N` chunks of length `P` |
-| `BasisExtract(Xhis)` | project segmented history into a low-dimensional basis |
-| `SegmentForecast(Xbasis)` | map the basis representation into future segments |
-| `Flatten(Xpred)[:L]` | flatten predicted segments back into the final horizon |
-| `Lorth` | regularization that discourages redundant basis vectors |
+1. split the history into segments
+2. encode the segments into a compact basis
+3. decode the basis into future segments
+4. reshape the decoded segments back into a forecast horizon
 
 ## Why this can work
 
@@ -74,7 +39,7 @@ The repository also exposes `TimeBaseTrend`, which adds a decomposition-style tr
 |---|---|
 | exported models | `timebaseula/models/timebase.py` |
 | explicit defaults | `timebaseula/models/timebase.py` |
-| auto wrappers | `timebaseula/models/timebase.py` |
+| model wrappers | `timebaseula/models/timebase.py` |
 | usage examples | `docs/usage.md` |
 
 ## What is implemented here
@@ -87,14 +52,9 @@ The repository also exposes `TimeBaseTrend`, which adds a decomposition-style tr
 | NeuralForecast compatibility | implemented |
 | deterministic explicit defaults | implemented |
 
-## Where to be careful
+## What to inspect first as an agent
 
-Do not assume:
-- that every detail from the paper is reproduced exactly
-- that paper-level claims automatically transfer to every dataset
-- that the paper is a substitute for reading the code
-
-Do say:
-- the repository follows the paper's central segmented-basis intuition
-- the exported models are practical NeuralForecast-compatible implementations
-- the implementation in this repository is the source of truth for current behavior
+1. `timebaseula/models/timebase.py`
+2. `timebaseula/__init__.py`
+3. `docs/models.md`
+4. `tests/unit/library/test_timebase.py`

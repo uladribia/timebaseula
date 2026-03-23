@@ -2330,7 +2330,6 @@ dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "pandas" },
-    { name = "ray", extra = ["tune"] },
     { name = "torch" },
 ]
 
@@ -2346,7 +2345,6 @@ requires-dist = [
     { name = "neuralforecast", specifier = ">=1.7.4,<2" },
     { name = "numpy", specifier = ">=2.2.0,<3" },
     { name = "pandas", specifier = ">=2.2.0,<3" },
-    { name = "ray", extras = ["tune"], specifier = ">=2.49.2,<3" },
     { name = "torch", specifier = ">=2.0.0,<3" },
 ]
 

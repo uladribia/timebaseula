@@ -5,8 +5,8 @@ description: Current repository scope after the cleanup to a library-first packa
 # Repository scope
 
 ## TL;DR
-- This repository is now focused on the `timebaseula` Python package.
-- Historical operational scripts are no longer part of the tracked source tree.
+- This repository is focused on the `timebaseula` Python package.
+- Historical operational scripts are not part of the tracked source tree.
 - Use the library through Python imports and `NeuralForecast`.
 - Package metadata, tests, and docs remain in the repository.
 
@@ -27,7 +27,7 @@ The repository no longer documents or ships operational benchmark or dataset-pre
 If you want to use TimeBaseUla, start from the package API instead:
 
 ```python
-from timebaseula import TimeBase, TimeBaseTrend, AutoTimeBase, AutoTimeBaseTrend
+from timebaseula import TimeBase, TimeBaseTrend
 ```
 
 ## Main development commands

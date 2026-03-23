@@ -7,11 +7,10 @@ description: TimeBaseUla README with installation, public API, defaults, and pac
 > Compact TimeBase-style forecasting models for NeuralForecast.
 
 ## TL;DR
-- `timebaseula` is a Python library, not an application repository.
-- Public API: `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, `AutoTimeBaseTrend`.
-- The core implementation lives in `timebaseula/models/timebase.py`.
-- The package is designed for CPU-first usage and plugs into `NeuralForecast`.
-- This README was updated after an agent-made repository cleanup.
+- `timebaseula` is a small Python forecasting library.
+- Public API: `TimeBase` and `TimeBaseTrend`.
+- The package is CPU-first and integrates with `NeuralForecast`.
+- The implementation is intentionally explicit and readable.
 
 ## Installation
 
@@ -33,10 +32,8 @@ uv sync
 
 | Object | Purpose |
 |---|---|
-| `TimeBase` | Explicit TimeBase model with simple deterministic defaults |
-| `TimeBaseTrend` | TimeBase model with an additional trend decomposition branch |
-| `AutoTimeBase` | Nixtla-style auto wrapper for `TimeBase` |
-| `AutoTimeBaseTrend` | Nixtla-style auto wrapper for `TimeBaseTrend` |
+| `TimeBase` | Explicit segmented-basis forecasting model |
+| `TimeBaseTrend` | `TimeBase` plus a trend decomposition branch |
 
 ## Quickstart
 
@@ -69,8 +66,6 @@ The expected data format is the standard `NeuralForecast` long format:
 
 ## Default behavior
 
-### `TimeBase` and `TimeBaseTrend`
-
 | Parameter | Default |
 |---|---|
 | `input_size` | `max(2 * h, 8)` |
@@ -80,11 +75,33 @@ The expected data format is the standard `NeuralForecast` long format:
 | `basis_num` | `6` |
 | `moving_avg_window` (`TimeBaseTrend`) | `25` |
 
-### `AutoTimeBase` and `AutoTimeBaseTrend`
-- subclass NeuralForecast's `BaseAuto`
-- use Ray Tune through NeuralForecast's native auto infrastructure
-- default to CPU execution with `gpus=0`
-- search over a compact set of structural and training hyperparameters
+## What the main parameters do
+
+| Parameter | Effect |
+|---|---|
+| `h` | Forecast horizon. |
+| `input_size` | Amount of history used by the model. |
+| `period_len` | Length of each repeated segment used by the TimeBase basis. |
+| `basis_num` | Number of basis components used to reconstruct the forecast. |
+| `use_period_norm` | Whether each segment is normalized before basis learning. |
+| `max_steps` | Maximum number of training steps. |
+| `learning_rate` | Optimizer step size. |
+| `moving_avg_window` | Only for `TimeBaseTrend`. Controls how smooth the extracted trend is. Larger odd values produce a smoother, slower trend; smaller odd values make the trend react faster. |
+
+## Model overview
+
+### `TimeBase`
+- splits the input window into temporal segments
+- projects segments to a compact basis
+- maps that basis back to future segments
+
+### `TimeBaseTrend`
+- decomposes the input into seasonal and trend parts
+- sends the seasonal part through the TimeBase branch
+- forecasts the trend with a linear head
+- sums both forecasts at the end
+
+For full parameter guidance, see `docs/models.md` and `docs/usage.md`.
 
 ## Repository layout
 
@@ -110,14 +127,6 @@ Build the docs locally with:
 
 ```bash
 uv run --group docs mkdocs build --strict
-```
-
-## Notes on repository scope
-
-This repository is now library-first. It does not ship a user-facing CLI or the benchmark scripts that existed in earlier iterations, so package usage should start from Python imports such as:
-
-```python
-from timebaseula import TimeBase, TimeBaseTrend, AutoTimeBase, AutoTimeBaseTrend
 ```
 
 ## License

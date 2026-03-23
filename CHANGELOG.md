@@ -7,27 +7,24 @@ description: Project changelog for TimeBaseUla releases.
 ## Unreleased
 
 ### Changed
-- simplified the public API to `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, and `AutoTimeBaseTrend`
-- gave the explicit models deterministic defaults so `TimeBase(h=...)` and `TimeBaseTrend(h=...)` work without extra helpers
-- rebuilt the auto wrappers around NeuralForecast's native `BaseAuto` pattern
-- simplified benchmark tooling to CSV and markdown outputs only
+- simplified the public API to `TimeBase` and `TimeBaseTrend`
+- removed the auto-wrapper layer to keep the package smaller and easier to read
+- refactored the shared NeuralForecast wrapper logic to reduce overlap between the explicit models
+- refreshed the README and docs to match the simplified library surface
 
 ### Removed
-- removed package-level synthetic helpers
-- removed package-level recommendation helpers and dataset profilers
-- removed synthetic benchmark and plotting scripts
-- removed compatibility script aliases
+- removed `AutoTimeBase` from the public package
+- removed `AutoTimeBaseTrend` from the public package
+- removed the direct `ray[tune]` package dependency
 
 ## 0.2.0 - 2026-03-22
 
 ### Added
 - `docs/paper-for-agents.md` with an agent-friendly markdown digest of the TimeBase paper
-- `tests/test_generate_datasets.py` to cover the standardized dataset generation CLI
 - explicit benchmark test marker and `make test-benchmark` target
 
 ### Changed
 - unified shared training logic for `TimeBase` and `TimeBaseTrend` in a common internal wrapper
-- standardized `scripts/generate_datasets.py` to use Typer, Rich, and rotating logs
 - refreshed README and MkDocs pages to reflect the supported API and workflows of that release
 
 ### Removed

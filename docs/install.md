@@ -30,7 +30,6 @@ uv sync
 | `neuralforecast` | training and forecasting interface |
 | `torch` | model implementation |
 | `pandas` / `numpy` | tabular and numerical processing |
-| `ray[tune]` | auto-model hyperparameter search |
 
 ## Verify the install
 

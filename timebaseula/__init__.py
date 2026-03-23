@@ -7,16 +7,9 @@ try:
 except PackageNotFoundError:
     __version__ = "unknown"
 
-from timebaseula.models.timebase import (
-    AutoTimeBase,
-    AutoTimeBaseTrend,
-    TimeBase,
-    TimeBaseTrend,
-)
+from timebaseula.models.timebase import TimeBase, TimeBaseTrend
 
 __all__ = [
-    "AutoTimeBase",
-    "AutoTimeBaseTrend",
     "TimeBase",
     "TimeBaseTrend",
     "__version__",

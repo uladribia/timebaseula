@@ -8,8 +8,6 @@ from unittest.mock import patch
 from pytest_mock import MockFixture
 
 EXPECTED_EXPORTS = {
-    "AutoTimeBase",
-    "AutoTimeBaseTrend",
     "TimeBase",
     "TimeBaseTrend",
     "__version__",
@@ -51,6 +49,8 @@ class TestInit:
         import timebaseula
 
         assert set(timebaseula.__all__) == EXPECTED_EXPORTS
+        assert not hasattr(timebaseula, "AutoTimeBase")
+        assert not hasattr(timebaseula, "AutoTimeBaseTrend")
         assert not hasattr(timebaseula, "make_synthetic_series")
         assert not hasattr(timebaseula, "profile_dataset")
         assert not hasattr(timebaseula, "recommend_timebase_kwargs")

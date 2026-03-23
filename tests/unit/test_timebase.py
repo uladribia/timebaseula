@@ -2,18 +2,10 @@
 
 from __future__ import annotations
 
-from typing import cast
-
 import pytest
 import torch
-from neuralforecast.common._base_auto import BaseAuto
 
-from timebaseula.models.timebase import (
-    AutoTimeBase,
-    AutoTimeBaseTrend,
-    TimeBase,
-    TimeBaseTrend,
-)
+from timebaseula.models.timebase import TimeBase, TimeBaseTrend
 
 
 class TestTimeBase:
@@ -101,7 +93,7 @@ class TestTimeBaseTrend:
         assert output.shape == (2, 12)
 
     def test_linear_trend_head_is_present(self) -> None:
-        """The linear_trend layer should be present."""
+        """The linear trend layer should be present."""
         model = TimeBaseTrend(h=4, input_size=8, period_len=4, basis_num=4)
         assert hasattr(model, "linear_trend")
         assert isinstance(model.linear_trend, torch.nn.Linear)
@@ -121,66 +113,3 @@ class TestTimeBaseTrend:
         """TimeBaseTrend should have SeriesDecomp for trend extraction."""
         model = TimeBaseTrend(h=4, input_size=8, period_len=4, basis_num=4)
         assert hasattr(model, "decomp")
-
-
-class TestAutoTimeBase:
-    """Validate Nixtla-native auto wrappers."""
-
-    def test_auto_timebase_is_baseauto_wrapper(self) -> None:
-        """AutoTimeBase should rely on NeuralForecast's BaseAuto abstraction."""
-        model = AutoTimeBase(h=12, num_samples=1, cpus=1, gpus=0)
-
-        assert isinstance(model, BaseAuto)
-        assert model.cls_model is TimeBase
-        assert model.h == 12
-
-    def test_auto_timebase_default_config_contains_search_dimensions(self) -> None:
-        """AutoTimeBase should expose a compact search space like AutoDLinear."""
-        config = cast(
-            dict[str, object],
-            AutoTimeBase.get_default_config(h=12, backend="ray", freq="D"),
-        )
-
-        assert set(config) >= {
-            "input_size",
-            "period_len",
-            "basis_num",
-            "learning_rate",
-            "max_steps",
-            "batch_size",
-            "windows_batch_size",
-            "step_size",
-        }
-
-    def test_auto_timebase_trend_is_baseauto_wrapper(self) -> None:
-        """AutoTimeBaseTrend should rely on NeuralForecast's BaseAuto abstraction."""
-        model = AutoTimeBaseTrend(h=12, num_samples=1, cpus=1, gpus=0)
-
-        assert isinstance(model, BaseAuto)
-        assert model.cls_model is TimeBaseTrend
-        assert model.h == 12
-
-    def test_auto_timebase_trend_default_config_contains_search_dimensions(
-        self,
-    ) -> None:
-        """AutoTimeBaseTrend should expose the trend-specific search space."""
-        config = cast(
-            dict[str, object],
-            AutoTimeBaseTrend.get_default_config(
-                h=12,
-                backend="ray",
-                freq="ME",
-            ),
-        )
-
-        assert set(config) >= {
-            "input_size",
-            "period_len",
-            "basis_num",
-            "moving_avg_window",
-            "learning_rate",
-            "max_steps",
-            "batch_size",
-            "windows_batch_size",
-            "step_size",
-        }

@@ -1,30 +1,28 @@
 ---
-description: Short release-style summary of the repository cleanup that kept the library and docs aligned.
+description: Short release-style summary of the current library-focused TimeBaseUla repository.
 ---
 
 # Release notes
 
 ## TL;DR
-- kept the public API centered on four model classes
+- kept the public API centered on `TimeBase` and `TimeBaseTrend`
 - retained the library source, tests, and documentation
-- removed stale references to non-existent operational tooling
-- simplified the repository to focus on the publishable package
+- simplified the implementation to favor readability over feature breadth
+- removed stale references to removed tooling and auto wrappers
 
 ## Repository changes
 
 - kept `timebaseula/` as the library source
 - kept `tests/` as the validation suite
 - kept `docs/` plus MkDocs configuration
-- removed stale documentation that implied tracked operational tooling still existed
+- removed stale documentation and package surface that implied extra orchestration layers
 
 ## Library status
 
-The exported package API remains:
+The exported package API is:
 - `TimeBase`
 - `TimeBaseTrend`
-- `AutoTimeBase`
-- `AutoTimeBaseTrend`
 
 ## Why this change happened
 
-The goal of this cleanup was to leave a repository centered on the reusable library and its documentation, without stale references to removed tooling.
+The goal of the cleanup and refactor was to keep the repository centered on a readable reusable library with a small explicit API.

@@ -8,7 +8,7 @@ from typing import Any, cast
 import pandas as pd
 import pytest
 
-from timebaseula.models.timebase import AutoTimeBase, TimeBase
+from timebaseula.models.timebase import TimeBase
 
 
 @pytest.mark.integration
@@ -45,38 +45,6 @@ def test_neuralforecast_fit_predict() -> None:
 
     assert len(pred) == 8
     assert "TimeBase" in pred.columns
-
-
-@pytest.mark.integration
-def test_auto_timebase_fit_predict() -> None:
-    """AutoTimeBase should fit and predict through NeuralForecast."""
-    pytest.importorskip("neuralforecast")
-    from neuralforecast import NeuralForecast
-
-    np = pytest.importorskip("numpy")
-    np.random.seed(42)
-    n = 100
-    dates = pd.date_range(start="2020-01-01", periods=n, freq="D")
-    y = np.random.randn(n).cumsum() + 10
-    df = pd.DataFrame({"ds": dates, "y": y, "unique_id": "series_1"})
-
-    model = AutoTimeBase(
-        h=8,
-        freq="D",
-        num_samples=1,
-        cpus=1,
-        gpus=0,
-        verbose=False,
-    )
-
-    nf = NeuralForecast(models=[model], freq="D")
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=Warning)
-        nf.fit(df, val_size=8)
-        pred = nf.predict()
-
-    assert len(pred) == 8
-    assert "AutoTimeBase" in pred.columns
 
 
 @pytest.mark.integration
