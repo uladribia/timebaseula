@@ -10,15 +10,10 @@ description: TimeBaseUla README with installation, public API, defaults, and pac
 - `timebaseula` is a small Python forecasting library.
 - Public API: `TimeBase` and `TimeBaseTrend`.
 - The package is CPU-first and integrates with `NeuralForecast`.
+- Install and use it from a source checkout.
 - The repository also includes a benchmark script for `AirPassengersPanel`.
 
 ## Installation
-
-### From PyPI
-
-```bash
-pip install timebaseula
-```
 
 ### From source
 
