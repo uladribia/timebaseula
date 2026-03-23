@@ -5,24 +5,35 @@ on:
     types:
       - published
 
-
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
     steps:
       - uses: actions/checkout@v5
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
+          python-version: "3.13"
           enable-cache: true
       - name: Build
         run: uv build --no-sources
-      - name: Publish
-        run: uv publish --token ${{ secrets.POETRY_PYPI_TOKEN_PYPI }}
+      - name: Publish to PyPI
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: |
+          if [ -n "$UV_PUBLISH_TOKEN" ]; then
+            uv publish
+          else
+            uv publish --trusted-publishing always
+          fi
 
   docs:
     needs: [publish]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v5
         with:
@@ -30,19 +41,20 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
+          python-version: "3.13"
           enable-cache: true
-      - name: Install Dependencies
-        run: uv sync --no-default-groups --group ci --group docs
+      - name: Install docs dependencies
+        run: uv sync --no-default-groups --group docs
       - name: Get minor version
         id: get-minor
         run: |
-          MINOR=$(uv version --dry-run --short | cut -d"." -f-2);
-          echo "minor=$MINOR" >> $GITHUB_OUTPUT
+          MINOR=$(uv version --dry-run --short | cut -d'.' -f-2)
+          echo "minor=$MINOR" >> "$GITHUB_OUTPUT"
       - name: Setup git credentials
         run: |
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git config --global user.name "github-actions[bot]"
-      - name: Build Docs
+      - name: Deploy docs
         run: |
           uv run mike deploy --push --update-aliases --allow-empty ${{ steps.get-minor.outputs.minor }} latest
           uv run mike set-default --push --allow-empty latest
