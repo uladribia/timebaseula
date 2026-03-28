@@ -1,28 +1,40 @@
 ---
-description: Short release-style summary of the current library-focused TimeBaseUla repository.
+description: Release-style summary for the benchmark branch split, anonymized benchmark docs, and version 0.3.0.
 ---
 
 # Release notes
 
 ## TL;DR
-- kept the public API centered on `TimeBase` and `TimeBaseTrend`
-- retained the library source, tests, and documentation
-- simplified the implementation to favor readability over feature breadth
-- removed stale references to removed tooling and auto wrappers
+- bumped the package version to `0.3.0`
+- formalized the long-lived `main` and `benchmark` branch split
+- kept `benchmark` as the reproducible benchmarking and tuning branch
+- refreshed benchmark docs to remove direct business labels from the internal daily-panel write-up
+- preserved the public package API around `TimeBase` and `TimeBaseTrend`
 
-## Repository changes
+## What changed
 
-- kept `timebaseula/` as the library source
-- kept `tests/` as the validation suite
-- kept `docs/` plus MkDocs configuration
-- removed stale documentation and package surface that implied extra orchestration layers
+| Area | Summary |
+|---|---|
+| Branches | documented the `main` vs `benchmark` workflow clearly for users and agents |
+| Benchmark workflows | kept the full preparation, benchmarking, and tuning scripts on `benchmark` |
+| Documentation | replaced direct business-facing labels in benchmark docs with anonymized wording |
+| Release metadata | bumped the package version to `0.3.0` |
 
-## Library status
+## Branch roles
 
-The exported package API is:
+| Branch | Role |
+|---|---|
+| `main` | release-oriented library branch with curated benchmark reports |
+| `benchmark` | full benchmarking and tuning branch with reproducibility tooling |
+
+## Anonymization policy
+
+The internal daily-panel benchmark pages now use anonymized wording in user-facing documentation.
+Published plots use generic series aliases and anonymized units.
+Workflow examples also use generic internal dataset paths in documentation.
+
+## Public API status
+
+The exported package API remains:
 - `TimeBase`
 - `TimeBaseTrend`
-
-## Why this change happened
-
-The goal of the cleanup and refactor was to keep the repository centered on a readable reusable library with a small explicit API.

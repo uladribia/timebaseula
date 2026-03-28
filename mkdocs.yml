@@ -31,10 +31,15 @@ theme:
 
 nav:
   - Overview: index.md
+  - Repository branches: branches.md
   - Install: install.md
   - Usage: usage.md
   - Models: models.md
-  - Benchmark: benchmark.md
+  - Benchmarks:
+      - AirPassengers: benchmark.md
+      - Daily panel (mixed scope): daily-panel-benchmark.md
+      - Daily panel (aggregated only): daily-panel-aggregated-benchmark.md
+      - Daily panel (detailed only): daily-panel-detailed-benchmark.md
   - Scripts: scripts.md
   - Release notes: release-notes.md
   - Paper for agents: paper-for-agents.md

@@ -1,0 +1,32 @@
+{
+  "AutoTimeBase": {
+    "input_size": 84,
+    "basis_num": 6,
+    "period_len": 7,
+    "learning_rate": 0.001,
+    "max_steps": 100
+  },
+  "AutoTimeBaseTrend": {
+    "input_size": 112,
+    "basis_num": 6,
+    "period_len": 7,
+    "moving_avg_window": 29,
+    "learning_rate": 0.001,
+    "max_steps": 120
+  },
+  "AutoDLinear": {
+    "input_size": 56,
+    "learning_rate": 0.07102170416433433,
+    "max_steps": 600,
+    "step_size": 28,
+    "scaler_type": "robust",
+    "moving_avg_window": 25
+  },
+  "AutoNLinear": {
+    "input_size": 56,
+    "learning_rate": 0.0034313488579691643,
+    "max_steps": 600,
+    "step_size": 1,
+    "scaler_type": "standard"
+  }
+}

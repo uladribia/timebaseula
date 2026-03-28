@@ -69,7 +69,9 @@ class TimeBaseCore(nn.Module):
         if self.pad_seq_len > 0:
             x = torch.cat([x, x[:, -self.pad_seq_len :]], dim=-1)
 
-        segments = x.reshape(batch_size, self.seg_num_x, self.period_len).permute(0, 2, 1)
+        segments = x.reshape(batch_size, self.seg_num_x, self.period_len).permute(
+            0, 2, 1
+        )
 
         if self.use_period_norm:
             period_mean = segments.mean(dim=-1, keepdim=True)
@@ -135,7 +137,9 @@ def _resolve_model_settings(
     trainer_kwargs: dict[str, Any],
 ) -> _ModelSettings:
     """Resolve shared constructor defaults for public TimeBase models."""
-    resolved_input_size = _default_input_size(h) if input_size is None else int(input_size)
+    resolved_input_size = (
+        _default_input_size(h) if input_size is None else int(input_size)
+    )
     resolved_period_len = (
         _default_period_len(h, resolved_input_size, freq)
         if period_len is None

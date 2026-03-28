@@ -11,7 +11,17 @@ description: TimeBaseUla README with installation, public API, defaults, and pac
 - Public API: `TimeBase` and `TimeBaseTrend`.
 - The package is CPU-first and integrates with `NeuralForecast`.
 - Install and use it from a source checkout.
-- The repository also includes a benchmark script for `AirPassengersPanel`.
+- The repository also includes benchmark and tuning scripts for `AirPassengersPanel` and daily panel workflows.
+
+## Branch strategy
+
+This repository maintains two long-lived branches:
+
+- `main`: release-oriented library branch with publishable code, curated docs, and published benchmark result pages
+- `benchmark`: full benchmarking and tuning branch with scripts, workflow docs, and experiment-oriented scaffolding
+
+If you want to reproduce or extend the internal anonymized benchmarks, use the `benchmark` branch.
+If you want the library and the curated benchmark write-up that accompanies a release, use `main`.
 
 ## Installation
 
@@ -133,9 +143,11 @@ The expected data format is the standard `NeuralForecast` long format:
 
 For full parameter guidance, see `docs/models.md` and `docs/usage.md`.
 
-## Benchmark script
+## Benchmark scripts
 
-Generate a docs-ready benchmark report on `AirPassengersPanel` with:
+This repository includes benchmark workflows plus an aggregated-model tuning workflow.
+
+### AirPassengers reference benchmark
 
 ```bash
 uv run --group benchmark python scripts/benchmark_airpassengers.py run \
@@ -143,13 +155,55 @@ uv run --group benchmark python scripts/benchmark_airpassengers.py run \
   --output-plot docs/img/airpassengers-benchmark.png
 ```
 
-The report compares:
-- `TimeBase`
-- `TimeBaseTrend`
-- `NLinear`
-- `DLinear`
-- `AutoMFLES`
-- `Naive`
+### Daily panel workflow for an internal anonymized dataset
+
+1. Prepare a Nixtla-ready panel with detailed and aggregated `unique_id`, `ds`, and `y` series:
+
+```bash
+uv run python scripts/prepare_nixtla_panel.py \
+  --input-path data/input/internal_daily_panel.parquet.gzip \
+  --output-dir data/processed/internal_daily_panel \
+  --test-ratio 0.2
+```
+
+2. Run the CPU-first daily benchmark with a fixed 28-day forecast horizon:
+
+```bash
+uv run --group benchmark python scripts/benchmark_nixtla_panel.py \
+  --input-path data/processed/internal_daily_panel/panel.parquet \
+  --output-markdown docs/daily-panel-benchmark.md \
+  --output-dir docs/img/daily-panel-benchmark \
+  --horizon 28 \
+  --test-ratio 0.2 \
+  --profile normal \
+  --max-series 256
+```
+
+The preparation step now includes:
+- detailed granular series
+- location-level aggregates
+- item-level aggregates
+- one global `total` series
+
+The daily benchmark:
+- compares `TimeBase`, `TimeBaseTrend`, `NLinear`, `DLinear`, `AutoMFLES`, `AutoTheta`, and `Naive`
+- can also benchmark tuned `AutoTimeBase`, `AutoTimeBaseTrend`, `AutoNLinear`, and `AutoDLinear` variants from a tuning artifact
+- supports mixed-scope, aggregated-only, and detailed-only internal benchmark variants
+- measures training and inference time on the final 28-day holdout
+- aggregates MAE, mean-scaled MAE, RMSE, SMAPE, rank, and wins over rolling 28-day cross-validation windows
+- adapts neural training iterations to dataset size and a user-selected profile: `smoke`, `normal`, or `heavy`
+- writes a markdown report plus Matplotlib plots, including the effective iteration settings used in the run
+- publishes the mixed-scope workflow at `docs/daily-panel-benchmark.md`
+- publishes the aggregated-only workflow at `docs/daily-panel-aggregated-benchmark.md`
+- publishes the detailed-only internal workflow at `docs/daily-panel-detailed-benchmark.md`
+
+The aggregated tuning workflow:
+- lives in `scripts/tune_nixtla_panel_aggregated.py`
+- uses NeuralForecast native auto models for `DLinear` and `NLinear`
+- tunes `TimeBase` and `TimeBaseTrend` with a compact CPU-first search
+- writes reusable tuned config JSON artifacts under `artifacts/tuning/`
+
+Note: these scripts were added in this agent-assisted change.
 
 ## Repository layout
 
