@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
-from time import perf_counter
 from typing import Any
 
 import pandas as pd
@@ -33,17 +31,6 @@ DEFAULT_BENCHMARK_DIR = Path("docs/img/daily-panel-aggregated-benchmark")
 DEFAULT_LOG_PATH = Path("logs/tune_nixtla_panel_aggregated.log")
 DEFAULT_MAX_SERIES = 64
 DEFAULT_NUM_SAMPLES = {"smoke": 1, "normal": 3, "heavy": 6}
-
-
-@dataclass(frozen=True)
-class TuningResult:
-    """Summary of one candidate tuning evaluation."""
-
-    model: str
-    config: dict[str, Any]
-    mae: float
-    mean_scaled_mae: float
-    runtime_seconds: float
 
 
 def configure_logging(log_path: Path) -> logging.Logger:
@@ -175,7 +162,7 @@ def sanitize_auto_config(
     raw_config: dict[str, Any],
     model_name: str,
 ) -> dict[str, int | float | str | bool | None]:
-    """Reduce native auto-model configs to benchmark-ready fields."""
+    """Reduce auto-model configs to benchmark-ready fields."""
     sanitized: dict[str, int | float | str | bool | None] = {
         "input_size": int(raw_config["input_size"]),
         "learning_rate": float(raw_config["learning_rate"]),
@@ -183,7 +170,10 @@ def sanitize_auto_config(
         "step_size": int(raw_config["step_size"]),
         "scaler_type": raw_config.get("scaler_type"),
     }
-    if model_name == "AutoDLinear":
+    if model_name in {"AutoTimeBase", "AutoTimeBaseTrend"}:
+        sanitized["basis_num"] = int(raw_config["basis_num"])
+        sanitized["period_len"] = int(raw_config["period_len"])
+    if model_name in {"AutoDLinear", "AutoTimeBaseTrend"}:
         sanitized["moving_avg_window"] = int(raw_config["moving_avg_window"])
     return sanitized
 
@@ -193,79 +183,81 @@ def select_best_tuning_result(results: list[dict[str, Any]]) -> dict[str, Any]:
     return min(results, key=lambda row: (row["avg_mean_scaled_mae"], row["avg_mae"]))
 
 
-def _evaluate_predictions(
-    actual: pd.DataFrame,
-    forecast: pd.DataFrame,
+def _build_auto_model_config(
+    candidates: list[dict[str, int | float]],
     model_name: str,
-) -> TuningResult:
-    merged = actual.merge(
-        forecast, on=["unique_id", "ds"], how="inner", validate="one_to_one"
-    )
-    merged["abs_error"] = (merged["y"] - merged["y_hat"]).abs()
-    merged["series_mean"] = (
-        merged.groupby("unique_id")["y"].transform("mean").clip(lower=1e-8)
-    )
-    mae = float(merged["abs_error"].mean())
-    mean_scaled_mae = float((merged["abs_error"] / merged["series_mean"]).mean())
-    return TuningResult(
-        model=model_name,
-        config={},
-        mae=round(mae, 4),
-        mean_scaled_mae=round(mean_scaled_mae, 4),
-        runtime_seconds=0.0,
-    )
+) -> dict[str, Any]:
+    """Convert compact benchmark candidates into a Ray Tune search space."""
+    from ray import tune
 
-
-def _fit_predict_timebase_candidate(
-    train_df: pd.DataFrame,
-    test_df: pd.DataFrame,
-    horizon: int,
-    model_name: str,
-    config: dict[str, int | float],
-) -> TuningResult:
-    import warnings
-
-    from neuralforecast import NeuralForecast
-    from timebaseula import TimeBase, TimeBaseTrend
-
-    model_cls = TimeBase if model_name == "AutoTimeBase" else TimeBaseTrend
-    kwargs: dict[str, Any] = {
-        "h": horizon,
-        "freq": DEFAULT_FREQ,
-        "alias": model_name,
-        "input_size": int(config["input_size"]),
-        "basis_num": int(config["basis_num"]),
-        "period_len": int(config["period_len"]),
-        "max_steps": int(config["max_steps"]),
-        "learning_rate": float(config["learning_rate"]),
-        "accelerator": "cpu",
-        "devices": 1,
-        "logger": False,
-        "enable_progress_bar": False,
-        "enable_model_summary": False,
+    unique_values = {
+        key: sorted({candidate[key] for candidate in candidates})
+        for key in candidates[0]
+    }
+    config: dict[str, Any] = {
+        "input_size": tune.choice(
+            [int(value) for value in unique_values["input_size"]]
+        ),
+        "basis_num": tune.choice([int(value) for value in unique_values["basis_num"]]),
+        "period_len": tune.choice(
+            [int(value) for value in unique_values["period_len"]]
+        ),
+        "learning_rate": tune.choice(
+            [float(value) for value in unique_values["learning_rate"]]
+        ),
+        "max_steps": tune.choice([int(value) for value in unique_values["max_steps"]]),
+        "step_size": tune.choice([1, int(max(unique_values["period_len"]))]),
+        "scaler_type": tune.choice(["identity"]),
+        "batch_size": tune.choice([32, 64]),
+        "windows_batch_size": tune.choice([256, 512, 1024]),
+        "random_seed": tune.randint(lower=1, upper=20),
     }
     if model_name == "AutoTimeBaseTrend":
-        kwargs["moving_avg_window"] = int(config["moving_avg_window"])
-
-    model = model_cls(**kwargs)
-    nf = NeuralForecast(models=[model], freq=DEFAULT_FREQ)
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", category=Warning)
-        start = perf_counter()
-        nf.fit(train_df, val_size=horizon)
-        prediction = (
-            nf.predict()
-            .reset_index()[["unique_id", "ds", model_name]]
-            .rename(columns={model_name: "y_hat"})
+        config["moving_avg_window"] = tune.choice(
+            [int(value) for value in unique_values["moving_avg_window"]]
         )
-        runtime = perf_counter() - start
-    result = _evaluate_predictions(test_df, prediction, model_name=model_name)
-    return TuningResult(
-        model=model_name,
+    return config
+
+
+def _tune_auto_timebase_model(
+    train_df: pd.DataFrame,
+    horizon: int,
+    profile: str,
+    model_name: str,
+    logger: logging.Logger,
+) -> dict[str, int | float | str | bool | None]:
+    """Tune one TimeBase-family model through NeuralForecast native auto utilities."""
+    from neuralforecast import NeuralForecast
+    from timebaseula import AutoTimeBase, AutoTimeBaseTrend
+
+    model_map = {
+        "AutoTimeBase": AutoTimeBase,
+        "AutoTimeBaseTrend": AutoTimeBaseTrend,
+    }
+    candidate_map = {
+        "AutoTimeBase": build_timebase_candidate_configs(profile),
+        "AutoTimeBaseTrend": build_timebasetrend_candidate_configs(profile),
+    }
+    model_cls = model_map[model_name]
+    config = _build_auto_model_config(candidate_map[model_name], model_name=model_name)
+    num_samples = min(DEFAULT_NUM_SAMPLES[profile], len(candidate_map[model_name]))
+    logger.info("Tuning native auto model %s with %s samples", model_name, num_samples)
+    model = model_cls(
+        h=horizon,
         config=config,
-        mae=result.mae,
-        mean_scaled_mae=result.mean_scaled_mae,
-        runtime_seconds=round(runtime, 4),
+        num_samples=num_samples,
+        cpus=1,
+        gpus=0,
+        verbose=False,
+        alias=model_name,
+        backend="ray",
+    )
+    nf = NeuralForecast(models=[model], freq=DEFAULT_FREQ)
+    nf.fit(train_df, val_size=horizon)
+    fitted_model = nf.models[0]
+    return sanitize_auto_config(
+        fitted_model.results.get_best_result().config,
+        model_name=model_name,
     )
 
 
@@ -276,34 +268,18 @@ def tune_timebase_family(
     profile: str,
     logger: logging.Logger,
 ) -> dict[str, dict[str, int | float | str | bool | None]]:
-    """Tune TimeBase and TimeBaseTrend with a compact deterministic grid."""
-    best_configs: dict[str, dict[str, int | float | str | bool | None]] = {}
-    for model_name, candidates in {
-        "AutoTimeBase": build_timebase_candidate_configs(profile),
-        "AutoTimeBaseTrend": build_timebasetrend_candidate_configs(profile),
-    }.items():
-        trial_rows: list[dict[str, Any]] = []
-        for config in candidates:
-            logger.info("Evaluating %s candidate %s", model_name, config)
-            result = _fit_predict_timebase_candidate(
-                train_df=train_df,
-                test_df=test_df,
-                horizon=horizon,
-                model_name=model_name,
-                config=config,
-            )
-            trial_rows.append(
-                {
-                    "model": model_name,
-                    "config": config,
-                    "avg_mae": result.mae,
-                    "avg_mean_scaled_mae": result.mean_scaled_mae,
-                    "runtime_seconds": result.runtime_seconds,
-                }
-            )
-        best = select_best_tuning_result(trial_rows)
-        best_configs[model_name] = best["config"]
-    return best_configs
+    """Tune TimeBase wrappers with NeuralForecast native auto utilities."""
+    del test_df
+    return {
+        model_name: _tune_auto_timebase_model(
+            train_df=train_df,
+            horizon=horizon,
+            profile=profile,
+            model_name=model_name,
+            logger=logger,
+        )
+        for model_name in ("AutoTimeBase", "AutoTimeBaseTrend")
+    }
 
 
 def tune_native_auto_models(

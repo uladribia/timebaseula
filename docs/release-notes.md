@@ -35,6 +35,11 @@ Workflow examples also use generic internal dataset paths in documentation.
 
 ## Public API status
 
-The exported package API remains:
+On the `benchmark` branch, the exported package API is:
+- `TimeBase`
+- `TimeBaseTrend`
+- `AutoTimeBase`
+- `AutoTimeBaseTrend`
+ckage API remains:
 - `TimeBase`
 - `TimeBaseTrend`

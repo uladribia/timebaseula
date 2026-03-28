@@ -80,6 +80,23 @@ If the trend is too flat and misses local changes, decrease it.
 
 All other parameters behave the same as in `TimeBase`.
 
+## Auto wrappers
+
+Use the auto wrappers when you want NeuralForecast to tune the TimeBase family with Ray or Optuna backends.
+
+```python
+from timebaseula import AutoTimeBase, AutoTimeBaseTrend
+
+auto_timebase = AutoTimeBase(h=28, num_samples=3, cpus=1, gpus=0, backend="ray")
+auto_timebasetrend = AutoTimeBaseTrend(
+    h=28,
+    num_samples=3,
+    cpus=1,
+    gpus=0,
+    backend="ray",
+)
+```
+
 ## Example
 
 ```python

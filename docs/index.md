@@ -21,6 +21,8 @@ TimeBaseUla provides compact TimeBase-style forecasting models for `NeuralForeca
 |---|---|
 | `TimeBase` | Explicit TimeBase model |
 | `TimeBaseTrend` | Explicit TimeBase model with trend decomposition |
+| `AutoTimeBase` | Auto-tuning wrapper for `TimeBase` |
+| `AutoTimeBaseTrend` | Auto-tuning wrapper for `TimeBaseTrend` |
 
 ## Quick example
 
