@@ -199,11 +199,11 @@ The daily benchmark:
 
 The aggregated tuning workflow:
 - lives in `scripts/tune_nixtla_panel_aggregated.py`
-- uses NeuralForecast native auto models for `DLinear` and `NLinear`
-- tunes `TimeBase` and `TimeBaseTrend` with a compact CPU-first search
+- uses NeuralForecast native auto models for `DLinear`, `NLinear`, `AutoTimeBase`, and `AutoTimeBaseTrend`
+- tunes the TimeBase family through the package auto wrappers instead of a repo-local fit/predict loop
 - writes reusable tuned config JSON artifacts under `artifacts/tuning/`
 
-Note: these scripts were added in this agent-assisted change.
+Note: this benchmark-branch update was prepared in an agent-assisted change.
 
 ## Repository layout
 
@@ -231,6 +231,12 @@ Build the docs locally with:
 
 ```bash
 uv run --group docs mkdocs build --strict
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+kdocs build --strict
 ```
 
 ## License

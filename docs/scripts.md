@@ -126,8 +126,8 @@ uv run --group benchmark python scripts/tune_nixtla_panel_aggregated.py \
 ```
 
 The aggregated tuning workflow:
-- tunes `AutoDLinear` and `AutoNLinear` with NeuralForecast native auto models
-- tunes `AutoTimeBase` and `AutoTimeBaseTrend` with a compact repo-local search
+- tunes `AutoDLinear`, `AutoNLinear`, `AutoTimeBase`, and `AutoTimeBaseTrend` with NeuralForecast native auto models
+- routes the TimeBase family through the package auto wrappers rather than a custom repo-local fit/predict loop
 - writes the best tuned configs to JSON artifacts
 - can refresh the aggregated-only benchmark using the tuned configs immediately after tuning
 
