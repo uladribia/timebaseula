@@ -84,19 +84,19 @@ bump-version:
 		then \
 			echo "uv.lock is up-to-date"; \
 			uv sync; \
-  			uv run prek install -f --install-hooks; \
+  			uvx prek install -f --install-hooks; \
 		else \
   			echo "uv.lock is NOT up-to-date."; \
   			echo "Update uv.lock and commit it."; \
 			uv sync; \
-			uv run prek install -f --install-hooks; \
+			uvx prek install -f --install-hooks; \
 			git add uv.lock; \
-  			uv run prek run --files uv.lock || true; \
+  			uvx prek run --files uv.lock || true; \
   			uv run git commit .pre-commit-config.yaml uv.lock -m ":lock: Lock the project dependencies"; \
 		fi
 
 --run-pre-commits:
-	@uv run --frozen prek run --all-files || true
+	@uvx prek run --all-files || true
 	@git_status=$$(git status --porcelain); \
 		if [ -n "$${git_status}" ]; \
 		then \
@@ -107,5 +107,5 @@ bump-version:
 setup:
 	@make -- --check-git-status || exit 1
 	@make -- --setup-uv || exit 1; make -- --run-pre-commits || exit 1
-	@echo "Checking pre-commits ..."; uv run --frozen prek run --all-files || exit 1
+	@echo "Checking pre-commits ..."; uvx prek run --all-files || exit 1
 	@echo "\nSetup completed successfully!\n"; exit 0

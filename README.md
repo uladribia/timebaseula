@@ -11,7 +11,18 @@ description: TimeBaseUla README with installation, public API, defaults, and pac
 - Public API: `TimeBase` and `TimeBaseTrend`.
 - The package is CPU-first and integrates with `NeuralForecast`.
 - Install and use it from a source checkout.
-- The repository also includes a benchmark script for `AirPassengersPanel`.
+- This `main` branch keeps the library plus curated benchmark reports.
+- Full benchmark and tuning workflows live on the `benchmark` branch.
+
+## Branch strategy
+
+This repository maintains two long-lived branches:
+
+- `main`: release-oriented library branch with publishable code, curated docs, and published benchmark result pages
+- `benchmark`: full benchmarking and tuning branch with scripts, workflow docs, and experiment-oriented scaffolding
+
+If you want to reproduce or extend the internal anonymized benchmarks, use the `benchmark` branch.
+If you want the library and the curated benchmark write-up that accompanies a release, use `main`.
 
 ## Installation
 
@@ -23,13 +34,7 @@ cd timebaseula
 uv sync
 ```
 
-### Benchmark dependencies
-
-```bash
-uv sync --group benchmark
-```
-
-The benchmark tooling is intended for Python 3.12+ on non-Windows environments.
+The benchmark and tuning tooling is maintained on the `benchmark` branch.
 
 ## What this package provides
 
@@ -133,31 +138,23 @@ The expected data format is the standard `NeuralForecast` long format:
 
 For full parameter guidance, see `docs/models.md` and `docs/usage.md`.
 
-## Benchmark script
+## Benchmark reports
 
-Generate a docs-ready benchmark report on `AirPassengersPanel` with:
+This `main` branch keeps the published benchmark reports that accompany the library documentation:
 
-```bash
-uv run --group benchmark python scripts/benchmark_airpassengers.py run \
-  --output-markdown docs/benchmark.md \
-  --output-plot docs/img/airpassengers-benchmark.png
-```
+- AirPassengers reference benchmark: `docs/benchmark.md`
+- Mixed-scope internal daily-panel benchmark: `docs/daily-panel-benchmark.md`
+- Aggregated-only internal daily-panel benchmark: `docs/daily-panel-aggregated-benchmark.md`
+- Detailed-only internal daily-panel benchmark: `docs/daily-panel-detailed-benchmark.md`
 
-The report compares:
-- `TimeBase`
-- `TimeBaseTrend`
-- `NLinear`
-- `DLinear`
-- `AutoMFLES`
-- `Naive`
+If you want to reproduce, extend, or rerun those benchmarks, switch to the `benchmark` branch.
 
 ## Repository layout
 
 | Path | Role |
 |---|---|
 | `timebaseula/` | publishable library code |
-| `scripts/` | benchmark and reporting scripts |
-| `docs/` | MkDocs documentation |
+| `docs/` | MkDocs documentation and curated benchmark reports |
 | `tests/` | repository test suite |
 | `pyproject.toml` | package metadata and dependencies |
 

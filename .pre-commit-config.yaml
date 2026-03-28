@@ -36,12 +36,12 @@ repos:
   hooks:
   - id: checkmake
 - repo: https://github.com/tombi-toml/tombi-pre-commit
-  rev: v0.7.22
+  rev: v0.9.9
   hooks:
   - id: tombi-format
   - id: tombi-lint
 - repo: https://github.com/astral-sh/ruff-pre-commit
-  rev: v0.14.13
+  rev: v0.15.8
   hooks:
   - id: ruff-check
     types_or: [ python, pyi ]
@@ -58,7 +58,7 @@ repos:
     pass_filenames: false
     always_run: true
 - repo: https://github.com/fpgmaas/deptry.git
-  rev: 0.24.0
+  rev: 0.25.1
   hooks:
   - id: deptry
     args: ["--ignore", "DEP002"]
