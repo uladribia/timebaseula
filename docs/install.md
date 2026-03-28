@@ -1,12 +1,13 @@
 ---
-description: Installation guide for TimeBaseUla with source and benchmark setup instructions.
+description: Installation guide for TimeBaseUla with source and branch-aware setup instructions.
 ---
 
 # Install TimeBaseUla
 
 ## TL;DR
 - Use `uv sync` from a local checkout.
-- Use `uv sync --group benchmark` when you want to run the AirPassengers benchmark script.
+- The main package includes the dependencies needed for `AutoTimeBase` and `AutoTimeBaseTrend`.
+- Use `uv sync --group benchmark` only on the `benchmark` branch when you want benchmark workflows.
 - Python requirement: `>=3.10,<3.15`.
 - This repository does not publish `timebaseula` to PyPI.
 
@@ -18,13 +19,13 @@ cd timebaseula
 uv sync
 ```
 
-## Benchmark script setup
+## Benchmark workflow setup
 
 ```bash
 uv sync --group benchmark
 ```
 
-The benchmark group is intended for Python 3.12+ on non-Windows environments.
+The benchmark group is intended for Python 3.12+ on non-Windows environments and is primarily useful on the `benchmark` branch.
 
 ## Main runtime dependencies
 
@@ -33,6 +34,7 @@ The benchmark group is intended for Python 3.12+ on non-Windows environments.
 | `neuralforecast` | training and forecasting interface |
 | `torch` | model implementation |
 | `pandas` / `numpy` | tabular and numerical processing |
+| `ray[tune]` | backend for `AutoTimeBase` and `AutoTimeBaseTrend` |
 
 ## Benchmark-only dependencies
 
