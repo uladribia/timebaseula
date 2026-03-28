@@ -1,5 +1,5 @@
 ---
-description: TimeBaseUla README with installation, public API, defaults, and package usage.
+description: TimeBaseUla README with installation, public API, defaults, and main-branch usage.
 ---
 
 # TimeBaseUla
@@ -8,10 +8,9 @@ description: TimeBaseUla README with installation, public API, defaults, and pac
 
 ## TL;DR
 - `timebaseula` is a small Python forecasting library.
-- Public API: `TimeBase` and `TimeBaseTrend`.
+- Public API: `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
 - The package is CPU-first and integrates with `NeuralForecast`.
-- Install and use it from a source checkout.
-- This `main` branch keeps the library plus curated benchmark reports.
+- This `main` branch keeps the library, tests, and curated benchmark reports.
 - Full benchmark and tuning workflows live on the `benchmark` branch.
 
 ## Branch strategy
@@ -21,12 +20,10 @@ This repository maintains two long-lived branches:
 - `main`: release-oriented library branch with publishable code, curated docs, and published benchmark result pages
 - `benchmark`: full benchmarking and tuning branch with scripts, workflow docs, and experiment-oriented scaffolding
 
-If you want to reproduce or extend the internal anonymized benchmarks, use the `benchmark` branch.
-If you want the library and the curated benchmark write-up that accompanies a release, use `main`.
+If you want to reproduce or extend the benchmark workflows, use the `benchmark` branch.
+If you want the library and curated benchmark write-ups, use `main`.
 
 ## Installation
-
-### From source
 
 ```bash
 git clone https://github.com/uladribia/timebaseula.git
@@ -34,7 +31,8 @@ cd timebaseula
 uv sync
 ```
 
-The benchmark and tuning tooling is maintained on the `benchmark` branch.
+The main package now includes the dependencies needed for `AutoTimeBase` and `AutoTimeBaseTrend`.
+The benchmark and tuning tooling remains on the `benchmark` branch.
 
 ## What this package provides
 
@@ -42,6 +40,8 @@ The benchmark and tuning tooling is maintained on the `benchmark` branch.
 |---|---|
 | `TimeBase` | Explicit segmented-basis forecasting model |
 | `TimeBaseTrend` | `TimeBase` plus a trend decomposition branch |
+| `AutoTimeBase` | NeuralForecast auto-tuning wrapper for `TimeBase` |
+| `AutoTimeBaseTrend` | NeuralForecast auto-tuning wrapper for `TimeBaseTrend` |
 
 ## Quickstart
 
@@ -64,11 +64,29 @@ nf.fit(frame, val_size=24)
 forecast = nf.predict()
 ```
 
+## Auto wrappers
+
+Use the auto wrappers when you want NeuralForecast to search TimeBase-family hyperparameters.
+
+```python
+from timebaseula import AutoTimeBase, AutoTimeBaseTrend
+
+auto_timebase = AutoTimeBase(h=24, num_samples=3, cpus=1, gpus=0, backend="ray")
+auto_timebasetrend = AutoTimeBaseTrend(
+    h=24,
+    num_samples=3,
+    cpus=1,
+    gpus=0,
+    backend="ray",
+)
+```
+
+For larger benchmark and tuning workflows, switch to the `benchmark` branch.
+
 ## Conformal prediction intervals
 
 TimeBaseUla uses NeuralForecast's built-in conformal prediction support from
-`neuralforecast.utils.PredictionIntervals`. No custom interval code is needed in
-`TimeBase` or `TimeBaseTrend`.
+`neuralforecast.utils.PredictionIntervals`.
 
 ```python
 from neuralforecast import NeuralForecast
@@ -80,74 +98,21 @@ nf = NeuralForecast(models=[model], freq="D")
 nf.fit(
     frame,
     val_size=24,
-    prediction_intervals=PredictionIntervals(
-        n_windows=2,
-        method="conformal_distribution",
-    ),
+    prediction_intervals=PredictionIntervals(n_windows=2),
 )
 forecast = nf.predict(level=[80, 95])
 ```
-
-This adds columns such as `TimeBaseTrend-lo-80` and `TimeBaseTrend-hi-80` to the
-forecast output.
-
-The expected data format is the standard `NeuralForecast` long format:
-
-| Column | Meaning |
-|---|---|
-| `unique_id` | series identifier |
-| `ds` | timestamp |
-| `y` | target value |
-
-## Default behavior
-
-| Parameter | Default |
-|---|---|
-| `input_size` | `max(2 * h, 8)` |
-| daily `period_len` | `7` |
-| monthly `period_len` | `12` |
-| other `period_len` | `min(max(2, h), input_size)` |
-| `basis_num` | `6` |
-| `moving_avg_window` (`TimeBaseTrend`) | `25` |
-
-## What the main parameters do
-
-| Parameter | Effect |
-|---|---|
-| `h` | Forecast horizon. |
-| `input_size` | Amount of history used by the model. |
-| `period_len` | Length of each repeated segment used by the TimeBase basis. |
-| `basis_num` | Number of basis components used to reconstruct the forecast. |
-| `use_period_norm` | Whether each segment is normalized before basis learning. |
-| `max_steps` | Maximum number of training steps. |
-| `learning_rate` | Optimizer step size. |
-| `moving_avg_window` | Only for `TimeBaseTrend`. Controls how smooth the extracted trend is. Larger odd values produce a smoother, slower trend; smaller odd values make the trend react faster. |
-
-## Model overview
-
-### `TimeBase`
-- splits the input window into temporal segments
-- projects segments to a compact basis
-- maps that basis back to future segments
-
-### `TimeBaseTrend`
-- decomposes the input into seasonal and trend parts
-- sends the seasonal part through the TimeBase branch
-- forecasts the trend with a linear head
-- sums both forecasts at the end
-
-For full parameter guidance, see `docs/models.md` and `docs/usage.md`.
 
 ## Benchmark reports
 
 This `main` branch keeps the published benchmark reports that accompany the library documentation:
 
-- AirPassengers reference benchmark: `docs/benchmark.md`
-- Mixed-scope internal daily-panel benchmark: `docs/daily-panel-benchmark.md`
-- Aggregated-only internal daily-panel benchmark: `docs/daily-panel-aggregated-benchmark.md`
-- Detailed-only internal daily-panel benchmark: `docs/daily-panel-detailed-benchmark.md`
+- `docs/benchmark.md`
+- `docs/daily-panel-benchmark.md`
+- `docs/daily-panel-aggregated-benchmark.md`
+- `docs/daily-panel-detailed-benchmark.md`
 
-If you want to reproduce, extend, or rerun those benchmarks, switch to the `benchmark` branch.
+If you want to rerun or extend those workflows, use the `benchmark` branch.
 
 ## Repository layout
 
@@ -155,20 +120,10 @@ If you want to reproduce, extend, or rerun those benchmarks, switch to the `benc
 |---|---|
 | `timebaseula/` | publishable library code |
 | `docs/` | MkDocs documentation and curated benchmark reports |
-| `tests/` | repository test suite |
+| `tests/` | library-focused validation suite |
 | `pyproject.toml` | package metadata and dependencies |
 
 ## Documentation
-
-The documentation site covers:
-- `docs/index.md`
-- `docs/install.md`
-- `docs/usage.md`
-- `docs/models.md`
-- `docs/benchmark.md`
-- `docs/release-notes.md`
-- `docs/paper-for-agents.md`
-- `docs/references.md`
 
 Build the docs locally with:
 

@@ -8,6 +8,8 @@ from unittest.mock import MagicMock, patch
 EXPECTED_EXPORTS = {
     "TimeBase",
     "TimeBaseTrend",
+    "AutoTimeBase",
+    "AutoTimeBaseTrend",
     "__version__",
 }
 
@@ -47,8 +49,8 @@ class TestInit:
         import timebaseula
 
         assert set(timebaseula.__all__) == EXPECTED_EXPORTS
-        assert not hasattr(timebaseula, "AutoTimeBase")
-        assert not hasattr(timebaseula, "AutoTimeBaseTrend")
+        assert hasattr(timebaseula, "AutoTimeBase")
+        assert hasattr(timebaseula, "AutoTimeBaseTrend")
         assert not hasattr(timebaseula, "make_synthetic_series")
         assert not hasattr(timebaseula, "profile_dataset")
         assert not hasattr(timebaseula, "recommend_timebase_kwargs")

@@ -5,8 +5,8 @@ description: Overview of the TimeBaseUla package and its public API.
 # Overview
 
 ## TL;DR
-- `timebaseula` exports `TimeBase` and `TimeBaseTrend`.
-- Both models plug into `NeuralForecast`.
+- `timebaseula` exports `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
+- All four classes plug into `NeuralForecast` workflows.
 - Defaults are deterministic and CPU-first.
 - `main` is the release-oriented library branch.
 - `benchmark` carries the full benchmarking and tuning workflows.
@@ -21,6 +21,8 @@ TimeBaseUla provides compact TimeBase-style forecasting models for `NeuralForeca
 |---|---|
 | `TimeBase` | Explicit TimeBase model |
 | `TimeBaseTrend` | Explicit TimeBase model with trend decomposition |
+| `AutoTimeBase` | Auto-tuning wrapper for `TimeBase` |
+| `AutoTimeBaseTrend` | Auto-tuning wrapper for `TimeBaseTrend` |
 
 ## Quick example
 
@@ -48,5 +50,5 @@ forecast = nf.predict()
 | Path | Role |
 |---|---|
 | `timebaseula/` | publishable library code |
-| `docs/` | package documentation |
+| `docs/` | package documentation and curated benchmark pages |
 | `tests/` | validation suite |
