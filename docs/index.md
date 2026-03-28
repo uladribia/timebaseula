@@ -8,7 +8,8 @@ description: Overview of the TimeBaseUla package and its public API.
 - `timebaseula` exports `TimeBase` and `TimeBaseTrend`.
 - Both models plug into `NeuralForecast`.
 - Defaults are deterministic and CPU-first.
-- The repository is focused on a small readable library.
+- `main` is the release-oriented library branch.
+- `benchmark` carries the full benchmarking and tuning workflows.
 
 ## Package purpose
 

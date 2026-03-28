@@ -73,6 +73,44 @@ Practical intuition:
 
 Use only odd values. Even values raise a `ValueError`.
 
+## Conformal prediction intervals
+
+NeuralForecast already provides conformal prediction intervals through
+`neuralforecast.utils.PredictionIntervals`, and both `TimeBase` and
+`TimeBaseTrend` work with that API directly.
+
+```python
+from neuralforecast.utils import PredictionIntervals
+
+interval_nf = NeuralForecast(models=[trend_model], freq="D")
+interval_nf.fit(
+    frame,
+    val_size=24,
+    prediction_intervals=PredictionIntervals(
+        n_windows=2,
+        method="conformal_distribution",
+    ),
+)
+interval_forecast = interval_nf.predict(level=[80, 95])
+```
+
+Output columns include:
+- `TimeBaseTrend`
+- `TimeBaseTrend-lo-80`
+- `TimeBaseTrend-hi-80`
+- `TimeBaseTrend-lo-95`
+- `TimeBaseTrend-hi-95`
+
+You can also set `method="conformal_error"` to use the alternative conformal
+calibration path implemented by NeuralForecast.
+
+### Example on the AirPassengers benchmark split
+
+The image below shows `TimeBaseTrend` on the same `AirPassengersPanel` split used
+by the benchmark, with `conformal_error` bands at 80% and 95% levels.
+
+![TimeBaseTrend conformal intervals](img/airpassengers-timebasetrend-conformal.png)
+
 ## Multi-series training and subset prediction
 
 ```python

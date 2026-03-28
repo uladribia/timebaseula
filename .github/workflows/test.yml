@@ -5,7 +5,7 @@ on:
     branches:
       - main
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
     branches:
       - main
 
@@ -14,7 +14,7 @@ jobs:
     name: Unit Tests
     strategy:
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
         os: [ubuntu-latest]
       fail-fast: false
     runs-on: ${{ matrix.os }}
@@ -25,11 +25,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
-      - name: Install Dependencies
-        run: uv sync --no-default-groups --group ci --group test
-      - name: Test
-        run: make test-unit
-      - uses: codecov/codecov-action@v4
+      - name: Run unit tests
+        run: |
+          uv run --with pytest --with pytest-cov --with pytest-mock python -m pytest --cov --cov-report=xml --cov-report=html -m "not integration and not benchmark"
+      - uses: codecov/codecov-action@v5
         if: github.event_name == 'push' && secrets.CODECOV_TOKEN != ''
         with:
           fail_ci_if_error: true

@@ -5,7 +5,7 @@ This repository follows a disciplined, maintainable, and CPU-first workflow. Age
 
 ## Environment & Tooling
 - **CPU-only**: all training and scripts must default to CPU execution. Do not assume GPU availability.
-- **Package management**: use **uv** for environments and dependencies (e.g., `uv venv`, `uv run`).
+- **Package management**: use **uv** / **uvx** for environments, dependencies, and tool execution (e.g., `uv venv`, `uv run`, `uvx ...`). Do **not** use `uv pip`.
 - **Testing**: use **pytest** for unit tests (`make test`, `make test-unit`).
 - **Linting/formatting**: use **ruff** (lint + format) and **tombi** for TOML formatting (`make lint`, `make format`).
 - **Type checking**: use **ty** (`make lint`).
@@ -38,10 +38,19 @@ This repository follows a disciplined, maintainable, and CPU-first workflow. Age
 4. **When everything passes**:
    - Update **README** and relevant documentation using the **`write-docs` skill**.
    - Ensure the README notes that changes are **agent-made** when relevant.
-5. **Commit after each relevant completed change**:
+5. **Use feature branches for new work**:
+   - Whenever a **new feature** is requested, create a dedicated branch before making changes.
+   - Use a clear, descriptive branch name tied to the feature.
+   - Keep feature work isolated on that branch until the feature is considered complete.
+6. **Commit after each relevant completed change**:
    - Use the **`commit` skill** and follow Conventional Commits.
    - Do not leave substantial finished code or documentation changes uncommitted.
    - After a relevant change clears its intended quality gates, create a commit before moving on to the next substantial task.
+7. **Close feature branches deliberately**:
+   - When a feature is considered complete, explicitly prompt the user for validation before closing the work.
+   - After validation, squash the branch commits into a clean final commit.
+   - Provide a concise summary of what is being merged.
+   - Merge the squashed result and delete the feature branch once closure is complete.
 
 ## Integrity & Evaluation Rules
 - **No cheating or shortcuts** when training or evaluating models.
@@ -65,6 +74,16 @@ When creating or modifying CLIs, use the **`create-cli` skill** and ensure the i
 - Keep README and docs accurate and concise.
 - Ensure any agent-driven change is reflected in documentation where it matters.
 - After each run, refresh affected docs with MkDocs-friendly formatting (headings, lists, code blocks) and follow the repo's MkDocs conventions.
+
+## Repository Branch Strategy
+- The repository maintains two long-lived branches with different purposes:
+  - `benchmark`: full benchmarking, tuning, experiment scripts, benchmark-oriented tests, and workflow docs.
+  - `main`: release-oriented library branch with publishable package code, curated docs, and published benchmark result pages, but without benchmark-generation scripts or related scaffolding.
+- Agents must treat `benchmark` as the source branch for benchmark workflow development.
+- When preparing `main`, agents should curate from `benchmark` rather than reimplementing content independently.
+- On `main`, keep benchmark result reports and images when they support library documentation, but remove benchmark orchestration scripts, tuning scripts, and benchmark-only test scaffolding.
+- On `main`, README and docs must clearly state that full benchmarking and tuning workflows live on the `benchmark` branch.
+- When curating `main`, preserve the library package, core library tests, and user-facing docs first; remove only workflow machinery that is not needed for the release-oriented branch.
 
 ## Execution Logs
 - Always generate logs for script and command executions.

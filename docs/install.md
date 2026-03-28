@@ -1,20 +1,14 @@
 ---
-description: Installation guide for TimeBaseUla with runtime, source, and benchmark setup instructions.
+description: Installation guide for TimeBaseUla with source and benchmark setup instructions.
 ---
 
 # Install TimeBaseUla
 
 ## TL;DR
-- Use `pip install timebaseula` to consume the package.
-- Use `uv sync` to work from a local checkout.
+- Use `uv sync` from a local checkout.
 - Use `uv sync --group benchmark` when you want to run the AirPassengers benchmark script.
 - Python requirement: `>=3.10,<3.15`.
-
-## Runtime install
-
-```bash
-pip install timebaseula
-```
+- This repository does not publish `timebaseula` to PyPI.
 
 ## Source install
 

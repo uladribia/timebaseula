@@ -5,7 +5,7 @@ on:
     branches:
       - main
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, reopened]
     branches:
       - main
 
@@ -17,9 +17,11 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
-          python-version: '3.13'
+          python-version: "3.13"
           enable-cache: true
-      - name: Install Dependencies
-        run: uv sync --no-default-groups --group ci --group lint
-      - name: Lint
-        run: make lint
+      - name: Run Ruff, Ty, and TOML checks
+        run: |
+          uv run --with ruff --with ty --with tombi ruff format --check
+          uv run --with ruff --with ty --with tombi ruff check
+          uv run --with ruff --with ty --with tombi ty check
+          uv run --with ruff --with ty --with tombi tombi lint pyproject.toml
