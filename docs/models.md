@@ -7,8 +7,9 @@ description: Reference for the TimeBaseUla model classes and their parameters.
 ## TL;DR
 - `TimeBase` is the explicit segmented-basis model.
 - `TimeBaseTrend` adds a moving-average trend decomposition branch.
-- The public API is centered on those two model classes.
-- The implementation favors small readable building blocks.
+- `AutoTimeBase` and `AutoTimeBaseTrend` expose the same family through NeuralForecast auto tuning.
+- The implementation separates the pure Torch core, pure Torch decomposition, shared wrapper base, defaults, and factories into smaller internal modules.
+- The local decomposition is intentional to avoid coupling `TimeBaseTrend` to DLinear internals, but it can still be swapped back to the upstream helper later if needed.
 
 ## `TimeBase`
 
@@ -23,9 +24,9 @@ description: Reference for the TimeBaseUla model classes and their parameters.
 | `period_len` | Segment length used to divide the history and reconstruct the forecast. Smaller values focus on short repeated patterns, while larger values encourage broader seasonal structure. |
 | `basis_num` | Number of learned basis components. Higher values increase flexibility but also model capacity. Default: `6`. |
 | `freq` | Used only to infer a default `period_len` when you do not set it manually. Daily data defaults to `7`, monthly data to `12`. |
-| `use_period_norm` | If `True`, the model normalizes each segment by its own mean before learning the basis. This usually helps when level changes across periods are more important than absolute scale. |
+| `use_period_norm` | If `True`, the model normalizes each segment by its own mean before learning the basis. |
 | `use_orthogonal` | If `True`, adds a penalty that encourages basis components to be less redundant. |
-| `orthogonal_weight` | Strength of that orthogonality penalty. Larger values push the basis toward more distinct components. |
+| `orthogonal_weight` | Strength of that orthogonality penalty. |
 
 ### Training-related parameters
 
@@ -35,11 +36,11 @@ These are passed through the underlying `NeuralForecast` / Lightning training wr
 |---|---|
 | `loss` | Training loss. Defaults to `MAE()`. |
 | `valid_loss` | Validation loss. If omitted, NeuralForecast uses its default behavior. |
-| `max_steps` | Maximum number of optimization steps. Increase it if the model underfits. |
-| `learning_rate` | Optimizer step size. Lower it if training is unstable; raise it cautiously if learning is too slow. |
+| `max_steps` | Maximum number of optimization steps. |
+| `learning_rate` | Optimizer step size. |
 | `val_check_steps` | How often validation is run during training. |
-| `batch_size` | Number of series/windows per batch. Higher values can be faster but use more memory. |
-| `windows_batch_size` | Number of sampled windows processed per optimization step. Larger values increase throughput but also memory use. |
+| `batch_size` | Number of series/windows per batch. |
+| `windows_batch_size` | Number of sampled windows processed per optimization step. |
 | `inference_windows_batch_size` | Window batch size used during prediction. |
 | `step_size` | Distance between consecutive sampled windows. `1` gives dense windows; larger values reduce overlap. |
 | `scaler_type` | Target scaling strategy used by NeuralForecast. |
@@ -59,7 +60,9 @@ These are passed through the underlying `NeuralForecast` / Lightning training wr
 
 ## `TimeBaseTrend`
 
-`TimeBaseTrend` keeps the TimeBase seasonal branch and adds a trend branch based on `SeriesDecomp` from Nixtla's DLinear implementation.
+`TimeBaseTrend` keeps the TimeBase seasonal branch and adds a trend branch based on a local pure-Torch moving-average decomposition.
+
+That local decomposition is intentional: it avoids coupling the explicit TimeBase family to `neuralforecast.models.dlinear`. The implementation keeps the same seasonal-plus-trend contract as the upstream DLinear helper, so maintainers can still revert to the dependency later if that becomes preferable.
 
 ### Extra parameter
 
@@ -96,6 +99,17 @@ auto_timebasetrend = AutoTimeBaseTrend(
     backend="ray",
 )
 ```
+
+## Internal module layout
+
+| Module | Responsibility |
+|---|---|
+| `timebaseula/models/core.py` | pure Torch segmented-basis core |
+| `timebaseula/models/decomposition.py` | pure Torch moving-average decomposition for `TimeBaseTrend` |
+| `timebaseula/models/base.py` | shared NeuralForecast wrapper and training-step logic |
+| `timebaseula/models/defaults.py` | explicit-model defaults and small validation helpers |
+| `timebaseula/models/factories.py` | shared config resolution and core factory helpers |
+| `timebaseula/models/timebase.py` | public `TimeBase` and `TimeBaseTrend` wrappers |
 
 ## Example
 

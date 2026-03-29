@@ -6,6 +6,26 @@ description: Project changelog for TimeBaseUla releases.
 
 ## Unreleased
 
+## 0.3.3 - 2026-03-29
+
+### Added
+- added a local pure-Torch decomposition module for `TimeBaseTrend`
+- added unit coverage for the local moving-average decomposition helpers
+
+### Changed
+- removed the direct dependency of `TimeBaseTrend` on `neuralforecast.models.dlinear.SeriesDecomp`
+- documented that the local decomposition is an intentional decoupling choice that can still be reverted to the upstream helper later if needed
+
+## 0.3.2 - 2026-03-29
+
+### Added
+- added focused unit coverage for the new internal model modules and shared factory helpers
+
+### Changed
+- split the explicit TimeBase implementation into smaller `core`, `base`, `defaults`, `config`, and `factories` modules
+- reduced duplication between `TimeBase` and `TimeBaseTrend` by resolving shared explicit-model components through factory helpers
+- refreshed README and library documentation to describe the smaller internal module layout
+
 ## 0.3.1 - 2026-03-27
 
 ### Added
