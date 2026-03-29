@@ -210,6 +210,11 @@ Note: this benchmark-branch update was prepared in an agent-assisted change.
 | Path | Role |
 |---|---|
 | `timebaseula/` | publishable library code |
+| `timebaseula/models/core.py` | pure Torch TimeBase core |
+| `timebaseula/models/decomposition.py` | pure Torch TimeBaseTrend decomposition |
+| `timebaseula/models/base.py` | shared NeuralForecast wrapper logic |
+| `timebaseula/models/factories.py` | shared explicit-model factories |
+| `timebaseula/models/timebase.py` | public explicit model wrappers |
 | `scripts/` | benchmark and reporting scripts |
 | `docs/` | MkDocs documentation |
 | `tests/` | repository test suite |
@@ -226,6 +231,23 @@ The documentation site covers:
 - `docs/release-notes.md`
 - `docs/paper-for-agents.md`
 - `docs/references.md`
+
+Build the docs locally with:
+
+```bash
+uv run --group docs mkdocs build --strict
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+kdocs build --strict
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+references.md`
 
 Build the docs locally with:
 

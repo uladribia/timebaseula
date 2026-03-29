@@ -5,10 +5,10 @@ description: Overview of the TimeBaseUla package and its public API.
 # Overview
 
 ## TL;DR
-- `timebaseula` exports `TimeBase` and `TimeBaseTrend`.
-- Both models plug into `NeuralForecast`.
+- `timebaseula` exports `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
+- The explicit models plug into `NeuralForecast` through a shared wrapper layer.
 - Defaults are deterministic and CPU-first.
-- `main` is the release-oriented library branch.
+- `TimeBaseTrend` intentionally uses a local pure-Torch decomposition helper instead of DLinear internals.
 - `benchmark` carries the full benchmarking and tuning workflows.
 
 ## Package purpose
@@ -50,5 +50,8 @@ forecast = nf.predict()
 | Path | Role |
 |---|---|
 | `timebaseula/` | publishable library code |
+| `timebaseula/models/core.py` | pure Torch TimeBase core |
+| `timebaseula/models/decomposition.py` | pure Torch TimeBaseTrend decomposition |
+| `timebaseula/models/base.py` | shared NeuralForecast wrapper logic |
 | `docs/` | package documentation |
 | `tests/` | validation suite |

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 import torch
 
+from timebaseula.models.decomposition import SeriesDecomposition
 from timebaseula.models.timebase import TimeBase, TimeBaseTrend
 
 
@@ -109,7 +110,8 @@ class TestTimeBaseTrend:
                 moving_avg_window=4,
             )
 
-    def test_has_decomposition(self) -> None:
-        """TimeBaseTrend should have SeriesDecomp for trend extraction."""
+    def test_has_local_decomposition_module(self) -> None:
+        """TimeBaseTrend should use the local Torch decomposition helper."""
         model = TimeBaseTrend(h=4, input_size=8, period_len=4, basis_num=4)
         assert hasattr(model, "decomp")
+        assert isinstance(model.decomp, SeriesDecomposition)
