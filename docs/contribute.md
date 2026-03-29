@@ -48,6 +48,19 @@ make test-integration
 - preserve CPU-first compatibility
 - avoid putting reusable package logic under `tests/`
 
+## Library architecture
+
+| Module | Responsibility |
+|---|---|
+| `timebaseula/models/core.py` | pure Torch segmented-basis model code |
+| `timebaseula/models/decomposition.py` | pure Torch moving-average decomposition for `TimeBaseTrend` |
+| `timebaseula/models/base.py` | shared NeuralForecast wrapper behavior |
+| `timebaseula/models/defaults.py` | defaults and small validation helpers |
+| `timebaseula/models/factories.py` | shared explicit-model construction helpers |
+| `timebaseula/models/timebase.py` | public `TimeBase` and `TimeBaseTrend` wrappers |
+
+Keep pure model math out of the NeuralForecast wrapper layer when possible. The local decomposition module is intentional so `TimeBaseTrend` does not depend on DLinear internals, but it should stay close to the upstream contract so a future revert remains easy.
+
 ## Documentation commands
 
 ```bash

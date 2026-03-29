@@ -10,6 +10,7 @@ description: TimeBaseUla README with installation, public API, defaults, and mai
 - `timebaseula` is a small Python forecasting library.
 - Public API: `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
 - The package is CPU-first and integrates with `NeuralForecast`.
+- `TimeBaseTrend` intentionally uses a local pure-Torch moving-average decomposition instead of importing DLinear's NeuralForecast helper.
 - This `main` branch keeps the library, tests, and curated benchmark reports.
 - Full benchmark and tuning workflows live on the `benchmark` branch.
 
@@ -31,8 +32,8 @@ cd timebaseula
 uv sync
 ```
 
-The main package now includes the dependencies needed for `AutoTimeBase` and `AutoTimeBaseTrend`.
-The benchmark and tuning tooling remains on the `benchmark` branch.
+The main package includes the dependencies needed for `AutoTimeBase` and `AutoTimeBaseTrend`.
+Benchmark and tuning tooling remains on the `benchmark` branch.
 
 ## What this package provides
 
@@ -119,6 +120,11 @@ If you want to rerun or extend those workflows, use the `benchmark` branch.
 | Path | Role |
 |---|---|
 | `timebaseula/` | publishable library code |
+| `timebaseula/models/core.py` | pure Torch TimeBase core |
+| `timebaseula/models/decomposition.py` | pure Torch TimeBaseTrend decomposition |
+| `timebaseula/models/base.py` | shared NeuralForecast wrapper logic |
+| `timebaseula/models/factories.py` | shared explicit-model factories |
+| `timebaseula/models/timebase.py` | public explicit model wrappers |
 | `docs/` | MkDocs documentation and curated benchmark reports |
 | `tests/` | library-focused validation suite |
 | `pyproject.toml` | package metadata and dependencies |

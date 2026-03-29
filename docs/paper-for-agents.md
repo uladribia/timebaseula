@@ -8,7 +8,7 @@ description: Agent-friendly summary of the TimeBase paper and how this repositor
 - TimeBase models long-horizon forecasting by learning a compact basis over temporal segments.
 - The core idea is to capture repeated structure instead of relying on very large sequence models.
 - This repository implements `TimeBase` and `TimeBaseTrend` for `NeuralForecast`.
-- The code favors explicit defaults and readable model wrappers.
+- The code favors explicit defaults, smaller modules, and a local pure-Torch decomposition for `TimeBaseTrend`.
 
 ## Paper intuition
 
@@ -32,14 +32,17 @@ The paper argues that many long-horizon tasks contain repeated temporal structur
 The repository also exposes `TimeBaseTrend`, which adds a decomposition-style trend branch:
 - the repeating component goes through the TimeBase branch
 - the smoother trend component goes through a linear trend branch
+- the decomposition is implemented locally in Torch on purpose so the model does not depend on DLinear internals
 
 ## How the repository maps the paper to code
 
 | Concept | Repository location |
 |---|---|
 | exported models | `timebaseula/models/timebase.py` |
-| explicit defaults | `timebaseula/models/timebase.py` |
-| model wrappers | `timebaseula/models/timebase.py` |
+| explicit defaults | `timebaseula/models/defaults.py` |
+| pure segmented-basis core | `timebaseula/models/core.py` |
+| pure decomposition helper | `timebaseula/models/decomposition.py` |
+| shared wrapper logic | `timebaseula/models/base.py` |
 | usage examples | `docs/usage.md` |
 
 ## What is implemented here
@@ -55,6 +58,6 @@ The repository also exposes `TimeBaseTrend`, which adds a decomposition-style tr
 ## What to inspect first as an agent
 
 1. `timebaseula/models/timebase.py`
-2. `timebaseula/__init__.py`
-3. `docs/models.md`
-4. `tests/unit/library/test_timebase.py`
+2. `timebaseula/models/core.py`
+3. `timebaseula/models/decomposition.py`
+4. `tests/unit/test_timebase.py`
