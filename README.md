@@ -10,6 +10,7 @@ description: TimeBaseUla README with installation, public API, defaults, and pac
 - `timebaseula` is a small Python forecasting library.
 - Public API: `TimeBase` and `TimeBaseTrend`.
 - The package is CPU-first and integrates with `NeuralForecast`.
+- The explicit models support point losses, multi-quantile losses, and NeuralForecast distribution losses such as Gaussian and Poisson.
 - Install and use it from a source checkout.
 - The repository also includes benchmark and tuning scripts for `AirPassengersPanel` and daily panel workflows.
 
@@ -68,6 +69,21 @@ nf = NeuralForecast(models=[model], freq="D")
 nf.fit(frame, val_size=24)
 forecast = nf.predict()
 ```
+
+## Probabilistic losses
+
+```python
+from neuralforecast.losses.pytorch import DistributionLoss
+from timebaseula import TimeBaseTrend
+
+probabilistic_model = TimeBaseTrend(
+    h=24,
+    freq="D",
+    loss=DistributionLoss("Normal", level=[80, 95]),
+)
+```
+
+For count-like targets, the benchmark scripts also support `--neural-loss poisson`.
 
 ## Conformal prediction intervals
 
@@ -152,7 +168,8 @@ This repository includes benchmark workflows plus an aggregated-model tuning wor
 ```bash
 uv run --group benchmark python scripts/benchmark_airpassengers.py run \
   --output-markdown docs/benchmark.md \
-  --output-plot docs/img/airpassengers-benchmark.png
+  --output-plot docs/img/airpassengers-benchmark.png \
+  --neural-loss normal
 ```
 
 ### Daily panel workflow for an internal anonymized dataset
@@ -169,14 +186,15 @@ uv run python scripts/prepare_nixtla_panel.py \
 2. Run the CPU-first daily benchmark with a fixed 28-day forecast horizon:
 
 ```bash
-uv run --group benchmark python scripts/benchmark_nixtla_panel.py \
+uv run --group benchmark python scripts/benchmark_nixtla_panel.py run \
   --input-path data/processed/internal_daily_panel/panel.parquet \
   --output-markdown docs/daily-panel-benchmark.md \
   --output-dir docs/img/daily-panel-benchmark \
   --horizon 28 \
   --test-ratio 0.2 \
   --profile normal \
-  --max-series 256
+  --max-series 256 \
+  --neural-loss poisson
 ```
 
 The preparation step now includes:

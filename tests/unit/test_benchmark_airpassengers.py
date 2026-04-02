@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pandas as pd
+from neuralforecast.losses.pytorch import DistributionLoss, MAE
 
 from scripts.benchmark_airpassengers import (
     DEFAULT_INPUT_SIZE,
@@ -11,6 +12,7 @@ from scripts.benchmark_airpassengers import (
     get_reproducible_model_settings,
     get_neural_model_configs,
     render_markdown_report,
+    resolve_benchmark_loss,
     split_train_test,
 )
 
@@ -155,3 +157,16 @@ def test_get_reproducible_model_settings_includes_all_benchmarked_models() -> No
     }
     assert settings["AutoMFLES"]["season_length"] == 12
     assert settings["Naive"] == {}
+
+
+def test_resolve_benchmark_loss_supports_point_and_distribution_losses() -> None:
+    """Benchmark helpers should resolve both point and probabilistic losses."""
+    assert isinstance(resolve_benchmark_loss("mae"), MAE)
+
+    normal_loss = resolve_benchmark_loss("normal")
+    poisson_loss = resolve_benchmark_loss("poisson")
+
+    assert isinstance(normal_loss, DistributionLoss)
+    assert normal_loss.distribution == "Normal"
+    assert isinstance(poisson_loss, DistributionLoss)
+    assert poisson_loss.distribution == "Poisson"

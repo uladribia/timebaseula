@@ -5,12 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+from neuralforecast.losses.pytorch import DistributionLoss, MAE
 
 from scripts.benchmark_nixtla_panel import (
     build_model_summary_table,
     filter_plot_window,
     regularize_benchmark_panel,
     render_markdown_report,
+    resolve_benchmark_loss,
 )
 
 
@@ -169,3 +171,16 @@ def test_render_markdown_report_references_generated_artifacts() -> None:
     assert "| parameters | 42 | 0 |" in markdown
     assert "![Benchmark plot](img/rank.png)" in markdown
     assert "TimeBase wins on both series." in markdown
+
+
+def test_resolve_benchmark_loss_supports_point_and_distribution_losses() -> None:
+    """Daily benchmark helpers should resolve both point and probabilistic losses."""
+    assert isinstance(resolve_benchmark_loss("mae"), MAE)
+
+    normal_loss = resolve_benchmark_loss("normal")
+    poisson_loss = resolve_benchmark_loss("poisson")
+
+    assert isinstance(normal_loss, DistributionLoss)
+    assert normal_loss.distribution == "Normal"
+    assert isinstance(poisson_loss, DistributionLoss)
+    assert poisson_loss.distribution == "Poisson"

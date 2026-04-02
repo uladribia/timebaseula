@@ -190,6 +190,21 @@ def _trainer_overrides(max_steps: int, learning_rate: float) -> dict[str, Any]:
     }
 
 
+def resolve_benchmark_loss(loss_name: str):
+    """Resolve a benchmark loss name to a NeuralForecast loss instance."""
+    from neuralforecast.losses.pytorch import DistributionLoss, MAE
+
+    normalized_name = loss_name.strip().lower()
+    if normalized_name == "mae":
+        return MAE()
+    if normalized_name in {"normal", "gaussian"}:
+        return DistributionLoss("Normal", level=[80, 95])
+    if normalized_name == "poisson":
+        return DistributionLoss("Poisson", level=[80, 95])
+    msg = f"Unsupported benchmark loss: {loss_name}"
+    raise ValueError(msg)
+
+
 def get_neural_model_configs(
     input_size: int, max_steps: int
 ) -> dict[str, dict[str, int | float]]:
@@ -242,6 +257,7 @@ def run_neuralforecast_models(
     horizon: int,
     input_size: int,
     max_steps: int,
+    neural_loss_name: str,
     logger: logging.Logger,
 ) -> tuple[dict[str, pd.DataFrame], dict[str, float], dict[str, int]]:
     """Fit and predict the NeuralForecast models used in the benchmark."""
@@ -253,6 +269,7 @@ def run_neuralforecast_models(
     from timebaseula import TimeBase, TimeBaseTrend
 
     model_configs = get_neural_model_configs(input_size=input_size, max_steps=max_steps)
+    neural_loss = resolve_benchmark_loss(neural_loss_name)
     models = [
         TimeBase(
             h=horizon,
@@ -260,6 +277,7 @@ def run_neuralforecast_models(
             input_size=int(model_configs["TimeBase"]["input_size"]),
             basis_num=int(model_configs["TimeBase"]["basis_num"]),
             period_len=int(model_configs["TimeBase"]["period_len"]),
+            loss=neural_loss,
             **_trainer_overrides(
                 max_steps=int(model_configs["TimeBase"]["max_steps"]),
                 learning_rate=float(model_configs["TimeBase"]["learning_rate"]),
@@ -272,6 +290,7 @@ def run_neuralforecast_models(
             basis_num=int(model_configs["TimeBaseTrend"]["basis_num"]),
             period_len=int(model_configs["TimeBaseTrend"]["period_len"]),
             moving_avg_window=int(model_configs["TimeBaseTrend"]["moving_avg_window"]),
+            loss=neural_loss,
             **_trainer_overrides(
                 max_steps=int(model_configs["TimeBaseTrend"]["max_steps"]),
                 learning_rate=float(model_configs["TimeBaseTrend"]["learning_rate"]),
@@ -280,6 +299,7 @@ def run_neuralforecast_models(
         NLinear(
             h=horizon,
             input_size=int(model_configs["NLinear"]["input_size"]),
+            loss=neural_loss,
             **_trainer_overrides(
                 max_steps=int(model_configs["NLinear"]["max_steps"]),
                 learning_rate=float(model_configs["NLinear"]["learning_rate"]),
@@ -288,6 +308,7 @@ def run_neuralforecast_models(
         DLinear(
             h=horizon,
             input_size=int(model_configs["DLinear"]["input_size"]),
+            loss=neural_loss,
             **_trainer_overrides(
                 max_steps=int(model_configs["DLinear"]["max_steps"]),
                 learning_rate=float(model_configs["DLinear"]["learning_rate"]),
@@ -553,6 +574,7 @@ def benchmark_airpassengers(
     horizon: int,
     input_size: int,
     max_steps: int,
+    neural_loss_name: str,
     output_markdown: Path,
     output_plot: Path,
     output_conformal_plot: Path,
@@ -562,7 +584,9 @@ def benchmark_airpassengers(
     from neuralforecast.utils import AirPassengersPanel
 
     logger = configure_logging(log_path)
-    logger.info("Starting AirPassengers benchmark")
+    logger.info(
+        "Starting AirPassengers benchmark with neural loss %s", neural_loss_name
+    )
 
     frame = AirPassengersPanel[["unique_id", "ds", "y"]].copy()
     train_df, test_df = split_train_test(frame, horizon=horizon)
@@ -572,6 +596,7 @@ def benchmark_airpassengers(
         horizon=horizon,
         input_size=input_size,
         max_steps=max_steps,
+        neural_loss_name=neural_loss_name,
         logger=logger,
     )
     stats_forecasts, stats_runtimes, stats_parameters = run_statsforecast_models(
@@ -649,6 +674,11 @@ def build_app() -> Any:
         max_steps: int = typer.Option(
             DEFAULT_MAX_STEPS, help="Maximum training steps for neural models."
         ),
+        neural_loss_name: str = typer.Option(
+            "mae",
+            "--neural-loss",
+            help="Loss for neural models: mae, normal, gaussian, or poisson.",
+        ),
         output_markdown: Path = typer.Option(
             DEFAULT_OUTPUT_MARKDOWN, help="Markdown report output path."
         ),
@@ -673,6 +703,7 @@ def build_app() -> Any:
             horizon=horizon,
             input_size=input_size,
             max_steps=max_steps,
+            neural_loss_name=neural_loss_name,
             output_markdown=output_markdown,
             output_plot=output_plot,
             output_conformal_plot=output_conformal_plot,

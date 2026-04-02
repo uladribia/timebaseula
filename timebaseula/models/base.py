@@ -37,6 +37,7 @@ class _BaseTimeBaseModel(BaseWindows):
     core: TimeBaseCore
     use_orthogonal: bool
     orthogonal_weight: float
+    output_adapter: nn.Module
     _last_orthogonal_loss: torch.Tensor | None
 
     def __init__(
@@ -97,6 +98,7 @@ class _BaseTimeBaseModel(BaseWindows):
         self.period_len = model_settings.period_len
         self.use_orthogonal = False
         self.orthogonal_weight = 0.0
+        self.output_adapter = nn.Identity()
         self._last_orthogonal_loss = None
 
     @staticmethod
@@ -122,6 +124,14 @@ class _BaseTimeBaseModel(BaseWindows):
             use_orthogonal=regularization_config.use_orthogonal,
             orthogonal_weight=regularization_config.orthogonal_weight,
         )
+
+    def _initialize_output_adapter(self) -> None:
+        """Build the optional loss-aware output adapter."""
+        output_width = self.h * self.loss.outputsize_multiplier
+        if output_width == self.h:
+            self.output_adapter = nn.Identity()
+            return
+        self.output_adapter = nn.Linear(self.h, output_width)
 
     def _build_windows_batch(
         self,
@@ -203,6 +213,7 @@ class _BaseTimeBaseModel(BaseWindows):
         self._last_orthogonal_loss = (
             self._compute_orthogonal_loss(basis) if self.use_orthogonal else None
         )
+        forecast = self.output_adapter(forecast)
         forecast = forecast.reshape(-1, self.h, self.loss.outputsize_multiplier)
         return self.loss.domain_map(forecast)
 

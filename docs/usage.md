@@ -8,6 +8,7 @@ description: Usage guide for the explicit TimeBaseUla models.
 - Use `TimeBase` for the compact segmented-basis model.
 - Use `TimeBaseTrend` when you want an added trend branch.
 - Fit with a non-zero `val_size`.
+- The explicit models support point, quantile, and distribution losses.
 - For multi-series training, use `NeuralForecast` directly.
 
 ## Explicit models
@@ -31,6 +32,18 @@ trend_model = TimeBaseTrend(h=24, freq="D", max_steps=100)
 nf = NeuralForecast(models=[seasonal_model, trend_model], freq="D")
 nf.fit(frame, val_size=24)
 forecast = nf.predict()
+```
+
+## Probabilistic example
+
+```python
+from neuralforecast.losses.pytorch import DistributionLoss
+
+probabilistic_model = TimeBase(
+    h=24,
+    freq="D",
+    loss=DistributionLoss("Poisson", level=[80, 95]),
+)
 ```
 
 ## Default resolution

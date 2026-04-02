@@ -395,6 +395,7 @@ def tune_aggregated_models(
             series_scope="aggregated",
             include_autotheta=True,
             tuned_config_path=tuned_config_path,
+            neural_loss_name="mae",
             log_path=Path("logs/benchmark_nixtla_panel.log"),
         )
 

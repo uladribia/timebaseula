@@ -272,6 +272,21 @@ def _trainer_overrides(max_steps: int, learning_rate: float) -> dict[str, Any]:
     }
 
 
+def resolve_benchmark_loss(loss_name: str):
+    """Resolve a benchmark loss name to a NeuralForecast loss instance."""
+    from neuralforecast.losses.pytorch import DistributionLoss, MAE
+
+    normalized_name = loss_name.strip().lower()
+    if normalized_name == "mae":
+        return MAE()
+    if normalized_name in {"normal", "gaussian"}:
+        return DistributionLoss("Normal", level=[80, 95])
+    if normalized_name == "poisson":
+        return DistributionLoss("Poisson", level=[80, 95])
+    msg = f"Unsupported benchmark loss: {loss_name}"
+    raise ValueError(msg)
+
+
 def get_daily_model_configs(
     profile: str,
     n_series: int,
@@ -412,12 +427,14 @@ def build_neural_models(
     horizon: int,
     settings: dict[str, dict[str, int | float]],
     tuned_model_configs: dict[str, dict[str, Any]],
+    neural_loss_name: str,
 ) -> list[Any]:
     """Build the neural benchmark models, optionally including tuned variants."""
     from neuralforecast.models import DLinear, NLinear
 
     from timebaseula import TimeBase, TimeBaseTrend
 
+    neural_loss = resolve_benchmark_loss(neural_loss_name)
     models: list[Any] = [
         TimeBase(
             h=horizon,
@@ -425,6 +442,7 @@ def build_neural_models(
             input_size=int(settings["TimeBase"]["input_size"]),
             basis_num=int(settings["TimeBase"]["basis_num"]),
             period_len=int(settings["TimeBase"]["period_len"]),
+            loss=neural_loss,
             **_trainer_overrides(
                 max_steps=int(settings["TimeBase"]["max_steps"]),
                 learning_rate=float(settings["TimeBase"]["learning_rate"]),
@@ -437,6 +455,7 @@ def build_neural_models(
             basis_num=int(settings["TimeBaseTrend"]["basis_num"]),
             period_len=int(settings["TimeBaseTrend"]["period_len"]),
             moving_avg_window=int(settings["TimeBaseTrend"]["moving_avg_window"]),
+            loss=neural_loss,
             **_trainer_overrides(
                 max_steps=int(settings["TimeBaseTrend"]["max_steps"]),
                 learning_rate=float(settings["TimeBaseTrend"]["learning_rate"]),
@@ -445,6 +464,7 @@ def build_neural_models(
         NLinear(
             h=horizon,
             input_size=int(settings["NLinear"]["input_size"]),
+            loss=neural_loss,
             **_trainer_overrides(
                 max_steps=int(settings["NLinear"]["max_steps"]),
                 learning_rate=float(settings["NLinear"]["learning_rate"]),
@@ -453,6 +473,7 @@ def build_neural_models(
         DLinear(
             h=horizon,
             input_size=int(settings["DLinear"]["input_size"]),
+            loss=neural_loss,
             **_trainer_overrides(
                 max_steps=int(settings["DLinear"]["max_steps"]),
                 learning_rate=float(settings["DLinear"]["learning_rate"]),
@@ -468,6 +489,7 @@ def build_neural_models(
             input_size=int(config["input_size"]),
             basis_num=int(config["basis_num"]),
             period_len=int(config["period_len"]),
+            loss=neural_loss,
             **_trainer_overrides(
                 max_steps=int(config["max_steps"]),
                 learning_rate=float(config["learning_rate"]),
@@ -484,6 +506,7 @@ def build_neural_models(
             basis_num=int(config["basis_num"]),
             period_len=int(config["period_len"]),
             moving_avg_window=int(config["moving_avg_window"]),
+            loss=neural_loss,
             **_trainer_overrides(
                 max_steps=int(config["max_steps"]),
                 learning_rate=float(config["learning_rate"]),
@@ -500,6 +523,7 @@ def build_neural_models(
                 alias="AutoNLinear",
                 scaler_type=config["scaler_type"],
                 step_size=int(config["step_size"]),
+                loss=neural_loss,
                 **_trainer_overrides(
                     max_steps=int(config["max_steps"]),
                     learning_rate=float(config["learning_rate"]),
@@ -516,6 +540,7 @@ def build_neural_models(
                 scaler_type=config["scaler_type"],
                 step_size=int(config["step_size"]),
                 moving_avg_window=int(config["moving_avg_window"]),
+                loss=neural_loss,
                 **_trainer_overrides(
                     max_steps=int(config["max_steps"]),
                     learning_rate=float(config["learning_rate"]),
@@ -530,6 +555,7 @@ def run_neuralforecast_models(
     horizon: int,
     settings: dict[str, dict[str, int | float]],
     tuned_model_configs: dict[str, dict[str, Any]],
+    neural_loss_name: str,
     logger: logging.Logger,
 ) -> tuple[dict[str, pd.DataFrame], dict[str, float], dict[str, float], dict[str, int]]:
     """Fit and predict the neural models used in the benchmark."""
@@ -541,6 +567,7 @@ def run_neuralforecast_models(
         horizon=horizon,
         settings=settings,
         tuned_model_configs=tuned_model_configs,
+        neural_loss_name=neural_loss_name,
     )
 
     forecasts: dict[str, pd.DataFrame] = {}
@@ -621,6 +648,7 @@ def run_neuralforecast_cross_validation(
     cv_test_size: int,
     settings: dict[str, dict[str, int | float]],
     tuned_model_configs: dict[str, dict[str, Any]],
+    neural_loss_name: str,
     logger: logging.Logger,
 ) -> tuple[pd.DataFrame, dict[str, pd.DataFrame]]:
     """Run rolling 28-day cross-validation for the neural models."""
@@ -632,6 +660,7 @@ def run_neuralforecast_cross_validation(
         horizon=horizon,
         settings=settings,
         tuned_model_configs=tuned_model_configs,
+        neural_loss_name=neural_loss_name,
     )
 
     actual: pd.DataFrame | None = None
@@ -1235,11 +1264,16 @@ def benchmark_daily_panel(
     series_scope: str,
     include_autotheta: bool,
     tuned_config_path: Path | None,
+    neural_loss_name: str,
     log_path: Path,
 ) -> tuple[pd.DataFrame, BenchmarkDatasetSummary, list[Path], list[str]]:
     """Run the benchmark and persist markdown and plot artifacts."""
     logger = configure_logging(log_path)
-    logger.info("Reading prepared panel from %s", input_path)
+    logger.info(
+        "Reading prepared panel from %s with neural loss %s",
+        input_path,
+        neural_loss_name,
+    )
     frame = pd.read_parquet(input_path)
     tuned_model_configs = load_tuned_model_configs(tuned_config_path)
     frame["ds"] = pd.to_datetime(frame["ds"])
@@ -1278,6 +1312,7 @@ def benchmark_daily_panel(
             horizon=horizon,
             settings=settings,
             tuned_model_configs=tuned_model_configs,
+            neural_loss_name=neural_loss_name,
             logger=logger,
         )
     )
@@ -1301,6 +1336,7 @@ def benchmark_daily_panel(
         cv_test_size=dataset_summary.cv_test_size,
         settings=settings,
         tuned_model_configs=tuned_model_configs,
+        neural_loss_name=neural_loss_name,
         logger=logger,
     )
     stats_actual, stats_cv_forecasts = run_statsforecast_cross_validation(
@@ -1367,6 +1403,10 @@ def build_app() -> Any:
         help="Benchmark TimeBaseUla and baselines on a prepared daily panel dataset."
     )
 
+    @app.callback()
+    def benchmark_daily_panel_callback() -> None:
+        """Run subcommands for the daily benchmark CLI."""
+
     @app.command("run")
     def run(
         input_path: Path = typer.Option(
@@ -1417,6 +1457,11 @@ def build_app() -> Any:
         tuned_config_path: Path | None = typer.Option(
             None,
             help="Optional JSON file with tuned neural model configs to add to the benchmark.",
+        ),
+        neural_loss_name: str = typer.Option(
+            "mae",
+            "--neural-loss",
+            help="Loss for neural models: mae, normal, gaussian, or poisson.",
         ),
         log_path: Path = typer.Option(DEFAULT_LOG_PATH, help="Rotating log file path."),
         json_output: bool = typer.Option(
@@ -1472,6 +1517,7 @@ def build_app() -> Any:
                             f"Series scope: {series_scope}",
                             f"Include AutoTheta: {include_autotheta}",
                             f"Tuned config path: {tuned_config_path}",
+                            f"Neural loss: {neural_loss_name}",
                             f"Max series: {max_series}",
                             f"Minimum train points: {min_train_points}",
                             f"Minimum test points: {min_test_points}",
@@ -1497,6 +1543,7 @@ def build_app() -> Any:
             series_scope=series_scope,
             include_autotheta=include_autotheta,
             tuned_config_path=tuned_config_path,
+            neural_loss_name=neural_loss_name,
             log_path=log_path,
         )
 

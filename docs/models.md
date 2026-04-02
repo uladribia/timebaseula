@@ -34,7 +34,7 @@ These are passed through the underlying `NeuralForecast` / Lightning training wr
 
 | Parameter | Effect |
 |---|---|
-| `loss` | Training loss. Defaults to `MAE()`. |
+| `loss` | Training loss. Defaults to `MAE()`. The explicit models also support multi-output losses such as `MQLoss()` and `DistributionLoss(...)`. |
 | `valid_loss` | Validation loss. If omitted, NeuralForecast uses its default behavior. |
 | `max_steps` | Maximum number of optimization steps. |
 | `learning_rate` | Optimizer step size. |
@@ -114,8 +114,14 @@ auto_timebasetrend = AutoTimeBaseTrend(
 ## Example
 
 ```python
+from neuralforecast.losses.pytorch import DistributionLoss
 from timebaseula import TimeBase, TimeBaseTrend
 
 explicit_model = TimeBase(h=12, freq="D", period_len=7)
 trend_model = TimeBaseTrend(h=12, freq="D", moving_avg_window=11)
+probabilistic_model = TimeBase(
+    h=12,
+    freq="D",
+    loss=DistributionLoss("Normal", level=[80, 95]),
+)
 ```

@@ -24,7 +24,8 @@ The benchmark group is intended for Python 3.12+ on non-Windows environments.
 uv run --group benchmark python scripts/benchmark_airpassengers.py run \
   --output-markdown docs/benchmark.md \
   --output-plot docs/img/airpassengers-benchmark.png \
-  --output-conformal-plot docs/img/airpassengers-timebasetrend-conformal.png
+  --output-conformal-plot docs/img/airpassengers-timebasetrend-conformal.png \
+  --neural-loss normal
 ```
 
 ## Daily panel workflow
@@ -58,7 +59,7 @@ Outputs:
 ### 2. Run the daily benchmark
 
 ```bash
-uv run --group benchmark python scripts/benchmark_nixtla_panel.py \
+uv run --group benchmark python scripts/benchmark_nixtla_panel.py run \
   --input-path data/processed/internal_daily_panel/panel.parquet \
   --output-markdown docs/daily-panel-benchmark.md \
   --output-dir docs/img/daily-panel-benchmark \
@@ -66,13 +67,14 @@ uv run --group benchmark python scripts/benchmark_nixtla_panel.py \
   --test-ratio 0.2 \
   --profile normal \
   --max-series 256 \
+  --neural-loss normal \
   --verbose
 ```
 
 Aggregated-only variant:
 
 ```bash
-uv run --group benchmark python scripts/benchmark_nixtla_panel.py \
+uv run --group benchmark python scripts/benchmark_nixtla_panel.py run \
   --input-path data/processed/internal_daily_panel/panel.parquet \
   --output-markdown docs/daily-panel-aggregated-benchmark.md \
   --output-dir docs/img/daily-panel-aggregated-benchmark \
@@ -81,13 +83,14 @@ uv run --group benchmark python scripts/benchmark_nixtla_panel.py \
   --profile normal \
   --series-scope aggregated \
   --max-series 256 \
+  --neural-loss poisson \
   --verbose
 ```
 
 Detailed-only internal variant:
 
 ```bash
-uv run --group benchmark python scripts/benchmark_nixtla_panel.py \
+uv run --group benchmark python scripts/benchmark_nixtla_panel.py run \
   --input-path data/processed/internal_daily_panel/panel.parquet \
   --output-markdown docs/daily-panel-detailed-benchmark.md \
   --output-dir docs/img/daily-panel-detailed-benchmark \
@@ -97,6 +100,7 @@ uv run --group benchmark python scripts/benchmark_nixtla_panel.py \
   --series-scope detailed \
   --no-include-autotheta \
   --max-series 256 \
+  --neural-loss normal \
   --verbose
 ```
 
@@ -106,6 +110,7 @@ The daily benchmark:
 - aggregates metrics over rolling 28-day cross-validation windows on the tail test span
 - defaults to `refit=False` in cross-validation and only falls back when a model requires it
 - adjusts neural training iterations using a simple profile system: `smoke`, `normal`, or `heavy`
+- supports `--neural-loss mae`, `--neural-loss normal`, and `--neural-loss poisson` for the neural benchmark models
 - supports `--series-scope aggregated` to benchmark only aggregated series plus the global total
 - supports `--series-scope detailed` to benchmark only the most granular series
 - supports `--no-include-autotheta` when an internal or faster benchmark variant should omit that baseline

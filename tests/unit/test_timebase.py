@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 import torch
+from neuralforecast.losses.pytorch import DistributionLoss, MQLoss
 
 from timebaseula.models.decomposition import SeriesDecomposition
 from timebaseula.models.timebase import TimeBase, TimeBaseTrend
@@ -63,6 +64,43 @@ class TestTimeBase:
 
         assert torch.allclose(output1, output2)
 
+    @pytest.mark.parametrize(
+        ("loss", "expected_shapes"),
+        [
+            (DistributionLoss("Normal"), ((2, 4), (2, 4))),
+            (DistributionLoss("Poisson"), ((2, 4),)),
+            (DistributionLoss("StudentT"), ((2, 4), (2, 4), (2, 4))),
+            (DistributionLoss("NegativeBinomial"), ((2, 4), (2, 4))),
+            (DistributionLoss("Tweedie"), ((2, 4),)),
+        ],
+    )
+    def test_forward_supports_distribution_losses(
+        self,
+        loss: DistributionLoss,
+        expected_shapes: tuple[tuple[int, ...], ...],
+    ) -> None:
+        """TimeBase should emit parameter tensors compatible with distribution losses."""
+        model = TimeBase(h=4, input_size=8, period_len=4, basis_num=4, loss=loss)
+
+        output = model({"insample_y": torch.ones((2, 8))})
+
+        assert isinstance(output, tuple)
+        assert tuple(component.shape for component in output) == expected_shapes
+
+    def test_forward_supports_multi_quantile_loss(self) -> None:
+        """TimeBase should emit multi-output tensors for quantile-style losses."""
+        model = TimeBase(
+            h=4,
+            input_size=8,
+            period_len=4,
+            basis_num=4,
+            loss=MQLoss(),
+        )
+
+        output = model({"insample_y": torch.ones((2, 8))})
+
+        assert output.shape == (2, 4, 5)
+
 
 class TestTimeBaseTrend:
     """Validate TimeBaseTrend behavior."""
@@ -115,3 +153,46 @@ class TestTimeBaseTrend:
         model = TimeBaseTrend(h=4, input_size=8, period_len=4, basis_num=4)
         assert hasattr(model, "decomp")
         assert isinstance(model.decomp, SeriesDecomposition)
+
+    @pytest.mark.parametrize(
+        ("loss", "expected_shapes"),
+        [
+            (DistributionLoss("Normal"), ((2, 4), (2, 4))),
+            (DistributionLoss("Poisson"), ((2, 4),)),
+            (DistributionLoss("StudentT"), ((2, 4), (2, 4), (2, 4))),
+            (DistributionLoss("NegativeBinomial"), ((2, 4), (2, 4))),
+            (DistributionLoss("Tweedie"), ((2, 4),)),
+        ],
+    )
+    def test_forward_supports_distribution_losses(
+        self,
+        loss: DistributionLoss,
+        expected_shapes: tuple[tuple[int, ...], ...],
+    ) -> None:
+        """TimeBaseTrend should emit parameter tensors compatible with distribution losses."""
+        model = TimeBaseTrend(
+            h=4,
+            input_size=8,
+            period_len=4,
+            basis_num=4,
+            loss=loss,
+        )
+
+        output = model({"insample_y": torch.ones((2, 8))})
+
+        assert isinstance(output, tuple)
+        assert tuple(component.shape for component in output) == expected_shapes
+
+    def test_forward_supports_multi_quantile_loss(self) -> None:
+        """TimeBaseTrend should emit multi-output tensors for quantile-style losses."""
+        model = TimeBaseTrend(
+            h=4,
+            input_size=8,
+            period_len=4,
+            basis_num=4,
+            loss=MQLoss(),
+        )
+
+        output = model({"insample_y": torch.ones((2, 8))})
+
+        assert output.shape == (2, 4, 5)
