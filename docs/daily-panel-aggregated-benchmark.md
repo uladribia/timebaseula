@@ -1,61 +1,98 @@
 ---
-description: Aggregated-only daily panel benchmark report including tuned Auto* neural models.
+description: Benchmark report for a daily panel dataset using TimeBaseUla and baseline models.
 ---
 
-# Aggregated daily-panel benchmark
+# Daily panel benchmark
 
 ## TL;DR
-- Scope: aggregated series only
-- Included series: higher-level aggregates and global `total`
-- Excluded series: the most granular combinations
-- Best overall model in this published run: `AutoNLinear`
-- Strongest statistical baseline in this published run: `AutoTheta`
-- Benchmarked series: `504`
+- Best model in this run: `AutoTheta`
+- Benchmarked series: `64`
 - Rolling evaluation windows: `6`
 - Rolling test size: `168` days
 - Forecast horizon: `28` daily steps
-- Training profile: `heavy`
 
 ## Dataset summary
-- Total regularized rows: `472752`
+- Total regularized rows: `60032`
 - Total unique dates: `938`
-- Aggregated candidate series after filtering: `504`
 - Cross-validation train window: `2023-09-01 to 2025-10-09`
 - Cross-validation test window: `2025-10-10 to 2026-03-26`
+- Training profile: `normal`
 - Training and inference times are measured on the final single `28`-day holdout.
 - Accuracy metrics are aggregated across rolling `28`-day cross-validation windows.
-- Published plots use anonymized series aliases and anonymized units.
 
-## Benchmark machine
-- OS: `Ubuntu 24.04` on Linux kernel `6.17.0-19-generic`
-- CPU: `Intel(R) Core(TM) Ultra 5 125U`
-- Logical CPUs: `14`
-- Available memory: about `15 GiB RAM`
-- GPU usage: none, CPU-only benchmark runs
+## Aggregate metrics
 
-## Tuning setup
-- `AutoDLinear` and `AutoNLinear` were tuned with NeuralForecast native auto models.
-- `AutoTimeBase` and `AutoTimeBaseTrend` were tuned with a compact repo-local search over practical CPU-first hyperparameter grids.
-- The tuned configs were selected on aggregated holdout validation and then benchmarked on the same published rolling evaluation used for the other models.
+| metric | AutoTheta | AutoNLinear | AutoTimeBaseTrend | TimeBase | AutoTimeBase | TimeBaseTrend | AutoMFLES | AutoDLinear | NLinear | DLinear | Naive |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| training_time_seconds | 17.0716 | 8.4545 | 5.6182 | 2.5185 | 1.8969 | 3.7961 | 27.2799 | 8.5183 | 2.4087 | 2.5196 | 0.0037 |
+| inference_time_seconds | 0.003 | 0.0228 | 0.0255 | 0.0301 | 0.0353 | 0.0297 | 0.0022 | 0.0287 | 0.0287 | 0.0301 | 0.0014 |
+| parameters | 0 | 812 | 4054 | 82 | 74 | 2486 | 0 | 4760 | 1596 | 3192 | 0 |
+| avg_mae | 149.975 | 167.8676 | 155.3247 | 169.0332 | 169.2781 | 177.8933 | 268.0997 | 211.8093 | 193.391 | 204.2335 | 398.1608 |
+| median_mae | 71.7418 | 76.943 | 74.5063 | 73.5407 | 76.288 | 78.9609 | 94.4746 | 89.6441 | 90.0137 | 91.6681 | 159.7679 |
+| avg_mean_scaled_mae | 0.2099 | 0.2268 | 0.2143 | 0.2227 | 0.2226 | 0.2274 | 0.28 | 0.2705 | 0.2549 | 0.2641 | 0.4637 |
+| median_mean_scaled_mae | 0.1799 | 0.1978 | 0.1984 | 0.1994 | 0.2014 | 0.2125 | 0.2477 | 0.2241 | 0.2447 | 0.2443 | 0.3671 |
+| avg_rmse | 206.6159 | 233.6936 | 221.3195 | 235.1417 | 236.4916 | 242.7941 | 345.5384 | 272.4921 | 259.0937 | 268.8465 | 508.4644 |
+| median_rmse | 98.5346 | 108.1468 | 105.9561 | 106.3047 | 110.3388 | 109.1131 | 126.2253 | 121.1919 | 121.0245 | 121.9255 | 210.9598 |
+| avg_smape | 0.1661 | 0.1733 | 0.1674 | 0.1692 | 0.1696 | 0.1715 | 0.2134 | 0.2017 | 0.1884 | 0.1939 | 0.3319 |
+| median_smape | 0.163 | 0.1811 | 0.1713 | 0.1658 | 0.1695 | 0.169 | 0.1846 | 0.1981 | 0.1875 | 0.1886 | 0.2284 |
+| avg_rank | 3.5885 | 4.401 | 4.4089 | 4.7266 | 4.9036 | 5.5729 | 5.9141 | 6.5208 | 7.4141 | 8.1406 | 10.4089 |
+| median_rank | 3 | 4 | 4 | 5 | 5 | 5 | 6 | 7 | 8 | 9 | 11 |
+| wins | 105 | 83 | 51 | 24 | 30 | 19 | 43 | 21 | 4 | 0 | 4 |
 
-Best tuned configs:
+## Reproducible model settings
 
-```json
-{
+```python
+MODEL_SETTINGS = {
+  "TimeBase": {
+    "input_size": 56,
+    "max_steps": 120,
+    "learning_rate": 0.001,
+    "basis_num": 6,
+    "period_len": 7
+  },
+  "TimeBaseTrend": {
+    "input_size": 84,
+    "max_steps": 152,
+    "learning_rate": 0.001,
+    "basis_num": 6,
+    "period_len": 7,
+    "moving_avg_window": 21
+  },
+  "NLinear": {
+    "input_size": 56,
+    "max_steps": 120,
+    "learning_rate": 0.002
+  },
+  "DLinear": {
+    "input_size": 56,
+    "max_steps": 120,
+    "learning_rate": 0.002
+  },
+  "AutoMFLES": {
+    "season_length": 7
+  },
+  "Naive": {},
+  "AutoTheta": {
+    "season_length": 7
+  },
   "AutoTimeBase": {
-    "input_size": 112,
-    "basis_num": 10,
-    "period_len": 14,
-    "learning_rate": 0.0007,
-    "max_steps": 240
+    "input_size": 84,
+    "learning_rate": 0.001,
+    "max_steps": 80,
+    "step_size": 1,
+    "scaler_type": "identity",
+    "basis_num": 8,
+    "period_len": 14
   },
   "AutoTimeBaseTrend": {
-    "input_size": 168,
+    "input_size": 140,
+    "learning_rate": 0.001,
+    "max_steps": 180,
+    "step_size": 1,
+    "scaler_type": "identity",
     "basis_num": 8,
     "period_len": 14,
-    "moving_avg_window": 35,
-    "learning_rate": 0.0005,
-    "max_steps": 260
+    "moving_avg_window": 21
   },
   "AutoDLinear": {
     "input_size": 84,
@@ -66,48 +103,20 @@ Best tuned configs:
     "moving_avg_window": 51
   },
   "AutoNLinear": {
-    "input_size": 84,
-    "learning_rate": 0.002293473193770154,
-    "max_steps": 900,
+    "input_size": 28,
+    "learning_rate": 0.018219620470507993,
+    "max_steps": 800,
     "step_size": 1,
     "scaler_type": "standard"
   }
 }
 ```
 
-## Aggregate metrics
-
-| metric | AutoNLinear | AutoTimeBase | TimeBase | AutoTheta | AutoDLinear | AutoMFLES | TimeBaseTrend | NLinear | AutoTimeBaseTrend | DLinear | Naive |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| training_time_seconds | 32.1481 | 8.2687 | 4.9063 | 98.2117 | 7.8584 | 166.0776 | 6.7287 | 4.7668 | 10.6683 | 7.3367 | 0.0244 |
-| inference_time_seconds | 0.1228 | 0.0753 | 0.1382 | 0.0089 | 0.0486 | 0.0068 | 0.091 | 0.0884 | 0.0997 | 0.0947 | 0.004 |
-| parameters | 2380 | 112 | 82 | 0 | 4760 | 0 | 2486 | 1596 | 4854 | 3192 | 0 |
-| cv_refit | no | no | no | no | no | yes | no | no | no | no | no |
-| avg_mae | 41.5181 | 42.3617 | 43.1715 | 41.7856 | 46.6169 | 60.4108 | 48.4158 | 49.9234 | 55.3387 | 60.518 | 92.0034 |
-| median_mae | 21.2206 | 22.0057 | 22.0292 | 22.1467 | 22.6462 | 25.1254 | 24.6585 | 25.5636 | 28.8428 | 30.7844 | 39.6607 |
-| avg_mean_scaled_mae | 0.2796 | 0.2955 | 0.296 | 0.4854 | 0.3007 | 0.3362 | 0.3326 | 0.328 | 0.3659 | 0.3783 | 0.5078 |
-| median_mean_scaled_mae | 0.2345 | 0.2336 | 0.2347 | 0.2473 | 0.2448 | 0.2881 | 0.2559 | 0.2786 | 0.2829 | 0.3155 | 0.3949 |
-| avg_rmse | 56.2791 | 58.2753 | 59.2198 | 55.7916 | 60.8267 | 77.3992 | 65.0777 | 64.9936 | 70.8848 | 78.1803 | 116.5788 |
-| median_rmse | 28.5364 | 29.9112 | 30.2177 | 29.1839 | 30.1571 | 33.3829 | 33.243 | 33.1824 | 36.7617 | 39.5583 | 52.3481 |
-| avg_smape | 0.2354 | 0.2393 | 0.2384 | 0.2155 | 0.2473 | 0.2372 | 0.2525 | 0.2612 | 0.2694 | 0.2796 | 0.3376 |
-| median_smape | 0.2025 | 0.2034 | 0.205 | 0.2037 | 0.2106 | 0.2089 | 0.217 | 0.2295 | 0.2253 | 0.2422 | 0.2355 |
-| avg_rank | 3.748 | 4.0737 | 4.3198 | 4.4142 | 4.7384 | 5.8525 | 6.2113 | 6.5116 | 7.8304 | 8.7163 | 9.5838 |
-| median_rank | 4 | 4 | 4 | 4 | 4 | 6 | 6 | 7 | 9 | 9 | 11 |
-| wins | 379 | 391 | 374 | 480 | 579 | 298 | 156 | 66 | 115 | 5 | 88 |
-
-## Interpretation
-- `AutoNLinear` is the strongest overall model in this published aggregated run. It leads on `avg_rank`, `avg_mae`, `median_mae`, and `avg_mean_scaled_mae`, so the tuning pass materially improved the NLinear family.
-- `AutoTimeBase` is a small improvement over the untuned `TimeBase`, but the gain is modest rather than transformative on this panel.
-- `AutoTimeBaseTrend` does not beat the untuned `TimeBaseTrend` here, which suggests that the current trend-branch search space is not yet the main leverage point for this aggregated task.
-- `AutoDLinear` becomes much more competitive after tuning and achieves the highest raw `wins`, but it still does not beat `AutoNLinear` on the broader accuracy summary.
-- `AutoTheta` remains the strongest classical baseline. It still offers the best `avg_rmse` and `avg_smape`, and it remains a very credible non-neural benchmark.
-- `AutoMFLES` remains slow and is the only model in this table that falls back to `refit=True` during cross-validation, so its results should be compared with that caveat in mind.
-
-## Recommendation
-- Choose `AutoNLinear` as the default model for aggregated daily forecasting if you want the best tuned neural result from this benchmark.
-- Keep `AutoTheta` as the main non-neural reference when raw scale-sensitive error and statistical simplicity matter.
-- Keep `AutoTimeBase` as a competitive alternative when you prefer the explicit TimeBase family, but on this published run it does not beat `AutoNLinear`.
-- Treat `AutoMFLES` carefully because its daily cross-validation path refits while the other models in this table do not.
+## Comments
+- Best overall trade-off in this run: AutoTheta (average rank 3.5885, wins 105).
+- Fastest training model on the final 28-day holdout: Naive (0.0037 s).
+- Fastest inference model on the final 28-day holdout: Naive (0.0014 s).
+- Best average mean-scaled MAE across rolling 28-day windows: AutoTheta (0.2099).
 
 ## Plots
 

@@ -29,13 +29,13 @@ description: Project changelog for TimeBaseUla releases.
 ## 0.3.1 - 2026-03-27
 
 ### Added
-- added `AutoTimeBase` and `AutoTimeBaseTrend` as NeuralForecast-compatible auto-tuning wrappers on the `main` branch
-- added unit coverage for the new auto-wrapper API on the release-oriented branch
+- added `AutoTimeBase` and `AutoTimeBaseTrend` as NeuralForecast-compatible auto-tuning wrappers in `timebaseula.models.auto`
+- added unit coverage for the new auto-wrapper API and aggregated tuning integration helpers
 
 ### Changed
 - split the explicit model implementations and the auto-wrapper implementations into separate modules
-- refreshed the main-branch README and package docs to describe the expanded library surface while keeping benchmark workflows on `benchmark`
-- restored the direct `ray[tune]` runtime dependency required by the auto wrappers
+- updated the aggregated tuning workflow to tune `AutoTimeBase` and `AutoTimeBaseTrend` through NeuralForecast native auto utilities instead of a repo-local fit/predict loop
+- refreshed the aggregated benchmark artifacts and documentation after rerunning the tuning workflow on the aggregated panel
 
 ## 0.2.5 - 2026-03-23
 
