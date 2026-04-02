@@ -7,6 +7,7 @@ from typing import Any, cast
 
 import pandas as pd
 import pytest
+from neuralforecast.losses.pytorch import DistributionLoss
 
 from timebaseula.models.timebase import TimeBase, TimeBaseTrend
 
@@ -137,3 +138,49 @@ def test_models_support_conformal_prediction_intervals(
     assert model_name in pred.columns
     assert f"{model_name}-lo-80" in pred.columns
     assert f"{model_name}-hi-80" in pred.columns
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("model_cls", "loss"),
+    [
+        (TimeBase, DistributionLoss("Normal", level=[80])),
+        (TimeBaseTrend, DistributionLoss("Poisson", level=[80])),
+    ],
+)
+def test_models_support_distribution_loss_fit_predict(
+    model_cls: type[TimeBase] | type[TimeBaseTrend],
+    loss: DistributionLoss,
+) -> None:
+    """TimeBase variants should fit and predict with NeuralForecast distribution losses."""
+    pytest.importorskip("neuralforecast")
+    from neuralforecast import NeuralForecast
+
+    np = pytest.importorskip("numpy")
+    np.random.seed(42)
+    n = 80
+    dates = pd.date_range(start="2020-01-01", periods=n, freq="D")
+    y = np.abs(np.random.randn(n).cumsum()) + 1
+    df = pd.DataFrame({"ds": dates, "y": y, "unique_id": "series_1"})
+
+    model = model_cls(
+        h=4,
+        input_size=12,
+        period_len=4,
+        basis_num=2,
+        freq="D",
+        loss=loss,
+        max_steps=5,
+        val_check_steps=5,
+        **_disabled_trainer_kwargs(),
+    )
+    nf = NeuralForecast(models=[model], freq="D")
+
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=Warning)
+        nf.fit(df, val_size=4)
+        pred = nf.predict()
+
+    model_name = type(model).__name__
+    assert len(pred) == 4
+    assert model_name in pred.columns

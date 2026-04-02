@@ -10,6 +10,7 @@ description: TimeBaseUla README with installation, public API, defaults, and mai
 - `timebaseula` is a small Python forecasting library.
 - Public API: `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
 - The package is CPU-first and integrates with `NeuralForecast`.
+- The explicit models support point losses, multi-quantile losses, and NeuralForecast distribution losses such as Gaussian and Poisson.
 - `TimeBaseTrend` intentionally uses a local pure-Torch moving-average decomposition instead of importing DLinear's NeuralForecast helper.
 - This `main` branch keeps the library, tests, and curated benchmark reports.
 - Full benchmark and tuning workflows live on the `benchmark` branch.
@@ -64,6 +65,21 @@ nf = NeuralForecast(models=[model], freq="D")
 nf.fit(frame, val_size=24)
 forecast = nf.predict()
 ```
+
+## Probabilistic losses
+
+```python
+from neuralforecast.losses.pytorch import DistributionLoss
+from timebaseula import TimeBaseTrend
+
+probabilistic_model = TimeBaseTrend(
+    h=24,
+    freq="D",
+    loss=DistributionLoss("Normal", level=[80, 95]),
+)
+```
+
+For reproducible benchmark runs with Gaussian or Poisson losses, use the `benchmark` branch scripts.
 
 ## Auto wrappers
 

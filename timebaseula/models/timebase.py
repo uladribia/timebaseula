@@ -99,6 +99,7 @@ class TimeBase(_BaseTimeBaseModel):
             regularization_config=components.regularization_config,
             horizon=h,
         )
+        self._initialize_output_adapter()
 
     def forward(self, windows_batch: dict[str, torch.Tensor]) -> torch.Tensor:
         """Run the TimeBase forward pass."""
@@ -195,6 +196,7 @@ class TimeBaseTrend(_BaseTimeBaseModel):
             horizon=h,
         )
         self.linear_trend = nn.Linear(self.input_size, h)
+        self._initialize_output_adapter()
 
     def forward(self, windows_batch: dict[str, torch.Tensor]) -> torch.Tensor:
         """Run the TimeBaseTrend forward pass."""
