@@ -85,6 +85,25 @@ When creating or modifying CLIs, use the **`create-cli` skill** and ensure the i
 - On `main`, README and docs must clearly state that full benchmarking and tuning workflows live on the `benchmark` branch.
 - When curating `main`, preserve the library package, core library tests, and user-facing docs first; remove only workflow machinery that is not needed for the release-oriented branch.
 
+### Release Curation Workflow
+- Treat `benchmark` as the canonical source branch for any release preparation. `main` must not be ahead of `benchmark` in shared library functionality, shared workflows, or shared metadata.
+- Do not implement release changes independently on `main` when the same change belongs on `benchmark` first.
+- Classify branch differences into three buckets before curating `main`:
+  - **shared files**: files that should stay aligned across both branches, such as package code, shared tests, shared workflow files, and common metadata;
+  - **benchmark-only files**: scripts, tuning artifacts, benchmark-only tests, and workflow docs that should remain only on `benchmark`;
+  - **main-curated files**: README and user-facing docs that may be rewritten on `main` to explain that full workflows live on `benchmark`.
+- When generating a release from `benchmark` to `main`, follow this order:
+  1. update and validate the intended changes on `benchmark` first;
+  2. diff `benchmark` against `main` and confirm that every shared-file difference is intentional;
+  3. bring shared files on `main` back in sync with `benchmark` before curating branch-specific removals;
+  4. remove benchmark-only files from the `main` candidate rather than reimplementing them differently;
+  5. keep curated benchmark result pages and images on `main` only when they are copied from `benchmark` intentionally, not regenerated independently on `main`;
+  6. update `main` README and docs so they explicitly point users to `benchmark` for reproducible workflows.
+- Before finalizing release work, verify that:
+  - `main` is a curated subset of `benchmark` plus intentional main-only documentation wording;
+  - `main` is not ahead of `benchmark` in shared code or shared repository configuration;
+  - the remaining branch diff is explained entirely by benchmark-only removals or approved main-doc curation.
+
 ## Execution Logs
 - Always generate logs for script and command executions.
 - Maintain a rolling log with a maximum size of **5 MB** (rotate or truncate as needed).
