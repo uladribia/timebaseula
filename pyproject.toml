@@ -1,6 +1,6 @@
 [project]
 name = "timebaseula"
-version = "0.3.3"
+version = "0.3.4"
 description = "Compact TimeBase-style forecasting models for NeuralForecast"
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
