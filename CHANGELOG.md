@@ -6,6 +6,17 @@ description: Project changelog for TimeBaseUla releases.
 
 ## Unreleased
 
+## 0.3.4 - 2026-04-02
+
+### Added
+- added loss-aware forecast adapters so `TimeBase` and `TimeBaseTrend` support multi-output NeuralForecast losses
+- added unit and integration coverage for Gaussian, Poisson, StudentT, NegativeBinomial, Tweedie, and multi-quantile loss paths
+- added benchmark CLI support for `--neural-loss` so AirPassengers and daily-panel workflows can run Gaussian and Poisson smoke benchmarks
+
+### Changed
+- updated benchmark and library docs to describe explicit probabilistic-loss support
+- validated the benchmark branch with Gaussian and Poisson smoke runs on AirPassengers and the prepared daily panel dataset
+
 ## 0.3.3 - 2026-03-29
 
 ### Added
