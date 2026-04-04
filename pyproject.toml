@@ -8,7 +8,7 @@ license = "MIT"
 authors = [{ name = "Oleguer Sagarra", email = "ula@dribia.com" }]
 maintainers = [{ name = "Oleguer Sagarra", email = "ula@dribia.com" }]
 dependencies = [
-  "neuralforecast>=1.7.4,<2",
+  "neuralforecast>=1.7.4,<4",
   "numpy>=2.2.0,<3",
   "pandas>=2.2.0,<3",
   "ray[tune]>=2.47.0,<3",
@@ -34,7 +34,7 @@ docs = [
   "mkdocs-material>=9.6.14,<10",
 ]
 test = [
-  "pytest>=8.4.0,<9",
+  "pytest>=8.4.0,<10",
   "pytest-cov>=7.0.0,<8",
   "pytest-mock>=3.14.0,<4",
 ]
