@@ -8,11 +8,11 @@ license = "MIT"
 authors = [{ name = "Oleguer Sagarra", email = "ula@dribia.com" }]
 maintainers = [{ name = "Oleguer Sagarra", email = "ula@dribia.com" }]
 dependencies = [
-  "neuralforecast>=1.7.4,<2",
-  "numpy>=2.2.0,<3",
-  "pandas>=2.2.0,<3",
-  "ray[tune]>=2.47.0,<3",
-  "torch>=2.0.0,<3",
+  "neuralforecast>=3.1.7,<4",
+  "numpy>=2.2.6,<3",
+  "pandas>=2.3.3,<3",
+  "ray[tune]>=2.54.1,<3",
+  "torch>=2.11.0,<3",
 ]
 
 [project.urls]
@@ -21,29 +21,29 @@ Repository = "https://github.com/uladribia/timebaseula"
 
 [dependency-groups]
 benchmark = [
-  "matplotlib>=3.10.0,<4",
-  "rich>=14.1.0,<15",
-  "scikit-learn>=1.7.0,<2",
+  "matplotlib>=3.10.8,<4",
+  "rich>=15.0.0,<16",
+  "scikit-learn>=1.7.2,<2",
   "statsforecast>=2.0.3,<3; python_version >= '3.12' and sys_platform != 'win32'",
-  "typer>=0.16.0,<1",
-  "utilsforecast>=0.2.12,<1",
+  "typer>=0.24.1,<1",
+  "utilsforecast>=0.2.15,<1",
 ]
 docs = [
-  "mike>=2.1.3,<3",
+  "mike>=2.2.0,<3",
   "mkdocs>=1.6.1,<2",
-  "mkdocs-material>=9.6.14,<10",
+  "mkdocs-material>=9.7.6,<10",
 ]
 test = [
-  "pytest>=8.4.0,<9",
-  "pytest-cov>=7.0.0,<8",
-  "pytest-mock>=3.14.0,<4",
+  "pytest>=9.0.3,<10",
+  "pytest-cov>=7.1.0,<8",
+  "pytest-mock>=3.15.1,<4",
 ]
 tooling = [
-  "deptry>=0.24.0,<1",
-  "prek>=0.3.8,<1",
-  "ruff>=0.14.0,<1",
-  "tombi>=0.7.22,<1",
-  "ty>=0.0.1a17,<1",
+  "deptry>=0.25.1,<1",
+  "prek>=0.3.9,<1",
+  "ruff>=0.15.10,<1",
+  "tombi>=0.9.17,<1",
+  "ty>=0.0.29,<1",
 ]
 
 [build-system]
