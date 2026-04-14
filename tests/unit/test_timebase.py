@@ -37,6 +37,13 @@ class TestTimeBase:
         output = model(windows_batch)
         assert output.shape == (2, 12)
 
+    def test_forward_multivariate_shape(self) -> None:
+        """The forward output should keep a trailing series dimension."""
+        model = TimeBase(h=12, input_size=24, period_len=6, basis_num=4)
+        windows_batch = {"insample_y": torch.ones((2, 24, 3))}
+        output = model(windows_batch)
+        assert output.shape == (2, 12, 3)
+
     def test_padding_output_shape(self) -> None:
         """Padding should still yield the requested horizon length."""
         model = TimeBase(h=10, input_size=25, period_len=6, basis_num=4)
@@ -101,6 +108,12 @@ class TestTimeBase:
 
         assert output.shape == (2, 4, 5)
 
+    def test_sampling_type_is_multivariate(self) -> None:
+        """TimeBase should use NeuralForecast multivariate sampling."""
+        model = TimeBase(h=4, input_size=8, period_len=4, basis_num=4)
+
+        assert model.SAMPLING_TYPE == "multivariate"
+
 
 class TestTimeBaseTrend:
     """Validate TimeBaseTrend behavior."""
@@ -130,6 +143,13 @@ class TestTimeBaseTrend:
         windows_batch = {"insample_y": torch.ones((2, 24))}
         output = model(windows_batch)
         assert output.shape == (2, 12)
+
+    def test_forward_multivariate_shape(self) -> None:
+        """The trend model should keep a trailing series dimension."""
+        model = TimeBaseTrend(h=12, input_size=24, period_len=6, basis_num=4)
+        windows_batch = {"insample_y": torch.ones((2, 24, 3))}
+        output = model(windows_batch)
+        assert output.shape == (2, 12, 3)
 
     def test_linear_trend_head_is_present(self) -> None:
         """The linear trend layer should be present."""
@@ -196,3 +216,9 @@ class TestTimeBaseTrend:
         output = model({"insample_y": torch.ones((2, 8))})
 
         assert output.shape == (2, 4, 5)
+
+    def test_sampling_type_is_multivariate(self) -> None:
+        """TimeBaseTrend should use NeuralForecast multivariate sampling."""
+        model = TimeBaseTrend(h=4, input_size=8, period_len=4, basis_num=4)
+
+        assert model.SAMPLING_TYPE == "multivariate"

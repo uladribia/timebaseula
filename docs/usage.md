@@ -1,5 +1,5 @@
 ---
-description: Usage guide for the explicit and auto TimeBaseUla models.
+description: Usage guide for the explicit TimeBaseUla models.
 ---
 
 # Usage
@@ -7,9 +7,10 @@ description: Usage guide for the explicit and auto TimeBaseUla models.
 ## TL;DR
 - Use `TimeBase` for the compact segmented-basis model.
 - Use `TimeBaseTrend` when you want an added trend branch.
-- Use `AutoTimeBase` or `AutoTimeBaseTrend` when you want NeuralForecast to tune the TimeBase family.
-- The explicit models support point, quantile, and distribution losses.
 - Fit with a non-zero `val_size`.
+- The explicit models support point, quantile, and distribution losses.
+- For multi-series training, use `NeuralForecast` directly.
+- With multiple `unique_id` values, the models internally train on joint multivariate windows over the active series.
 
 ## Explicit models
 
@@ -67,25 +68,30 @@ probabilistic_model = TimeBase(
 | `max_steps` | when the fit is still improving | when training already converges quickly |
 | `moving_avg_window` | when the trend branch is too reactive or noisy | when the trend branch is too flat or lags behind changes |
 
-## Auto wrappers
+## Understanding `moving_avg_window`
 
-Use the auto wrappers when you want to search over TimeBase-family hyperparameters with NeuralForecast.
+`TimeBaseTrend` first splits the signal into:
+- a smoother trend component
+- a residual seasonal component
+
+The `moving_avg_window` controls how smooth that extracted trend becomes.
 
 ```python
-from timebaseula import AutoTimeBase, AutoTimeBaseTrend
-
-auto_models = [
-    AutoTimeBase(h=24, num_samples=3, cpus=1, gpus=0, backend="ray"),
-    AutoTimeBaseTrend(h=24, num_samples=3, cpus=1, gpus=0, backend="ray"),
-]
+fast_trend = TimeBaseTrend(h=24, freq="D", moving_avg_window=5)
+slow_trend = TimeBaseTrend(h=24, freq="D", moving_avg_window=25)
 ```
 
-The benchmark and tuning scripts that orchestrate larger searches still live on the `benchmark` branch.
+Practical intuition:
+- `5`: the trend follows local changes more closely
+- `25`: the trend is smoother and slower, so more short-term variation stays in the TimeBase branch
+
+Use only odd values. Even values raise a `ValueError`.
 
 ## Conformal prediction intervals
 
 NeuralForecast already provides conformal prediction intervals through
-`neuralforecast.utils.PredictionIntervals`, and both `TimeBase` and `TimeBaseTrend` work with that API directly.
+`neuralforecast.utils.PredictionIntervals`, and both `TimeBase` and
+`TimeBaseTrend` work with that API directly.
 
 ```python
 from neuralforecast.utils import PredictionIntervals
@@ -94,12 +100,38 @@ interval_nf = NeuralForecast(models=[trend_model], freq="D")
 interval_nf.fit(
     frame,
     val_size=24,
-    prediction_intervals=PredictionIntervals(n_windows=2),
+    prediction_intervals=PredictionIntervals(
+        n_windows=2,
+        method="conformal_distribution",
+    ),
 )
 interval_forecast = interval_nf.predict(level=[80, 95])
 ```
 
+Output columns include:
+- `TimeBaseTrend`
+- `TimeBaseTrend-lo-80`
+- `TimeBaseTrend-hi-80`
+- `TimeBaseTrend-lo-95`
+- `TimeBaseTrend-hi-95`
+
+You can also set `method="conformal_error"` to use the alternative conformal
+calibration path implemented by NeuralForecast.
+
+### Example on the AirPassengers benchmark split
+
+The image below shows `TimeBaseTrend` on the same `AirPassengersPanel` split used
+by the benchmark, with `conformal_error` bands at 80% and 95% levels.
+
+![TimeBaseTrend conformal intervals](img/airpassengers-timebasetrend-conformal.png)
+
 ## Multi-series training and subset prediction
+
+When you fit multiple `unique_id` values together, `TimeBase` and `TimeBaseTrend`
+keep the standard long-format `NeuralForecast` API, but they internally batch each
+sampled cutoff as a joint multivariate tensor over the active series. That makes the
+training path closer to the original TimeBase `individual=0` implementation while
+keeping the public API unchanged.
 
 ```python
 subset = frame[frame["unique_id"] == "series_1"].copy()

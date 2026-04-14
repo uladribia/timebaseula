@@ -9,6 +9,7 @@ description: Reference for the TimeBaseUla model classes and their parameters.
 - `TimeBaseTrend` adds a moving-average trend decomposition branch.
 - `AutoTimeBase` and `AutoTimeBaseTrend` expose the same family through NeuralForecast auto tuning.
 - The implementation separates the pure Torch core, pure Torch decomposition, shared wrapper base, defaults, and factories into smaller internal modules.
+- Multi-series `NeuralForecast` fits use joint multivariate windows internally, so the shared TimeBase core now mirrors the original TimeBase `individual=0` batching pattern more closely.
 - The local decomposition is intentional to avoid coupling `TimeBaseTrend` to DLinear internals, but it can still be swapped back to the upstream helper later if needed.
 
 ## `TimeBase`
@@ -39,14 +40,24 @@ These are passed through the underlying `NeuralForecast` / Lightning training wr
 | `max_steps` | Maximum number of optimization steps. |
 | `learning_rate` | Optimizer step size. |
 | `val_check_steps` | How often validation is run during training. |
-| `batch_size` | Number of series/windows per batch. |
-| `windows_batch_size` | Number of sampled windows processed per optimization step. |
-| `inference_windows_batch_size` | Window batch size used during prediction. |
-| `step_size` | Distance between consecutive sampled windows. |
+| `batch_size` | Public compatibility knob retained from the earlier wrapper. Multivariate training still processes all active series together inside each sampled window. |
+| `windows_batch_size` | Number of joint multivariate windows sampled per optimization step. |
+| `inference_windows_batch_size` | Number of joint multivariate windows processed per prediction chunk. |
+| `step_size` | Distance between consecutive sampled windows. `1` gives dense windows; larger values reduce overlap. |
 | `scaler_type` | Target scaling strategy used by NeuralForecast. |
 | `random_seed` | Controls stochastic training behavior. |
 | `num_workers_loader` | Number of dataloader worker processes. |
-| `trainer_kwargs` | Extra NeuralForecast or Lightning trainer settings. CPU defaults are enforced unless you override them. |
+| `trainer_kwargs` | Extra NeuralForecast/Lightning trainer settings. CPU defaults are enforced unless you override them. |
+
+### Explicit defaults
+
+| Parameter | Default |
+|---|---|
+| `input_size` | `max(2 * h, 8)` |
+| daily `period_len` | `7` |
+| monthly `period_len` | `12` |
+| other `period_len` | `min(max(2, h), input_size)` |
+| `basis_num` | `6` |
 
 ## `TimeBaseTrend`
 
@@ -58,15 +69,20 @@ That local decomposition is intentional: it avoids coupling the explicit TimeBas
 
 | Parameter | Effect |
 |---|---|
-| `moving_avg_window` | Centered moving-average window used by the trend decomposition. It must be odd. Default: `25`. |
+| `moving_avg_window` | Window used by the moving-average decomposition. Larger odd values produce a smoother trend and leave more variation in the seasonal branch. Smaller odd values produce a more reactive trend and leave less smoothing. It must be odd because the decomposition needs a centered window. Default: `25`. |
 
-### Practical intuition for `moving_avg_window`
+### How to think about `moving_avg_window`
 
 | Setting | Practical effect |
 |---|---|
-| small odd window | trend reacts quickly to local changes |
-| medium odd window | balanced smoothing for many daily series |
-| large odd window | smoother, slower trend that pushes more short-term variation into the TimeBase branch |
+| small odd window, such as `3` or `5` | trend reacts quickly to local changes; less aggressive smoothing |
+| medium odd window, such as `11` or `25` | balanced smoothing for many daily or moderately noisy series |
+| large odd window | trend becomes smoother and slower-moving; short-term fluctuations are pushed into the TimeBase seasonal branch |
+
+If the trend forecast looks too wiggly, increase `moving_avg_window`.
+If the trend is too flat and misses local changes, decrease it.
+
+All other parameters behave the same as in `TimeBase`.
 
 ## Auto wrappers
 

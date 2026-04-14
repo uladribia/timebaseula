@@ -1,15 +1,15 @@
 ---
-description: Installation guide for TimeBaseUla with source and branch-aware setup instructions.
+description: Installation guide for TimeBaseUla with branch-aware setup instructions on main.
 ---
 
 # Install TimeBaseUla
 
 ## TL;DR
 - Use `uv sync` from a local checkout.
-- The main package includes the dependencies needed for `AutoTimeBase` and `AutoTimeBaseTrend`.
-- Use `uv sync --group benchmark` only on the `benchmark` branch when you want benchmark workflows.
+- This `main` branch includes the dependencies needed for `AutoTimeBase` and `AutoTimeBaseTrend`.
+- Use `uv sync --group benchmark` on the `benchmark` branch when you want benchmark workflows.
 - Python requirement: `>=3.10,<3.15`.
-- This repository does not publish `timebaseula` to PyPI.
+- `deprecated/library-v0.3.4` is kept only for historical reference.
 
 ## Source install
 
@@ -26,6 +26,14 @@ uv sync --group benchmark
 ```
 
 The benchmark group is intended for Python 3.12+ on non-Windows environments and is primarily useful on the `benchmark` branch.
+
+## Branch guidance
+
+| Branch | Use it when |
+|---|---|
+| `main` | you want the release-oriented library and curated benchmark pages |
+| `benchmark` | you want benchmark scripts, tuning workflows, and reproducible workflow docs |
+| `deprecated/library-v0.3.4` | you need the old pre-multivariate library snapshot for historical reference |
 
 ## Main runtime dependencies
 

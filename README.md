@@ -1,5 +1,5 @@
 ---
-description: TimeBaseUla README with installation, public API, defaults, and main-branch usage.
+description: TimeBaseUla README with installation, branch strategy, benchmark highlights, and main-branch usage.
 ---
 
 # TimeBaseUla
@@ -7,23 +7,24 @@ description: TimeBaseUla README with installation, public API, defaults, and mai
 > Compact TimeBase-style forecasting models for NeuralForecast.
 
 ## TL;DR
-- `timebaseula` is a small Python forecasting library.
 - Public API: `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
-- The package is CPU-first and integrates with `NeuralForecast`.
-- The explicit models support point losses, multi-quantile losses, and NeuralForecast distribution losses such as Gaussian and Poisson.
-- `TimeBaseTrend` intentionally uses a local pure-Torch moving-average decomposition instead of importing DLinear's NeuralForecast helper.
-- This `main` branch keeps the library, tests, and curated benchmark reports.
-- Full benchmark and tuning workflows live on the `benchmark` branch.
+- Multi-series fits keep the standard long-format `NeuralForecast` API.
+- Internally, the explicit models now train on joint multivariate windows through `BaseMultivariate`.
+- This `main` branch is the curated library branch.
+- Full benchmark and tuning workflows live on `benchmark`.
+- `deprecated/library-v0.3.4` preserves the pre-multivariate library release for historical reference only.
 
 ## Branch strategy
 
-This repository maintains two long-lived branches:
+| Branch | Purpose | Status |
+|---|---|---|
+| `main` | curated release-oriented library branch and published benchmark pages | active |
+| `benchmark` | canonical source for benchmark workflows, tuning artifacts, and release preparation | active |
+| `deprecated/library-v0.3.4` | pre-multivariate library snapshot kept for historical reference | deprecated |
 
-- `main`: release-oriented library branch with publishable code, curated docs, and published benchmark result pages
-- `benchmark`: full benchmarking and tuning branch with scripts, workflow docs, and experiment-oriented scaffolding
-
-If you want to reproduce or extend the benchmark workflows, use the `benchmark` branch.
-If you want the library and curated benchmark write-ups, use `main`.
+Use `main` when you want the publishable library surface.
+Use `benchmark` when you need benchmark scripts, tuning workflows, or reproducible benchmark regeneration.
+Do not start new work on `deprecated/library-v0.3.4`.
 
 ## Installation
 
@@ -34,16 +35,7 @@ uv sync
 ```
 
 The main package includes the dependencies needed for `AutoTimeBase` and `AutoTimeBaseTrend`.
-Benchmark and tuning tooling remains on the `benchmark` branch.
-
-## What this package provides
-
-| Object | Purpose |
-|---|---|
-| `TimeBase` | Explicit segmented-basis forecasting model |
-| `TimeBaseTrend` | `TimeBase` plus a trend decomposition branch |
-| `AutoTimeBase` | NeuralForecast auto-tuning wrapper for `TimeBase` |
-| `AutoTimeBaseTrend` | NeuralForecast auto-tuning wrapper for `TimeBaseTrend` |
+Benchmark tooling remains on the `benchmark` branch.
 
 ## Quickstart
 
@@ -66,70 +58,41 @@ nf.fit(frame, val_size=24)
 forecast = nf.predict()
 ```
 
-## Probabilistic losses
+## What changed in this release
 
-```python
-from neuralforecast.losses.pytorch import DistributionLoss
-from timebaseula import TimeBaseTrend
+- `TimeBase` and `TimeBaseTrend` now batch multi-series training through joint multivariate windows internally.
+- The public constructor API stays unchanged.
+- The published daily benchmark pages were refreshed from strict reruns of their documented settings.
+- The old pre-multivariate library state was preserved on `deprecated/library-v0.3.4`.
 
-probabilistic_model = TimeBaseTrend(
-    h=24,
-    freq="D",
-    loss=DistributionLoss("Normal", level=[80, 95]),
-)
-```
+## Curated benchmark highlights
 
-For reproducible benchmark runs with Gaussian or Poisson losses, use the `benchmark` branch scripts.
+| Workflow | Current headline |
+|---|---|
+| AirPassengers reference | `TimeBase` improves to `MAE 16.8449`; `TimeBaseTrend` regresses to `MAE 21.7723` |
+| Daily panel, mixed scope | `TimeBaseTrend` is now the best overall model |
+| Daily panel, aggregated only | `AutoTheta` stays best on `avg_rank`; `AutoTimeBaseTrend` leads `avg_mean_scaled_mae` |
+| Daily panel, detailed only | `TimeBaseTrend` remains the best overall model |
 
-## Auto wrappers
-
-Use the auto wrappers when you want NeuralForecast to search TimeBase-family hyperparameters.
-
-```python
-from timebaseula import AutoTimeBase, AutoTimeBaseTrend
-
-auto_timebase = AutoTimeBase(h=24, num_samples=3, cpus=1, gpus=0, backend="ray")
-auto_timebasetrend = AutoTimeBaseTrend(
-    h=24,
-    num_samples=3,
-    cpus=1,
-    gpus=0,
-    backend="ray",
-)
-```
-
-For larger benchmark and tuning workflows, switch to the `benchmark` branch.
-
-## Conformal prediction intervals
-
-TimeBaseUla uses NeuralForecast's built-in conformal prediction support from
-`neuralforecast.utils.PredictionIntervals`.
-
-```python
-from neuralforecast import NeuralForecast
-from neuralforecast.utils import PredictionIntervals
-from timebaseula import TimeBaseTrend
-
-model = TimeBaseTrend(h=24, freq="D", max_steps=100)
-nf = NeuralForecast(models=[model], freq="D")
-nf.fit(
-    frame,
-    val_size=24,
-    prediction_intervals=PredictionIntervals(n_windows=2),
-)
-forecast = nf.predict(level=[80, 95])
-```
-
-## Benchmark reports
-
-This `main` branch keeps the published benchmark reports that accompany the library documentation:
-
+Published benchmark pages kept on `main`:
 - `docs/benchmark.md`
 - `docs/daily-panel-benchmark.md`
 - `docs/daily-panel-aggregated-benchmark.md`
 - `docs/daily-panel-detailed-benchmark.md`
 
-If you want to rerun or extend those workflows, use the `benchmark` branch.
+If you want to rerun or extend those workflows, switch to the `benchmark` branch.
+
+## Data format
+
+The package expects the standard `NeuralForecast` long format:
+
+| Column | Meaning |
+|---|---|
+| `unique_id` | series identifier |
+| `ds` | timestamp |
+| `y` | target value |
+
+When multiple `unique_id` values are fit together, the public API remains long-format while the explicit models internally build joint multivariate windows over the active series.
 
 ## Repository layout
 
@@ -139,11 +102,8 @@ If you want to rerun or extend those workflows, use the `benchmark` branch.
 | `timebaseula/models/core.py` | pure Torch TimeBase core |
 | `timebaseula/models/decomposition.py` | pure Torch TimeBaseTrend decomposition |
 | `timebaseula/models/base.py` | shared NeuralForecast wrapper logic |
-| `timebaseula/models/factories.py` | shared explicit-model factories |
-| `timebaseula/models/timebase.py` | public explicit model wrappers |
-| `docs/` | MkDocs documentation and curated benchmark reports |
+| `docs/` | MkDocs documentation and curated benchmark pages |
 | `tests/` | library-focused validation suite |
-| `pyproject.toml` | package metadata and dependencies |
 
 ## Documentation
 
@@ -152,6 +112,8 @@ Build the docs locally with:
 ```bash
 uv run --group docs mkdocs build --strict
 ```
+
+This release curation was produced in an agent-assisted workflow.
 
 ## License
 
