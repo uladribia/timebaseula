@@ -26,3 +26,15 @@ def test_series_decomposition_reconstructs_original_signal() -> None:
     assert seasonal.shape == series.shape
     assert trend.shape == series.shape
     assert torch.allclose(seasonal + trend, series)
+
+
+def test_series_decomposition_supports_multivariate_inputs() -> None:
+    """The decomposition should preserve a trailing series dimension."""
+    decomposition = SeriesDecomposition(kernel_size=3)
+    series = torch.arange(30, dtype=torch.float32).reshape(2, 5, 3)
+
+    seasonal, trend = decomposition(series)
+
+    assert seasonal.shape == series.shape
+    assert trend.shape == series.shape
+    assert torch.allclose(seasonal + trend, series)

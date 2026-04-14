@@ -9,6 +9,7 @@ description: Reference for the TimeBaseUla model classes and their parameters.
 - `TimeBaseTrend` adds a moving-average trend decomposition branch.
 - `AutoTimeBase` and `AutoTimeBaseTrend` expose the same family through NeuralForecast auto tuning.
 - The implementation separates the pure Torch core, pure Torch decomposition, shared wrapper base, defaults, and factories into smaller internal modules.
+- Multi-series `NeuralForecast` fits use joint multivariate windows internally, so the shared TimeBase core now mirrors the original TimeBase `individual=0` batching pattern more closely.
 - The local decomposition is intentional to avoid coupling `TimeBaseTrend` to DLinear internals, but it can still be swapped back to the upstream helper later if needed.
 
 ## `TimeBase`
@@ -39,9 +40,9 @@ These are passed through the underlying `NeuralForecast` / Lightning training wr
 | `max_steps` | Maximum number of optimization steps. |
 | `learning_rate` | Optimizer step size. |
 | `val_check_steps` | How often validation is run during training. |
-| `batch_size` | Number of series/windows per batch. |
-| `windows_batch_size` | Number of sampled windows processed per optimization step. |
-| `inference_windows_batch_size` | Window batch size used during prediction. |
+| `batch_size` | Public compatibility knob retained from the earlier wrapper. Multivariate training still processes all active series together inside each sampled window. |
+| `windows_batch_size` | Number of joint multivariate windows sampled per optimization step. |
+| `inference_windows_batch_size` | Number of joint multivariate windows processed per prediction chunk. |
 | `step_size` | Distance between consecutive sampled windows. `1` gives dense windows; larger values reduce overlap. |
 | `scaler_type` | Target scaling strategy used by NeuralForecast. |
 | `random_seed` | Controls stochastic training behavior. |

@@ -202,6 +202,9 @@ class TimeBaseTrend(_BaseTimeBaseModel):
         """Run the TimeBaseTrend forward pass."""
         seasonal, trend = self.decomp(windows_batch["insample_y"])
         seasonal_forecast, basis = self.core(seasonal)
-        trend_forecast = self.linear_trend(trend)
+        if trend.ndim == 2:
+            trend_forecast = self.linear_trend(trend)
+        else:
+            trend_forecast = self.linear_trend(trend.permute(0, 2, 1)).permute(0, 2, 1)
         forecast = trend_forecast + seasonal_forecast
         return self._finalize_forecast(forecast, basis)

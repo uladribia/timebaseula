@@ -1,5 +1,5 @@
 ---
-description: TimeBaseUla README with installation, public API, defaults, and package usage.
+description: TimeBaseUla README with installation, branch strategy, benchmark highlights, and package usage.
 ---
 
 # TimeBaseUla
@@ -7,26 +7,26 @@ description: TimeBaseUla README with installation, public API, defaults, and pac
 > Compact TimeBase-style forecasting models for NeuralForecast.
 
 ## TL;DR
-- `timebaseula` is a small Python forecasting library.
-- Public API: `TimeBase` and `TimeBaseTrend`.
-- The package is CPU-first and integrates with `NeuralForecast`.
-- The explicit models support point losses, multi-quantile losses, and NeuralForecast distribution losses such as Gaussian and Poisson.
-- Install and use it from a source checkout.
-- The repository also includes benchmark and tuning scripts for `AirPassengersPanel` and daily panel workflows.
+- Public API: `TimeBase`, `TimeBaseTrend`, `AutoTimeBase`, and `AutoTimeBaseTrend`.
+- Multi-series fits keep the standard long-format `NeuralForecast` API.
+- Internally, the explicit models now train on joint multivariate windows through `BaseMultivariate`.
+- `benchmark` is the canonical branch for benchmark and tuning workflows.
+- `main` is the curated library branch.
+- `deprecated/library-v0.3.4` preserves the pre-multivariate library release for historical reference only.
 
 ## Branch strategy
 
-This repository maintains two long-lived branches:
+| Branch | Purpose | Status |
+|---|---|---|
+| `benchmark` | canonical source for benchmark workflows, tuning artifacts, and release preparation | active |
+| `main` | curated release-oriented library branch and published docs | active |
+| `deprecated/library-v0.3.4` | pre-multivariate library snapshot kept for historical reference | deprecated |
 
-- `main`: release-oriented library branch with publishable code, curated docs, and published benchmark result pages
-- `benchmark`: full benchmarking and tuning branch with scripts, workflow docs, and experiment-oriented scaffolding
-
-If you want to reproduce or extend the internal anonymized benchmarks, use the `benchmark` branch.
-If you want the library and the curated benchmark write-up that accompanies a release, use `main`.
+Use `benchmark` when you need the full daily-panel workflow.
+Use `main` when you only need the publishable library surface and curated benchmark pages.
+Do not start new work on `deprecated/library-v0.3.4`.
 
 ## Installation
-
-### From source
 
 ```bash
 git clone https://github.com/uladribia/timebaseula.git
@@ -34,20 +34,13 @@ cd timebaseula
 uv sync
 ```
 
-### Benchmark dependencies
+Benchmark tooling:
 
 ```bash
 uv sync --group benchmark
 ```
 
-The benchmark tooling is intended for Python 3.12+ on non-Windows environments.
-
-## What this package provides
-
-| Object | Purpose |
-|---|---|
-| `TimeBase` | Explicit segmented-basis forecasting model |
-| `TimeBaseTrend` | `TimeBase` plus a trend decomposition branch |
+The benchmark group is intended for Python 3.12+ on non-Windows environments.
 
 ## Quickstart
 
@@ -70,49 +63,33 @@ nf.fit(frame, val_size=24)
 forecast = nf.predict()
 ```
 
-## Probabilistic losses
+## What changed in the current release candidate
 
-```python
-from neuralforecast.losses.pytorch import DistributionLoss
-from timebaseula import TimeBaseTrend
+- `TimeBase` and `TimeBaseTrend` now batch multi-series training through joint multivariate windows internally.
+- The public constructor API stays unchanged.
+- Daily benchmark docs were refreshed from strict reruns of the published benchmark settings.
+- The pre-multivariate library state was preserved on `deprecated/library-v0.3.4`.
 
-probabilistic_model = TimeBaseTrend(
-    h=24,
-    freq="D",
-    loss=DistributionLoss("Normal", level=[80, 95]),
-)
-```
+## Benchmark highlights
 
-For count-like targets, the benchmark scripts also support `--neural-loss poisson`.
+| Workflow | Current headline |
+|---|---|
+| AirPassengers reference | `TimeBase` improves to `MAE 16.8449`; `TimeBaseTrend` regresses to `MAE 21.7723` |
+| Daily panel, mixed scope | `TimeBaseTrend` is now the best overall model |
+| Daily panel, aggregated only | `AutoTheta` stays best on `avg_rank`; `AutoTimeBaseTrend` leads `avg_mean_scaled_mae` |
+| Daily panel, detailed only | `TimeBaseTrend` remains the best overall model |
 
-## Conformal prediction intervals
+Published benchmark pages:
+- `docs/benchmark.md`
+- `docs/daily-panel-benchmark.md`
+- `docs/daily-panel-aggregated-benchmark.md`
+- `docs/daily-panel-detailed-benchmark.md`
 
-TimeBaseUla uses NeuralForecast's built-in conformal prediction support from
-`neuralforecast.utils.PredictionIntervals`. No custom interval code is needed in
-`TimeBase` or `TimeBaseTrend`.
+For exact benchmark commands, see `docs/scripts.md` on the `benchmark` branch.
 
-```python
-from neuralforecast import NeuralForecast
-from neuralforecast.utils import PredictionIntervals
-from timebaseula import TimeBaseTrend
+## Data format
 
-model = TimeBaseTrend(h=24, freq="D", max_steps=100)
-nf = NeuralForecast(models=[model], freq="D")
-nf.fit(
-    frame,
-    val_size=24,
-    prediction_intervals=PredictionIntervals(
-        n_windows=2,
-        method="conformal_distribution",
-    ),
-)
-forecast = nf.predict(level=[80, 95])
-```
-
-This adds columns such as `TimeBaseTrend-lo-80` and `TimeBaseTrend-hi-80` to the
-forecast output.
-
-The expected data format is the standard `NeuralForecast` long format:
+The package expects the standard `NeuralForecast` long format:
 
 | Column | Meaning |
 |---|---|
@@ -120,108 +97,7 @@ The expected data format is the standard `NeuralForecast` long format:
 | `ds` | timestamp |
 | `y` | target value |
 
-## Default behavior
-
-| Parameter | Default |
-|---|---|
-| `input_size` | `max(2 * h, 8)` |
-| daily `period_len` | `7` |
-| monthly `period_len` | `12` |
-| other `period_len` | `min(max(2, h), input_size)` |
-| `basis_num` | `6` |
-| `moving_avg_window` (`TimeBaseTrend`) | `25` |
-
-## What the main parameters do
-
-| Parameter | Effect |
-|---|---|
-| `h` | Forecast horizon. |
-| `input_size` | Amount of history used by the model. |
-| `period_len` | Length of each repeated segment used by the TimeBase basis. |
-| `basis_num` | Number of basis components used to reconstruct the forecast. |
-| `use_period_norm` | Whether each segment is normalized before basis learning. |
-| `max_steps` | Maximum number of training steps. |
-| `learning_rate` | Optimizer step size. |
-| `moving_avg_window` | Only for `TimeBaseTrend`. Controls how smooth the extracted trend is. Larger odd values produce a smoother, slower trend; smaller odd values make the trend react faster. |
-
-## Model overview
-
-### `TimeBase`
-- splits the input window into temporal segments
-- projects segments to a compact basis
-- maps that basis back to future segments
-
-### `TimeBaseTrend`
-- decomposes the input into seasonal and trend parts
-- sends the seasonal part through the TimeBase branch
-- forecasts the trend with a linear head
-- sums both forecasts at the end
-
-For full parameter guidance, see `docs/models.md` and `docs/usage.md`.
-
-## Benchmark scripts
-
-This repository includes benchmark workflows plus an aggregated-model tuning workflow.
-
-### AirPassengers reference benchmark
-
-```bash
-uv run --group benchmark python scripts/benchmark_airpassengers.py run \
-  --output-markdown docs/benchmark.md \
-  --output-plot docs/img/airpassengers-benchmark.png \
-  --neural-loss normal
-```
-
-### Daily panel workflow for an internal anonymized dataset
-
-1. Prepare a Nixtla-ready panel with detailed and aggregated `unique_id`, `ds`, and `y` series:
-
-```bash
-uv run python scripts/prepare_nixtla_panel.py \
-  --input-path data/input/internal_daily_panel.parquet.gzip \
-  --output-dir data/processed/internal_daily_panel \
-  --test-ratio 0.2
-```
-
-2. Run the CPU-first daily benchmark with a fixed 28-day forecast horizon:
-
-```bash
-uv run --group benchmark python scripts/benchmark_nixtla_panel.py run \
-  --input-path data/processed/internal_daily_panel/panel.parquet \
-  --output-markdown docs/daily-panel-benchmark.md \
-  --output-dir docs/img/daily-panel-benchmark \
-  --horizon 28 \
-  --test-ratio 0.2 \
-  --profile normal \
-  --max-series 256 \
-  --neural-loss poisson
-```
-
-The preparation step now includes:
-- detailed granular series
-- location-level aggregates
-- item-level aggregates
-- one global `total` series
-
-The daily benchmark:
-- compares `TimeBase`, `TimeBaseTrend`, `NLinear`, `DLinear`, `AutoMFLES`, `AutoTheta`, and `Naive`
-- can also benchmark tuned `AutoTimeBase`, `AutoTimeBaseTrend`, `AutoNLinear`, and `AutoDLinear` variants from a tuning artifact
-- supports mixed-scope, aggregated-only, and detailed-only internal benchmark variants
-- measures training and inference time on the final 28-day holdout
-- aggregates MAE, mean-scaled MAE, RMSE, SMAPE, rank, and wins over rolling 28-day cross-validation windows
-- adapts neural training iterations to dataset size and a user-selected profile: `smoke`, `normal`, or `heavy`
-- writes a markdown report plus Matplotlib plots, including the effective iteration settings used in the run
-- publishes the mixed-scope workflow at `docs/daily-panel-benchmark.md`
-- publishes the aggregated-only workflow at `docs/daily-panel-aggregated-benchmark.md`
-- publishes the detailed-only internal workflow at `docs/daily-panel-detailed-benchmark.md`
-
-The aggregated tuning workflow:
-- lives in `scripts/tune_nixtla_panel_aggregated.py`
-- uses NeuralForecast native auto models for `DLinear`, `NLinear`, `AutoTimeBase`, and `AutoTimeBaseTrend`
-- tunes the TimeBase family through the package auto wrappers instead of a repo-local fit/predict loop
-- writes reusable tuned config JSON artifacts under `artifacts/tuning/`
-
-Note: this benchmark-branch update was prepared in an agent-assisted change.
+When multiple `unique_id` values are fit together, the public API remains long-format while the explicit models internally build joint multivariate windows over the active series.
 
 ## Repository layout
 
@@ -231,53 +107,19 @@ Note: this benchmark-branch update was prepared in an agent-assisted change.
 | `timebaseula/models/core.py` | pure Torch TimeBase core |
 | `timebaseula/models/decomposition.py` | pure Torch TimeBaseTrend decomposition |
 | `timebaseula/models/base.py` | shared NeuralForecast wrapper logic |
-| `timebaseula/models/factories.py` | shared explicit-model factories |
-| `timebaseula/models/timebase.py` | public explicit model wrappers |
-| `scripts/` | benchmark and reporting scripts |
+| `scripts/` | benchmark and reporting scripts on `benchmark` |
 | `docs/` | MkDocs documentation |
 | `tests/` | repository test suite |
-| `pyproject.toml` | package metadata and dependencies |
 
 ## Documentation
 
-The documentation site covers:
-- `docs/index.md`
-- `docs/install.md`
-- `docs/usage.md`
-- `docs/models.md`
-- `docs/benchmark.md`
-- `docs/release-notes.md`
-- `docs/paper-for-agents.md`
-- `docs/references.md`
-
 Build the docs locally with:
 
 ```bash
 uv run --group docs mkdocs build --strict
 ```
 
-## License
-
-MIT. See [LICENSE](LICENSE).
-kdocs build --strict
-```
-
-## License
-
-MIT. See [LICENSE](LICENSE).
-references.md`
-
-Build the docs locally with:
-
-```bash
-uv run --group docs mkdocs build --strict
-```
-
-## License
-
-MIT. See [LICENSE](LICENSE).
-kdocs build --strict
-```
+This benchmark refresh and release preparation were produced in an agent-assisted workflow.
 
 ## License
 

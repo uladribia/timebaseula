@@ -10,6 +10,7 @@ description: Usage guide for the explicit TimeBaseUla models.
 - Fit with a non-zero `val_size`.
 - The explicit models support point, quantile, and distribution losses.
 - For multi-series training, use `NeuralForecast` directly.
+- With multiple `unique_id` values, the models internally train on joint multivariate windows over the active series.
 
 ## Explicit models
 
@@ -125,6 +126,12 @@ by the benchmark, with `conformal_error` bands at 80% and 95% levels.
 ![TimeBaseTrend conformal intervals](img/airpassengers-timebasetrend-conformal.png)
 
 ## Multi-series training and subset prediction
+
+When you fit multiple `unique_id` values together, `TimeBase` and `TimeBaseTrend`
+keep the standard long-format `NeuralForecast` API, but they internally batch each
+sampled cutoff as a joint multivariate tensor over the active series. That makes the
+training path closer to the original TimeBase `individual=0` implementation while
+keeping the public API unchanged.
 
 ```python
 subset = frame[frame["unique_id"] == "series_1"].copy()

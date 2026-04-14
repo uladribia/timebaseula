@@ -6,6 +6,18 @@ description: Project changelog for TimeBaseUla releases.
 
 ## Unreleased
 
+## 0.3.5 - 2026-04-13
+
+### Added
+- added multivariate batching coverage for the explicit TimeBase family on top of `NeuralForecast` long-format inputs
+- added strict published-setting benchmark reruns for the mixed, aggregated, and detailed daily-panel pages
+- added the deprecated historical branch `deprecated/library-v0.3.4` to preserve the pre-multivariate library snapshot
+
+### Changed
+- switched multi-series explicit-model training to internal joint multivariate windows through `BaseMultivariate`
+- refreshed the published daily benchmark pages and benchmark workflow docs to match the exact commands used for the current reports
+- updated release-oriented documentation to explain the active `benchmark` and `main` branches plus the deprecated historical branch
+
 ## 0.3.4 - 2026-04-02
 
 ### Added
