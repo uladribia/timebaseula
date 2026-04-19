@@ -66,6 +66,7 @@ forecast = nf.predict()
 ## What changed in the current release candidate
 
 - `TimeBase` and `TimeBaseTrend` now batch multi-series training through joint multivariate windows internally.
+- The library test suite now uses Hypothesis for invariant-driven unit tests, with shared strategies under `tests/property_strategies.py`.
 - The public constructor API stays unchanged.
 - Daily benchmark docs were refreshed from strict reruns of the published benchmark settings.
 - The pre-multivariate library state was preserved on `deprecated/library-v0.3.4`.
