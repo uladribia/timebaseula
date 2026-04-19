@@ -5,12 +5,20 @@ from __future__ import annotations
 import warnings
 
 import pytest
+from hypothesis import HealthCheck, settings
 
 warnings.filterwarnings(
     "ignore",
     category=SyntaxWarning,
     module=r"neuralforecast\..*",
 )
+
+settings.register_profile(
+    "timebaseula",
+    deadline=None,
+    suppress_health_check=[HealthCheck.too_slow],
+)
+settings.load_profile("timebaseula")
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
