@@ -19,6 +19,7 @@ This repository follows a disciplined, maintainable, and CPU-first workflow. Age
 - Avoid `inplace=True` mutations; return new objects instead.
 - Keep code in **English** for identifiers, comments, and documentation.
 - Keep tests organized: one test file per module, named `tests/test_<module>.py`.
+- When testing main library code, prefer **property-based testing with Hypothesis** for invariant-driven behavior such as tensor shapes, default-resolution rules, configuration contracts, and deterministic transformations. Keep example-based tests for fixed API facts, imports/exports, object identity, and heavy integration behavior where property-based testing would add noise more than value.
 - Before implementing custom logic, inspect the upstream library source and prefer built-in APIs (for example `cross_validation` or native baseline models in NeuralForecast / StatsForecast) over handwritten benchmark orchestration whenever they provide the needed behavior.
 
 ## Required Agent Workflow (TDD & Quality Gates)

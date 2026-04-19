@@ -61,6 +61,7 @@ forecast = nf.predict()
 ## What changed in this release
 
 - `TimeBase` and `TimeBaseTrend` now batch multi-series training through joint multivariate windows internally.
+- The library test suite now uses Hypothesis for invariant-driven unit tests, with shared strategies under `tests/property_strategies.py`.
 - The public constructor API stays unchanged.
 - The published daily benchmark pages were refreshed from strict reruns of their documented settings.
 - The old pre-multivariate library state was preserved on `deprecated/library-v0.3.4`.
@@ -104,6 +105,20 @@ When multiple `unique_id` values are fit together, the public API remains long-f
 | `timebaseula/models/base.py` | shared NeuralForecast wrapper logic |
 | `docs/` | MkDocs documentation and curated benchmark pages |
 | `tests/` | library-focused validation suite |
+| `tests/` | library-focused validation suite |
+
+## Testing
+
+Run the default fast suite with:
+
+```bash
+make test
+```
+
+The unit suite now mixes example-based tests with property-based tests powered by
+[Hypothesis](https://hypothesis.readthedocs.io/). Shared property strategies live in
+`tests/property_strategies.py` so model test files can stay focused on behavioral
+contracts rather than generator boilerplate.
 
 ## Documentation
 

@@ -75,4 +75,5 @@ forecast = nf.predict()
 | `timebaseula/models/decomposition.py` | pure Torch TimeBaseTrend decomposition |
 | `timebaseula/models/base.py` | shared NeuralForecast wrapper logic |
 | `docs/` | package documentation and curated benchmark pages |
+| `docs/` | package documentation and curated benchmark pages |
 | `tests/` | validation suite |

@@ -1,25 +1,33 @@
 ---
-description: Release-style summary for the multivariate batching refresh and version 0.3.5 on main.
+description: Release-style summary for the property-based testing refresh and version 0.3.6 on main.
 ---
 
 # Release notes
 
 ## TL;DR
-- bumped the package version to `0.3.5`
-- switched multi-series explicit-model training to internal joint multivariate windows through `BaseMultivariate`
-- kept the public model API unchanged
-- refreshed the curated daily benchmark pages from strict reruns of their documented settings
-- preserved the old pre-multivariate library release on `deprecated/library-v0.3.4`
+- bumped the package version to `0.3.6`
+- added Hypothesis-backed property tests for the main library invariants
+- centralized reusable property strategies in `tests/property_strategies.py`
+- kept example-based tests for public API facts and heavy integration behavior
+- preserved the public model API unchanged
 
 ## What changed
 
 | Area | Summary |
 |---|---|
-| Explicit models | moved multi-series batching to `BaseMultivariate` while keeping the public constructors unchanged |
-| Validation | synced the shared library tests needed for the multivariate batching refresh |
-| Curated benchmark pages | refreshed the mixed, aggregated, and detailed daily benchmark pages from the benchmark branch reruns |
-| Branch policy | kept benchmark scripts on `benchmark` and preserved the pre-multivariate snapshot on `deprecated/library-v0.3.4` |
-| Release metadata | bumped the package version to `0.3.5` |
+| Test coverage | added Hypothesis-backed invariant coverage for decomposition, core contracts, defaults, factories, and explicit model forward behavior |
+| Strategy plumbing | centralized reusable property strategies in `tests/property_strategies.py` |
+| Documentation | refreshed README, contributor guidance, agent instructions, release notes, and property-testing documentation |
+| Public API | kept the exported package surface unchanged |
+| Release metadata | bumped the package version to `0.3.6` |
+
+## Testing headline
+
+| Area | Headline |
+|---|---|
+| Pure model helpers | now validated over bounded input domains instead of one-off examples only |
+| Explicit model wrappers | retain example-based API tests and add property-based contract checks |
+| Integration layer | remains example-based to keep runtime bounded and failure modes readable |
 
 ## Branch roles
 

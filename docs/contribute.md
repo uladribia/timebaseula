@@ -8,6 +8,9 @@ description: Contribution guide for TimeBaseUla development, testing, and docume
 - Clone the repository and use `uv sync`.
 - Run `make format`, `make lint`, and `make test` before opening a PR.
 - Run `make test-integration` only when your change affects real fit or predict behavior.
+- Property-based tests use [Hypothesis](https://hypothesis.readthedocs.io/); keep
+  reusable strategies in `tests/property_strategies.py` instead of duplicating them
+  across test files.
 - Keep changes small, readable, CPU-friendly, and documented.
 
 ## Development setup
