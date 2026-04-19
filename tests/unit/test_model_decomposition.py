@@ -2,67 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
-
 from hypothesis import given
-from hypothesis import strategies as st
 import torch
 
+from tests.property_strategies import odd_integers, tensor_2d, tensor_3d
 from timebaseula.models.decomposition import MovingAverage, SeriesDecomposition
-
-FINITE_FLOATS = st.floats(
-    min_value=-100,
-    max_value=100,
-    allow_nan=False,
-    allow_infinity=False,
-    width=32,
-)
-
-
-@st.composite
-def _tensor_2d(draw: st.DrawFn) -> torch.Tensor:
-    batch_size = draw(st.integers(min_value=1, max_value=4))
-    time_steps = draw(st.integers(min_value=1, max_value=12))
-    values = draw(
-        st.lists(
-            st.lists(FINITE_FLOATS, min_size=time_steps, max_size=time_steps),
-            min_size=batch_size,
-            max_size=batch_size,
-        )
-    )
-    return torch.tensor(values, dtype=torch.float32)
-
-
-@st.composite
-def _tensor_3d(draw: st.DrawFn) -> torch.Tensor:
-    batch_size = draw(st.integers(min_value=1, max_value=3))
-    time_steps = draw(st.integers(min_value=1, max_value=10))
-    n_series = draw(st.integers(min_value=1, max_value=4))
-    values = draw(
-        st.lists(
-            st.lists(
-                st.lists(FINITE_FLOATS, min_size=n_series, max_size=n_series),
-                min_size=time_steps,
-                max_size=time_steps,
-            ),
-            min_size=batch_size,
-            max_size=batch_size,
-        )
-    )
-    return torch.tensor(values, dtype=torch.float32)
-
-
-def _tensor_2d_strategy() -> st.SearchStrategy[torch.Tensor]:
-    return cast(Any, _tensor_2d)()
-
-
-def _tensor_3d_strategy() -> st.SearchStrategy[torch.Tensor]:
-    return cast(Any, _tensor_3d)()
 
 
 @given(
-    kernel_size=st.integers(min_value=1, max_value=9).map(lambda value: 2 * value - 1),
-    series=_tensor_2d_strategy(),
+    kernel_size=odd_integers(1, 17),
+    series=tensor_2d(),
 )
 def test_moving_average_preserves_expected_shape(
     kernel_size: int,
@@ -77,8 +26,8 @@ def test_moving_average_preserves_expected_shape(
 
 
 @given(
-    kernel_size=st.integers(min_value=1, max_value=9).map(lambda value: 2 * value - 1),
-    series=_tensor_2d_strategy(),
+    kernel_size=odd_integers(1, 17),
+    series=tensor_2d(),
 )
 def test_series_decomposition_reconstructs_original_signal(
     kernel_size: int,
@@ -95,8 +44,8 @@ def test_series_decomposition_reconstructs_original_signal(
 
 
 @given(
-    kernel_size=st.integers(min_value=1, max_value=9).map(lambda value: 2 * value - 1),
-    series=_tensor_3d_strategy(),
+    kernel_size=odd_integers(1, 17),
+    series=tensor_3d(),
 )
 def test_series_decomposition_supports_multivariate_inputs(
     kernel_size: int,

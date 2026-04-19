@@ -111,6 +111,19 @@ When multiple `unique_id` values are fit together, the public API remains long-f
 | `docs/` | MkDocs documentation |
 | `tests/` | repository test suite |
 
+## Testing
+
+Run the default fast suite with:
+
+```bash
+make test
+```
+
+The unit suite now mixes example-based tests with property-based tests powered by
+[Hypothesis](https://hypothesis.readthedocs.io/). Shared property strategies live in
+`tests/property_strategies.py` so model test files can stay focused on behavioral
+contracts rather than generator boilerplate.
+
 ## Documentation
 
 Build the docs locally with:
