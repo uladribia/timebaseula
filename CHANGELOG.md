@@ -11,7 +11,6 @@ description: Project changelog for TimeBaseUla releases.
 ### Added
 - added Hypothesis as a first-class test dependency for invariant-driven library tests
 - added `tests/property_strategies.py` to centralize reusable property-based test strategies
-- added `PROPERTY_TESTING.md` to document the repository's property-based testing approach
 
 ### Changed
 - converted core library invariants for decomposition, core forward contracts, defaults, factories, and explicit model shape behavior to property-based tests
