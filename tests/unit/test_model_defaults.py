@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from hypothesis import given
+from hypothesis import strategies as st
+
 from timebaseula.models.defaults import (
     _default_input_size,
     _default_period_len,
@@ -9,23 +12,56 @@ from timebaseula.models.defaults import (
 )
 
 
-def test_default_input_size_is_horizon_based_with_floor() -> None:
+@given(horizon=st.integers(min_value=1, max_value=128))
+def test_default_input_size_is_horizon_based_with_floor(horizon: int) -> None:
     """Default input size should follow the documented horizon rule."""
-    assert _default_input_size(2) == 8
-    assert _default_input_size(12) == 24
+    resolved = _default_input_size(horizon)
+
+    assert resolved == max(2 * horizon, 8)
+    assert resolved >= 8
 
 
-def test_default_period_len_uses_frequency_specific_defaults() -> None:
-    """Default period length should prefer daily and monthly seasonality."""
-    assert _default_period_len(horizon=14, input_size=28, freq="D") == 7
-    assert _default_period_len(horizon=6, input_size=12, freq="ME") == 12
-    assert _default_period_len(horizon=5, input_size=9, freq=None) == 5
+@given(
+    horizon=st.integers(min_value=1, max_value=32),
+    input_size=st.integers(min_value=1, max_value=32),
+)
+def test_default_period_len_uses_frequency_specific_defaults(
+    horizon: int,
+    input_size: int,
+) -> None:
+    """Default period length should respect the documented frequency-specific rules."""
+    daily_period = _default_period_len(horizon=horizon, input_size=input_size, freq="D")
+    monthly_period = _default_period_len(
+        horizon=horizon,
+        input_size=input_size,
+        freq="ME",
+    )
+    fallback_period = _default_period_len(
+        horizon=horizon,
+        input_size=input_size,
+        freq=None,
+    )
+
+    assert daily_period == min(7, input_size)
+    assert monthly_period == min(12, input_size)
+    assert fallback_period == min(max(2, horizon), input_size)
 
 
-def test_default_trainer_kwargs_force_cpu_defaults_without_overrides() -> None:
+@given(
+    devices=st.integers(min_value=1, max_value=8),
+    accelerator=st.sampled_from(["cpu", "gpu", "tpu"]),
+)
+def test_default_trainer_kwargs_force_cpu_defaults_without_overrides(
+    devices: int,
+    accelerator: str,
+) -> None:
     """Trainer defaults should remain CPU-first while preserving caller settings."""
     assert _default_trainer_kwargs({}) == {"accelerator": "cpu", "devices": 1}
-    assert _default_trainer_kwargs({"devices": 2}) == {
+    assert _default_trainer_kwargs({"devices": devices}) == {
         "accelerator": "cpu",
-        "devices": 2,
+        "devices": devices,
+    }
+    assert _default_trainer_kwargs({"accelerator": accelerator}) == {
+        "accelerator": accelerator,
+        "devices": 1,
     }

@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+from hypothesis import given
+from hypothesis import strategies as st
 import pytest
 import torch
 from neuralforecast.losses.pytorch import DistributionLoss, MQLoss
 
+from tests.property_strategies import (
+    DistributionCase,
+    ModelCase,
+    distribution_cases,
+    even_integers,
+    multivariate_model_cases,
+    padded_model_cases,
+    univariate_model_cases,
+)
 from timebaseula.models.decomposition import SeriesDecomposition
 from timebaseula.models.timebase import TimeBase, TimeBaseTrend
 
@@ -13,60 +24,116 @@ from timebaseula.models.timebase import TimeBase, TimeBaseTrend
 class TestTimeBase:
     """Validate TimeBase behavior."""
 
-    def test_default_init_uses_horizon_based_defaults(self) -> None:
+    @given(h=st.integers(min_value=1, max_value=32))
+    def test_default_init_uses_horizon_based_defaults(self, h: int) -> None:
         """TimeBase should provide deterministic defaults without profiling."""
-        model = TimeBase(h=12)
+        model = TimeBase(h=h)
 
-        assert model.input_size == 24
-        assert model.core.period_len == 12
+        assert model.input_size == max(2 * h, 8)
+        assert model.core.period_len == min(max(2, h), model.input_size)
         assert model.core.basis_num == 6
         assert model.trainer_kwargs["accelerator"] == "cpu"
         assert model.trainer_kwargs["devices"] == 1
 
-    def test_daily_frequency_prefers_weekly_period_default(self) -> None:
+    @given(h=st.integers(min_value=1, max_value=32))
+    def test_daily_frequency_prefers_weekly_period_default(self, h: int) -> None:
         """Daily models should default to a weekly period when freq is available."""
-        model = TimeBase(h=14, freq="D")
+        model = TimeBase(h=h, freq="D")
 
-        assert model.input_size == 28
-        assert model.core.period_len == 7
+        assert model.input_size == max(2 * h, 8)
+        assert model.core.period_len == min(7, model.input_size)
 
-    def test_forward_shape(self) -> None:
+    @given(case=univariate_model_cases())
+    def test_forward_shape(
+        self,
+        case: ModelCase,
+    ) -> None:
         """The forward output should match (batch, horizon)."""
-        model = TimeBase(h=12, input_size=24, period_len=6, basis_num=4)
-        windows_batch = {"insample_y": torch.ones((2, 24))}
+        model = TimeBase(
+            h=case.h,
+            input_size=case.input_size,
+            period_len=case.period_len,
+            basis_num=case.basis_num,
+        )
+        windows_batch = {"insample_y": case.insample_y}
         output = model(windows_batch)
-        assert output.shape == (2, 12)
+        assert output.shape == (case.insample_y.shape[0], case.h)
 
-    def test_forward_multivariate_shape(self) -> None:
+    @given(case=multivariate_model_cases())
+    def test_forward_multivariate_shape(
+        self,
+        case: ModelCase,
+    ) -> None:
         """The forward output should keep a trailing series dimension."""
-        model = TimeBase(h=12, input_size=24, period_len=6, basis_num=4)
-        windows_batch = {"insample_y": torch.ones((2, 24, 3))}
+        model = TimeBase(
+            h=case.h,
+            input_size=case.input_size,
+            period_len=case.period_len,
+            basis_num=case.basis_num,
+        )
+        windows_batch = {"insample_y": case.insample_y}
         output = model(windows_batch)
-        assert output.shape == (2, 12, 3)
+        assert output.shape == (
+            case.insample_y.shape[0],
+            case.h,
+            case.insample_y.shape[-1],
+        )
 
-    def test_padding_output_shape(self) -> None:
+    @given(case=padded_model_cases())
+    def test_padding_output_shape(
+        self,
+        case: ModelCase,
+    ) -> None:
         """Padding should still yield the requested horizon length."""
-        model = TimeBase(h=10, input_size=25, period_len=6, basis_num=4)
-        windows_batch = {"insample_y": torch.zeros((3, 25))}
+        model = TimeBase(
+            h=case.h,
+            input_size=case.input_size,
+            period_len=case.period_len,
+            basis_num=case.basis_num,
+        )
+        windows_batch = {"insample_y": case.insample_y}
         output = model(windows_batch)
-        assert output.shape == (3, 10)
+        assert case.input_size % case.period_len != 0
+        assert output.shape == (case.insample_y.shape[0], case.h)
 
-    def test_orthogonal_loss_zero(self) -> None:
+    @given(rank=st.integers(min_value=1, max_value=8))
+    def test_orthogonal_loss_zero(self, rank: int) -> None:
         """Orthogonal basis should yield near-zero orthogonal loss."""
-        model = TimeBase(h=4, input_size=8, period_len=4, basis_num=4)
-        basis = torch.eye(4).unsqueeze(0)
+        model = TimeBase(
+            h=rank, input_size=max(2 * rank, 8), period_len=rank, basis_num=rank
+        )
+        basis = torch.eye(rank).unsqueeze(0)
         loss = model._compute_orthogonal_loss(basis)
         assert torch.isclose(loss, torch.tensor(0.0))
 
-    def test_deterministic_behavior(self) -> None:
+    @given(
+        case=univariate_model_cases(),
+        seed=st.integers(min_value=0, max_value=10_000),
+    )
+    def test_deterministic_behavior(
+        self,
+        case: ModelCase,
+        seed: int,
+    ) -> None:
         """Same seed should produce same output."""
-        torch.manual_seed(42)
-        model1 = TimeBase(h=8, input_size=16, period_len=4, basis_num=4)
-        windows_batch = {"insample_y": torch.randn(2, 16)}
+        windows_batch = {"insample_y": case.insample_y}
+
+        torch.manual_seed(seed)
+        model1 = TimeBase(
+            h=case.h,
+            input_size=case.input_size,
+            period_len=case.period_len,
+            basis_num=case.basis_num,
+        )
         output1 = model1(windows_batch)
 
-        torch.manual_seed(42)
-        model2 = TimeBase(h=8, input_size=16, period_len=4, basis_num=4)
+        torch.manual_seed(seed)
+        model2 = TimeBase(
+            h=case.h,
+            input_size=case.input_size,
+            period_len=case.period_len,
+            basis_num=case.basis_num,
+        )
         output2 = model2(windows_batch)
 
         assert torch.allclose(output1, output2)
@@ -94,19 +161,58 @@ class TestTimeBase:
         assert isinstance(output, tuple)
         assert tuple(component.shape for component in output) == expected_shapes
 
-    def test_forward_supports_multi_quantile_loss(self) -> None:
+    @given(
+        case=distribution_cases(),
+        model_case=univariate_model_cases(),
+    )
+    def test_forward_distribution_losses_preserve_batch_and_horizon_contract(
+        self,
+        case: DistributionCase,
+        model_case: ModelCase,
+    ) -> None:
+        """Supported distribution losses should preserve batch and horizon dimensions."""
+        model = case.model_cls(
+            h=model_case.h,
+            input_size=model_case.input_size,
+            period_len=model_case.period_len,
+            basis_num=model_case.basis_num,
+            loss=case.loss,
+        )
+
+        output = model({"insample_y": model_case.insample_y})
+
+        assert isinstance(output, tuple)
+        assert len(output) == case.parameter_count
+        assert all(
+            component.shape == (model_case.insample_y.shape[0], model_case.h)
+            for component in output
+        )
+
+    @given(
+        model_cls=st.sampled_from([TimeBase, TimeBaseTrend]),
+        model_case=univariate_model_cases(),
+    )
+    def test_forward_supports_multi_quantile_loss(
+        self,
+        model_cls: type[TimeBase] | type[TimeBaseTrend],
+        model_case: ModelCase,
+    ) -> None:
         """TimeBase should emit multi-output tensors for quantile-style losses."""
-        model = TimeBase(
-            h=4,
-            input_size=8,
-            period_len=4,
-            basis_num=4,
+        model = model_cls(
+            h=model_case.h,
+            input_size=model_case.input_size,
+            period_len=model_case.period_len,
+            basis_num=model_case.basis_num,
             loss=MQLoss(),
         )
 
-        output = model({"insample_y": torch.ones((2, 8))})
+        output = model({"insample_y": model_case.insample_y})
 
-        assert output.shape == (2, 4, 5)
+        assert output.shape == (
+            model_case.insample_y.shape[0],
+            model_case.h,
+            model.loss.outputsize_multiplier,
+        )
 
     def test_sampling_type_is_multivariate(self) -> None:
         """TimeBase should use NeuralForecast multivariate sampling."""
@@ -118,38 +224,62 @@ class TestTimeBase:
 class TestTimeBaseTrend:
     """Validate TimeBaseTrend behavior."""
 
-    def test_default_init_uses_simple_defaults(self) -> None:
+    @given(h=st.integers(min_value=1, max_value=32))
+    def test_default_init_uses_simple_defaults(self, h: int) -> None:
         """TimeBaseTrend should expose deterministic defaults."""
-        model = TimeBaseTrend(h=12)
+        model = TimeBaseTrend(h=h)
 
-        assert model.input_size == 24
-        assert model.core.period_len == 12
+        assert model.input_size == max(2 * h, 8)
+        assert model.core.period_len == min(max(2, h), model.input_size)
         assert model.core.basis_num == 6
         assert model.moving_avg_window == 25
         assert model.trainer_kwargs["accelerator"] == "cpu"
         assert model.trainer_kwargs["devices"] == 1
 
-    def test_monthly_frequency_prefers_yearly_period_default(self) -> None:
+    @given(h=st.integers(min_value=1, max_value=32))
+    def test_monthly_frequency_prefers_yearly_period_default(self, h: int) -> None:
         """Monthly models should default to yearly seasonality when freq is provided."""
-        model = TimeBaseTrend(h=6, freq="ME")
+        model = TimeBaseTrend(h=h, freq="ME")
 
-        assert model.input_size == 12
-        assert model.core.period_len == 12
+        assert model.input_size == max(2 * h, 8)
+        assert model.core.period_len == min(12, model.input_size)
         assert model.moving_avg_window % 2 == 1
 
-    def test_forward_shape(self) -> None:
+    @given(case=univariate_model_cases())
+    def test_forward_shape(
+        self,
+        case: ModelCase,
+    ) -> None:
         """The forward output should match (batch, horizon)."""
-        model = TimeBaseTrend(h=12, input_size=24, period_len=6, basis_num=4)
-        windows_batch = {"insample_y": torch.ones((2, 24))}
+        model = TimeBaseTrend(
+            h=case.h,
+            input_size=case.input_size,
+            period_len=case.period_len,
+            basis_num=case.basis_num,
+        )
+        windows_batch = {"insample_y": case.insample_y}
         output = model(windows_batch)
-        assert output.shape == (2, 12)
+        assert output.shape == (case.insample_y.shape[0], case.h)
 
-    def test_forward_multivariate_shape(self) -> None:
+    @given(case=multivariate_model_cases())
+    def test_forward_multivariate_shape(
+        self,
+        case: ModelCase,
+    ) -> None:
         """The trend model should keep a trailing series dimension."""
-        model = TimeBaseTrend(h=12, input_size=24, period_len=6, basis_num=4)
-        windows_batch = {"insample_y": torch.ones((2, 24, 3))}
+        model = TimeBaseTrend(
+            h=case.h,
+            input_size=case.input_size,
+            period_len=case.period_len,
+            basis_num=case.basis_num,
+        )
+        windows_batch = {"insample_y": case.insample_y}
         output = model(windows_batch)
-        assert output.shape == (2, 12, 3)
+        assert output.shape == (
+            case.insample_y.shape[0],
+            case.h,
+            case.insample_y.shape[-1],
+        )
 
     def test_linear_trend_head_is_present(self) -> None:
         """The linear trend layer should be present."""
@@ -157,7 +287,8 @@ class TestTimeBaseTrend:
         assert hasattr(model, "linear_trend")
         assert isinstance(model.linear_trend, torch.nn.Linear)
 
-    def test_invalid_moving_avg_window_even(self) -> None:
+    @given(moving_avg_window=even_integers(min_value=1, max_value=16))
+    def test_invalid_moving_avg_window_even(self, moving_avg_window: int) -> None:
         """Even moving_avg_window should raise ValueError."""
         with pytest.raises(ValueError):
             TimeBaseTrend(
@@ -165,7 +296,7 @@ class TestTimeBaseTrend:
                 input_size=8,
                 period_len=4,
                 basis_num=4,
-                moving_avg_window=4,
+                moving_avg_window=moving_avg_window,
             )
 
     def test_has_local_decomposition_module(self) -> None:
@@ -202,20 +333,6 @@ class TestTimeBaseTrend:
 
         assert isinstance(output, tuple)
         assert tuple(component.shape for component in output) == expected_shapes
-
-    def test_forward_supports_multi_quantile_loss(self) -> None:
-        """TimeBaseTrend should emit multi-output tensors for quantile-style losses."""
-        model = TimeBaseTrend(
-            h=4,
-            input_size=8,
-            period_len=4,
-            basis_num=4,
-            loss=MQLoss(),
-        )
-
-        output = model({"insample_y": torch.ones((2, 8))})
-
-        assert output.shape == (2, 4, 5)
 
     def test_sampling_type_is_multivariate(self) -> None:
         """TimeBaseTrend should use NeuralForecast multivariate sampling."""
