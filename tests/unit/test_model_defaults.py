@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from hypothesis import given
 from hypothesis import strategies as st
+
 from timebaseula.models.defaults import (
     _default_input_size,
     _default_period_len,
