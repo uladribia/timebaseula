@@ -1,5 +1,6 @@
 """Test the public package surface."""
 
+import subprocess
 import sys
 from importlib import reload
 from importlib.metadata import PackageNotFoundError
@@ -54,3 +55,19 @@ class TestInit:
         assert not hasattr(timebaseula, "make_synthetic_series")
         assert not hasattr(timebaseula, "profile_dataset")
         assert not hasattr(timebaseula, "recommend_timebase_kwargs")
+
+    def test_package_import_does_not_eagerly_import_auto_module(self) -> None:
+        """Importing the package should not import Ray-backed auto wrappers."""
+        code = (
+            "import sys; import timebaseula; "
+            "print('timebaseula.models.auto' in sys.modules)"
+        )
+
+        result = subprocess.run(
+            [sys.executable, "-c", code],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+
+        assert result.stdout.strip() == "False"

@@ -51,11 +51,11 @@ tooling = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-markers = [
-  "integration: heavy integration tests, run only with --run-integration",
-]
+[tool.deptry]
+known_first_party = ["timebaseula"]
+
+[tool.deptry.per_rule_ignores]
+DEP004 = ["matplotlib", "rich", "statsforecast", "typer", "utilsforecast"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["timebaseula"]
@@ -71,11 +71,11 @@ include = [
   "mkdocs.yml",
 ]
 
-[tool.deptry]
-known_first_party = ["timebaseula"]
-
-[tool.deptry.per_rule_ignores]
-DEP004 = ["matplotlib", "rich", "statsforecast", "typer", "utilsforecast"]
+[tool.pytest.ini_options]
+markers = [
+  "integration: heavy integration tests, run only with --run-integration",
+]
+testpaths = ["tests"]
 
 [tool.uv]
 required-version = ">=0.9.26,<1.0"

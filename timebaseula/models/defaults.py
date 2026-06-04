@@ -6,9 +6,13 @@ from typing import Any
 
 from neuralforecast.losses.pytorch import MAE
 
-DEFAULT_LOSS = MAE()
 DEFAULT_BASIS_NUM = 6
 DEFAULT_MOVING_AVG_WINDOW = 25
+
+
+def create_default_loss() -> MAE:
+    """Create the default deterministic training loss."""
+    return MAE()
 
 
 def _normalize_frequency(freq: str | None) -> str | None:

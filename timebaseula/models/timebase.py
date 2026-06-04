@@ -30,6 +30,7 @@ class TimeBase(_BaseTimeBaseModel):
         period_len: int | None = None,
         basis_num: int = DEFAULT_BASIS_NUM,
         freq: str | None = None,
+        alias: str | None = None,
         use_period_norm: bool = True,
         use_orthogonal: bool = False,
         orthogonal_weight: float = 0.0,
@@ -54,7 +55,7 @@ class TimeBase(_BaseTimeBaseModel):
         optimizer_kwargs: dict[str, Any] | None = None,
         lr_scheduler: type[torch.optim.lr_scheduler.LRScheduler] | None = None,
         lr_scheduler_kwargs: dict[str, Any] | None = None,
-        **trainer_kwargs: dict[str, Any],
+        **trainer_kwargs: Any,
     ) -> None:
         """Initialize the explicit TimeBase model."""
         components = resolve_model_components(
@@ -72,6 +73,7 @@ class TimeBase(_BaseTimeBaseModel):
             h=h,
             model_settings=components.model_settings,
             freq=freq,
+            alias=alias,
             loss=loss,
             valid_loss=valid_loss,
             max_steps=max_steps,
@@ -124,6 +126,7 @@ class TimeBaseTrend(_BaseTimeBaseModel):
         basis_num: int = DEFAULT_BASIS_NUM,
         moving_avg_window: int | None = None,
         freq: str | None = None,
+        alias: str | None = None,
         use_period_norm: bool = True,
         use_orthogonal: bool = False,
         orthogonal_weight: float = 0.0,
@@ -148,7 +151,7 @@ class TimeBaseTrend(_BaseTimeBaseModel):
         optimizer_kwargs: dict[str, Any] | None = None,
         lr_scheduler: type[torch.optim.lr_scheduler.LRScheduler] | None = None,
         lr_scheduler_kwargs: dict[str, Any] | None = None,
-        **trainer_kwargs: dict[str, Any],
+        **trainer_kwargs: Any,
     ) -> None:
         """Initialize the explicit TimeBase model with trend decomposition."""
         components = resolve_model_components(
@@ -166,6 +169,7 @@ class TimeBaseTrend(_BaseTimeBaseModel):
             h=h,
             model_settings=components.model_settings,
             freq=freq,
+            alias=alias,
             loss=loss,
             valid_loss=valid_loss,
             max_steps=max_steps,
