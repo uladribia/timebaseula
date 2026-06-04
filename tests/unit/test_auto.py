@@ -85,3 +85,12 @@ def test_autotimebasetrend_uses_timebasetrend_model_class() -> None:
 
     assert model.cls_model is TimeBaseTrend
     assert model.h == 14
+
+
+def test_auto_wrappers_create_fresh_default_state() -> None:
+    """Default auto losses and search algorithms should not be shared instances."""
+    model_a = AutoTimeBase(h=14, num_samples=1, cpus=1, gpus=0, backend="ray")
+    model_b = AutoTimeBase(h=14, num_samples=1, cpus=1, gpus=0, backend="ray")
+
+    assert model_a.loss is not model_b.loss
+    assert model_a.search_alg is not model_b.search_alg

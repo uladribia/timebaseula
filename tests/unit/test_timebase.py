@@ -106,6 +106,16 @@ class TestTimeBase:
         loss = model._compute_orthogonal_loss(basis)
         assert torch.isclose(loss, torch.tensor(0.0))
 
+    def test_orthogonal_loss_is_scale_invariant(self) -> None:
+        """Orthogonal regularization should measure angles instead of magnitude."""
+        model = TimeBase(h=4, input_size=8, period_len=4, basis_num=2)
+        basis = torch.tensor([[[1.0, 1.0], [0.0, 1.0], [0.0, 0.0], [0.0, 0.0]]])
+
+        loss = model._compute_orthogonal_loss(basis)
+        scaled_loss = model._compute_orthogonal_loss(10.0 * basis)
+
+        assert torch.allclose(loss, scaled_loss)
+
     @given(
         case=univariate_model_cases(),
         seed=st.integers(min_value=0, max_value=10_000),
@@ -339,3 +349,24 @@ class TestTimeBaseTrend:
         model = TimeBaseTrend(h=4, input_size=8, period_len=4, basis_num=4)
 
         assert model.SAMPLING_TYPE == "multivariate"
+
+
+@pytest.mark.parametrize("model_cls", [TimeBase, TimeBaseTrend])
+def test_explicit_models_store_alias(
+    model_cls: type[TimeBase] | type[TimeBaseTrend],
+) -> None:
+    """Explicit TimeBase models should expose NeuralForecast-style aliases."""
+    model = model_cls(h=4, input_size=8, period_len=4, basis_num=4, alias="custom")
+
+    assert model.alias == "custom"
+
+
+@pytest.mark.parametrize("model_cls", [TimeBase, TimeBaseTrend])
+def test_explicit_models_create_fresh_default_loss(
+    model_cls: type[TimeBase] | type[TimeBaseTrend],
+) -> None:
+    """Explicit TimeBase models should not share default loss instances."""
+    model_a = model_cls(h=4, input_size=8, period_len=4, basis_num=4)
+    model_b = model_cls(h=4, input_size=8, period_len=4, basis_num=4)
+
+    assert model_a.loss is not model_b.loss

@@ -6,10 +6,20 @@ from os import cpu_count
 from typing import Any
 
 import torch
-from neuralforecast.common._base_auto import BaseAuto
 from neuralforecast.losses.pytorch import MAE
-from ray import tune
-from ray.tune.search.basic_variant import BasicVariantGenerator
+
+try:
+    from neuralforecast.common._base_auto import BaseAuto
+    from ray import tune
+    from ray.tune.search.basic_variant import BasicVariantGenerator
+except ModuleNotFoundError as exc:
+    missing_module = exc.name or ""
+    if missing_module == "ray" or missing_module.startswith("ray."):
+        msg = (
+            "AutoTimeBase requires Ray; install TimeBaseUla with runtime dependencies."
+        )
+        raise ModuleNotFoundError(msg) from exc
+    raise
 
 from timebaseula.models.timebase import TimeBase, TimeBaseTrend
 
@@ -22,6 +32,11 @@ TIMEBASETREND_INPUT_SIZE_MULTIPLIERS = (3, 4, 5, 6)
 def _resolve_cpus(cpus: int | None) -> int:
     """Return a concrete CPU count for BaseAuto."""
     return 1 if cpus is None else cpus
+
+
+def _default_search_alg() -> BasicVariantGenerator:
+    """Create the default Ray search algorithm."""
+    return BasicVariantGenerator(random_state=1)
 
 
 class AutoTimeBase(BaseAuto):
@@ -45,10 +60,10 @@ class AutoTimeBase(BaseAuto):
     def __init__(
         self,
         h: int,
-        loss=MAE(),
-        valid_loss=None,
-        config=None,
-        search_alg=BasicVariantGenerator(random_state=1),
+        loss: Any | None = None,
+        valid_loss: Any | None = None,
+        config: Any | None = None,
+        search_alg: Any | None = None,
         num_samples: int = 10,
         refit_with_val: bool = False,
         cpus: int | None = cpu_count(),
@@ -61,14 +76,18 @@ class AutoTimeBase(BaseAuto):
         """Initialize the auto wrapper around :class:`TimeBase`."""
         if config is None:
             config = self.get_default_config(h=h, backend=backend)
+        resolved_loss = MAE() if loss is None else loss
+        resolved_search_alg = (
+            _default_search_alg() if search_alg is None else search_alg
+        )
 
         super().__init__(
             cls_model=TimeBase,
             h=h,
-            loss=loss,
+            loss=resolved_loss,
             valid_loss=valid_loss,
             config=config,
-            search_alg=search_alg,
+            search_alg=resolved_search_alg,
             num_samples=num_samples,
             refit_with_val=refit_with_val,
             cpus=_resolve_cpus(cpus),
@@ -118,10 +137,10 @@ class AutoTimeBaseTrend(BaseAuto):
     def __init__(
         self,
         h: int,
-        loss=MAE(),
-        valid_loss=None,
-        config=None,
-        search_alg=BasicVariantGenerator(random_state=1),
+        loss: Any | None = None,
+        valid_loss: Any | None = None,
+        config: Any | None = None,
+        search_alg: Any | None = None,
         num_samples: int = 10,
         refit_with_val: bool = False,
         cpus: int | None = cpu_count(),
@@ -134,14 +153,18 @@ class AutoTimeBaseTrend(BaseAuto):
         """Initialize the auto wrapper around :class:`TimeBaseTrend`."""
         if config is None:
             config = self.get_default_config(h=h, backend=backend)
+        resolved_loss = MAE() if loss is None else loss
+        resolved_search_alg = (
+            _default_search_alg() if search_alg is None else search_alg
+        )
 
         super().__init__(
             cls_model=TimeBaseTrend,
             h=h,
-            loss=loss,
+            loss=resolved_loss,
             valid_loss=valid_loss,
             config=config,
-            search_alg=search_alg,
+            search_alg=resolved_search_alg,
             num_samples=num_samples,
             refit_with_val=refit_with_val,
             cpus=_resolve_cpus(cpus),

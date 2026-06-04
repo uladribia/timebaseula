@@ -26,7 +26,7 @@ from timebaseula.models.config import (
     TimeBaseRegularizationConfig,
 )
 from timebaseula.models.core import TimeBaseCore
-from timebaseula.models.defaults import DEFAULT_LOSS
+from timebaseula.models.defaults import create_default_loss
 from timebaseula.models.factories import build_timebase_core
 
 
@@ -63,6 +63,7 @@ class _BaseTimeBaseModel(BaseMultivariate):
         h: int,
         model_settings: ModelSettings,
         freq: str | None,
+        alias: str | None,
         loss: nn.Module | None,
         valid_loss: nn.Module | None,
         max_steps: int,
@@ -89,7 +90,7 @@ class _BaseTimeBaseModel(BaseMultivariate):
         BaseModel.__init__(
             self,
             random_seed=random_seed,
-            loss=DEFAULT_LOSS if loss is None else loss,
+            loss=create_default_loss() if loss is None else loss,
             valid_loss=valid_loss,
             optimizer=optimizer,
             optimizer_kwargs=optimizer_kwargs,
@@ -128,7 +129,7 @@ class _BaseTimeBaseModel(BaseMultivariate):
         self.dataloader_kwargs = None
         self.drop_last_loader = drop_last_loader
         self.validation_step_outputs = []
-        self.alias = None
+        self.alias = alias
         self.decompose_forecast = False
         self.val_size = 0
         self.test_size = 0
@@ -142,8 +143,9 @@ class _BaseTimeBaseModel(BaseMultivariate):
 
     @staticmethod
     def _compute_orthogonal_loss(basis: torch.Tensor) -> torch.Tensor:
-        """Compute the orthogonal regularization term for basis components."""
-        gram = torch.matmul(basis.transpose(-2, -1), basis)
+        """Compute scale-invariant orthogonal regularization for basis components."""
+        normalized_basis = nn.functional.normalize(basis, p=2, dim=-2)
+        gram = torch.matmul(normalized_basis.transpose(-2, -1), normalized_basis)
         diagonal = torch.diagonal(gram, dim1=-2, dim2=-1)
         off_diagonal = gram - torch.diag_embed(diagonal)
         return torch.norm(off_diagonal, dim=(-2, -1)).mean()
